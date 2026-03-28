@@ -16,12 +16,10 @@ class DenseLayer(Layer):
                  n_in:      int,
                  n_out:     int,
                  activation: Activation,
-                 dropout:   float = 0.0,
                  is_output: bool  = False):
         self.n_in      = n_in
         self.n_out     = n_out
         self.activation = activation
-        self.dropout   = dropout
         self.is_output = is_output
 
         # He initialisation
@@ -33,7 +31,6 @@ class DenseLayer(Layer):
         self._x:    np.ndarray | None = None   # input
         self._z:    np.ndarray | None = None   # pre-activation
         self._a:    np.ndarray | None = None   # post-activation
-        self._mask: np.ndarray | None = None   # dropout mask
         self._dW:   np.ndarray | None = None
         self._db:   np.ndarray | None = None
 
@@ -47,12 +44,6 @@ class DenseLayer(Layer):
             a = 1.0 / (1.0 + np.exp(-np.clip(self._z, -500, 500)))
         else:
             a = self.activation.forward(self._z)
-            if training and self.dropout > 0.0:
-                keep = 1.0 - self.dropout
-                self._mask = (np.random.rand(*a.shape) < keep).astype(float) / keep
-                a = a * self._mask
-            else:
-                self._mask = None
 
         self._a = a
         return a
@@ -65,8 +56,6 @@ class DenseLayer(Layer):
         Returns delta for the previous layer.
         """
         if not self.is_output:
-            if self._mask is not None:
-                delta = delta * self._mask
             act_d = self.activation.derivative(self._z)
             delta = delta * act_d
 
@@ -89,7 +78,6 @@ class DenseLayer(Layer):
             "n_in":       self.n_in,
             "n_out":      self.n_out,
             "activation": self.activation.name,
-            "dropout":    self.dropout,
             "is_output":  self.is_output,
             "W":          self.W.tolist(),
             "b":          self.b.tolist(),
@@ -99,7 +87,6 @@ class DenseLayer(Layer):
     def from_dict(cls, d: dict) -> "DenseLayer":
         act = ACTIVATIONS[d["activation"]]
         layer = cls(d["n_in"], d["n_out"], act,
-                    dropout=d.get("dropout", 0.0),
                     is_output=d.get("is_output", False))
         layer.W = np.array(d["W"], dtype=np.float64)
         layer.b = np.array(d["b"], dtype=np.float64)

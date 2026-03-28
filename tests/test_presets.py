@@ -173,19 +173,26 @@ class TestSpiralPreset:
         assert p.key == "preset_spiral"
 
     def test_spiral_deep(self):
-        """Should have deep architecture."""
+        """Should have deep architecture with dropout."""
         p = SpiralPreset()
-        assert len(p.layers) == 4
+        # 4 dense layers + 3 dropout layers
+        assert len(p.layers) == 7
+        dense_layers = [l for l in p.layers if l["type"] == "dense"]
+        dropout_layers = [l for l in p.layers if l["type"] == "dropout"]
+        assert len(dense_layers) == 4
+        assert len(dropout_layers) == 3
 
     def test_spiral_regularization(self):
         """Should have dropout for regularization."""
         p = SpiralPreset()
-        assert p.dropout == 0.1
+        dropout_layers = [l for l in p.layers if l["type"] == "dropout"]
+        assert all(l["rate"] == 0.1 for l in dropout_layers)
 
     def test_spiral_leakyrelu(self):
         """Should use LeakyReLU activation."""
         p = SpiralPreset()
-        assert all(l["activation"] == "leakyrelu" for l in p.layers)
+        dense_layers = [l for l in p.layers if l["type"] == "dense"]
+        assert all(l["activation"] == "leakyrelu" for l in dense_layers)
 
 
 class TestAutoencoderPreset:
@@ -232,10 +239,15 @@ class TestRegularisedPreset:
         assert p.key == "preset_regularised"
 
     def test_regularised_very_deep(self):
-        """Should have very deep architecture."""
+        """Should have very deep architecture with dropout."""
         p = RegularisedPreset()
-        assert len(p.layers) == 5
-        assert all(l["neurons"] == 16 for l in p.layers)
+        # 5 dense layers + 4 dropout layers
+        assert len(p.layers) == 9
+        dense_layers = [l for l in p.layers if l["type"] == "dense"]
+        dropout_layers = [l for l in p.layers if l["type"] == "dropout"]
+        assert len(dense_layers) == 5
+        assert len(dropout_layers) == 4
+        assert all(l["neurons"] == 16 for l in dense_layers)
 
     def test_regularised_adamw(self):
         """Should use AdamW optimizer."""
@@ -245,12 +257,14 @@ class TestRegularisedPreset:
     def test_regularised_gelu(self):
         """Should use GELU activation."""
         p = RegularisedPreset()
-        assert all(l["activation"] == "gelu" for l in p.layers)
+        dense_layers = [l for l in p.layers if l["type"] == "dense"]
+        assert all(l["activation"] == "gelu" for l in dense_layers)
 
     def test_regularised_strong_regularization(self):
         """Should have strong regularization."""
         p = RegularisedPreset()
-        assert p.dropout == 0.2
+        dropout_layers = [l for l in p.layers if l["type"] == "dropout"]
+        assert all(l["rate"] == 0.2 for l in dropout_layers)
         assert p.weight_decay == 0.01
 
 
@@ -286,7 +300,11 @@ class TestAllPresets:
         """Layers should have correct structure."""
         p = preset_class()
         for layer in p.layers:
-            assert "neurons" in layer
-            assert "activation" in layer
             assert "type" in layer
-            assert layer["type"] == "dense"
+            if layer["type"] == "dense":
+                assert "neurons" in layer
+                assert "activation" in layer
+            elif layer["type"] == "dropout":
+                assert "rate" in layer
+            elif layer["type"] == "batchnorm":
+                pass  # No additional params needed

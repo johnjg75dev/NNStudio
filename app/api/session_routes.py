@@ -17,7 +17,7 @@ session_bp = Blueprint("session", __name__)
 def build():
     """
     Build a new network for this session.
-    Body: { func_key, arch_key, layers, inputs, outputs, activation, optimizer, lr, loss, dropout, weight_decay }
+    Body: { func_key, arch_key, layers, inputs, outputs, activation, optimizer, lr, loss, weight_decay }
     """
     body = request.get_json(force=True)
     registry = get_registry()
@@ -38,7 +38,6 @@ def build():
         "optimizer":     body.get("optimizer", "adam"),
         "lr":            float(body.get("lr", 0.01)),
         "loss":          body.get("loss", "bce"),
-        "dropout":       float(body.get("dropout", 0.0)),
         "weight_decay":  float(body.get("weight_decay", 0.0)),
         "func_key":      func_key,
         "arch_key":      body.get("arch_key", "mlp"),
@@ -66,26 +65,35 @@ def reset_weights():
     ts.network._build_layers() if hasattr(ts.network, "_build_layers") else None
     # Rebuild layers in-place
     from app.core.network import NetworkBuilder
-    
+    from app.core.layers import DropoutLayer, BatchNormLayer
+
     # Build layers config from existing network
     layers_config = []
     for i, layer in enumerate(ts.network.layers[:-1]):  # Exclude output layer
-        layers_config.append({
-            "type": "dense",
-            "neurons": layer.n_out,
-            "activation": layer.activation.name,
-            "dropout": layer.dropout,
-        })
-    
+        if isinstance(layer, DropoutLayer):
+            layers_config.append({
+                "type": "dropout",
+                "rate": layer.rate,
+            })
+        elif isinstance(layer, BatchNormLayer):
+            layers_config.append({
+                "type": "batchnorm",
+            })
+        else:
+            layers_config.append({
+                "type": "dense",
+                "neurons": layer.n_out,
+                "activation": layer.activation.name,
+            })
+
     cfg = {
         "inputs":        ts.network.topology[0],
         "outputs":       ts.network.topology[-1],
         "layers":        layers_config,
-        "activation":    ts.network.layers[0].activation.name,
+        "activation":    ts.network.layers[0].activation.name if hasattr(ts.network.layers[0], 'activation') else "tanh",
         "optimizer":     ts.network.optimizer.__class__.__name__.lower(),
         "lr":            ts.network.optimizer.lr,
         "loss":          ts.network.loss_fn.name,
-        "dropout":       ts.network.layers[0].dropout,
         "weight_decay":  getattr(ts.network.optimizer, "weight_decay", 0.0),
         "func_key":      ts.func_key,
         "arch_key":      ts.arch_key,

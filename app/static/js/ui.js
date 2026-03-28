@@ -208,7 +208,7 @@ class UIController {
   // LAYER EDITOR
   // ════════════════════════════════════════════════════════
   _initLayerEditor() {
-    this._layers = []; // Local state for layer configs: [{ neurons: 4, activation: 'tanh' }]
+    this._layers = []; // Local state for layer configs: [{ type: 'dense', neurons: 4, activation: 'tanh' }]
     const container = document.getElementById("layersContainer");
     const addBtn = document.getElementById("addLayerBtn");
     const inputNeuronsEl = document.getElementById("inputNeurons");
@@ -231,14 +231,15 @@ class UIController {
       this._emit("controlChanged", this.getConfig());
     });
 
+    // Add Dense layer button
     addBtn?.addEventListener("click", () => {
-      this.addLayer({ neurons: 4, activation: _val("actSel") || "tanh" });
+      this.addLayer({ type: "dense", neurons: 4, activation: _val("actSel") || "tanh" });
       this._emit("controlChanged", this.getConfig());
     });
 
     // Seed with one layer by default
     if (this._layers.length === 0) {
-      this.addLayer({ neurons: 4, activation: "tanh" });
+      this.addLayer({ type: "dense", neurons: 4, activation: "tanh" });
     }
   }
 
@@ -256,38 +257,114 @@ class UIController {
     div.id = `layer-${layer.id}`;
     div.style = "display: flex; gap: 4px; align-items: center; margin-bottom: 4px; background: var(--surf2); padding: 4px; border-radius: 4px; border: 1px solid var(--border);";
 
+    // Layer type badge
+    const typeBadge = document.createElement("span");
+    const layerType = layer.type || "dense";
+    typeBadge.textContent = layerType === "dense" ? "D" : layerType === "dropout" ? "DO" : "BN";
+    typeBadge.title = layerType === "dense" ? "Dense" : layerType === "dropout" ? "Dropout" : "BatchNorm";
+    typeBadge.style = "font-size: 9px; color: #fff; font-weight: bold; width: 24px; text-align: center; border-radius: 3px; padding: 2px 0; background: " + 
+      (layerType === "dense" ? "var(--accent)" : layerType === "dropout" ? "var(--yellow)" : "var(--green)");
+
     // Layer index label
     const idxLbl = document.createElement("span");
-    idxLbl.textContent = `H${index}`;
-    idxLbl.style = "font-size: 10px; color: var(--accent); font-weight: bold; width: 24px;";
+    idxLbl.textContent = `${index}`;
+    idxLbl.style = "font-size: 10px; color: var(--text2); font-weight: bold; width: 20px;";
 
-    // Neuron count
-    const nInput = document.createElement("input");
-    nInput.type = "number";
-    nInput.value = layer.neurons;
-    nInput.min = 1;
-    nInput.max = 64;
-    nInput.style = "width: 45px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px;";
-    nInput.addEventListener("input", () => {
-      layer.neurons = parseInt(nInput.value) || 1;
+    // Type selector
+    const typeSelect = document.createElement("select");
+    typeSelect.innerHTML = '<option value="dense">Dense</option><option value="dropout">Dropout</option><option value="batchnorm">BatchNorm</option>';
+    typeSelect.value = layerType;
+    typeSelect.style = "font-size: 10px; padding: 2px; height: auto; width: 80px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px;";
+    typeSelect.addEventListener("change", () => {
+      const newType = typeSelect.value;
+      if (newType === "dropout") {
+        layer.type = "dropout";
+        layer.rate = 0.5;
+        delete layer.neurons;
+        delete layer.activation;
+      } else if (newType === "batchnorm") {
+        layer.type = "batchnorm";
+        delete layer.neurons;
+        delete layer.activation;
+        delete layer.rate;
+      } else {
+        layer.type = "dense";
+        layer.neurons = layer.neurons || 4;
+        layer.activation = layer.activation || "tanh";
+        delete layer.rate;
+      }
+      this._rerenderLayerIndices();
       this._emit("controlChanged", this.getConfig());
     });
 
-    // Label
-    const lbl = document.createElement("span");
-    lbl.textContent = "neurons";
-    lbl.style = "font-size: 10px; color: var(--text2); flex: 1;";
+    // Type-specific controls container
+    const controlsDiv = document.createElement("div");
+    controlsDiv.style = "display: flex; gap: 4px; align-items: center; flex: 1;";
 
-    // Activation
-    const actSel = document.getElementById("actSel")?.cloneNode(true);
-    if (actSel) {
-      actSel.id = ""; // remove id
-      actSel.value = layer.activation;
-      actSel.style = "font-size: 10px; padding: 2px; height: auto; width: auto;";
-      actSel.addEventListener("change", () => {
-        layer.activation = actSel.value;
+    if (layerType === "dense") {
+      // Neuron count
+      const nInput = document.createElement("input");
+      nInput.type = "number";
+      nInput.value = layer.neurons || 4;
+      nInput.min = 1;
+      nInput.max = 256;
+      nInput.style = "width: 45px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      nInput.addEventListener("input", () => {
+        layer.neurons = parseInt(nInput.value) || 1;
         this._emit("controlChanged", this.getConfig());
       });
+
+      // Label
+      const lbl = document.createElement("span");
+      lbl.textContent = "neurons";
+      lbl.style = "font-size: 10px; color: var(--text2);";
+
+      // Activation
+      const actSel = document.getElementById("actSel")?.cloneNode(true);
+      if (actSel) {
+        actSel.id = "";
+        actSel.value = layer.activation || "tanh";
+        actSel.style = "font-size: 10px; padding: 2px; height: auto; width: auto;";
+        actSel.addEventListener("change", () => {
+          layer.activation = actSel.value;
+          this._emit("controlChanged", this.getConfig());
+        });
+      }
+
+      controlsDiv.appendChild(nInput);
+      controlsDiv.appendChild(lbl);
+      if (actSel) controlsDiv.appendChild(actSel);
+    } else if (layerType === "dropout") {
+      // Dropout rate
+      const rateInput = document.createElement("input");
+      rateInput.type = "range";
+      rateInput.min = 0;
+      rateInput.max = 0.9;
+      rateInput.step = 0.05;
+      rateInput.value = layer.rate ?? 0.5;
+      rateInput.style = "width: 80px;";
+      rateInput.addEventListener("input", () => {
+        layer.rate = parseFloat(rateInput.value);
+        rateVal.textContent = layer.rate.toFixed(2);
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      const rateVal = document.createElement("span");
+      rateVal.textContent = (layer.rate ?? 0.5).toFixed(2);
+      rateVal.style = "font-size: 10px; color: var(--text2); width: 35px;";
+
+      const rateLbl = document.createElement("span");
+      rateLbl.textContent = "rate";
+      rateLbl.style = "font-size: 10px; color: var(--text2);";
+
+      controlsDiv.appendChild(rateInput);
+      controlsDiv.appendChild(rateLbl);
+      controlsDiv.appendChild(rateVal);
+    } else if (layerType === "batchnorm") {
+      const bnLbl = document.createElement("span");
+      bnLbl.textContent = "Normalize features";
+      bnLbl.style = "font-size: 10px; color: var(--text2);";
+      controlsDiv.appendChild(bnLbl);
     }
 
     // Delete
@@ -301,10 +378,10 @@ class UIController {
       this._emit("controlChanged", this.getConfig());
     });
 
+    div.appendChild(typeBadge);
     div.appendChild(idxLbl);
-    div.appendChild(nInput);
-    div.appendChild(lbl);
-    if (actSel) div.appendChild(actSel);
+    div.appendChild(typeSelect);
+    div.appendChild(controlsDiv);
     div.appendChild(delBtn);
     container.appendChild(div);
   }
@@ -713,12 +790,19 @@ class UIController {
       func_key:      _val("funcSel"),
       inputs:        parseInt(_val("inputNeurons")) || 2,
       outputs:       parseInt(_val("outputNeurons")) || 1,
-      layers:        this._layers.map(l => ({ neurons: l.neurons, activation: l.activation, type: "dense" })),
+      layers:        this._layers.map(l => {
+        if (l.type === "dropout") {
+          return { type: "dropout", rate: l.rate ?? 0.5 };
+        } else if (l.type === "batchnorm") {
+          return { type: "batchnorm" };
+        } else {
+          return { type: "dense", neurons: l.neurons || 4, activation: l.activation || "tanh" };
+        }
+      }),
       activation:    _val("actSel"),
       optimizer:     _val("optSel"),
       loss:          _val("lossSel"),
       lr:            Math.pow(10, +_val("lrSl")),
-      dropout:       +_val("dropSl"),
       weight_decay:  +_val("wdSl"),
       steps:         +_val("stepsSl"),
     };
@@ -747,11 +831,10 @@ class UIController {
     _setVal("optSel",    p.optimizer);
     _setVal("lossSel",   p.loss);
     _setVal("lrSl",      Math.log10(p.lr).toFixed(2));
-    _setVal("dropSl",    p.dropout  ?? 0);
     _setVal("wdSl",      p.weight_decay ?? 0);
 
     // Trigger display updates
-    ["lrSl","dropSl","wdSl"].forEach(id => {
+    ["lrSl","wdSl"].forEach(id => {
       document.getElementById(id)?.dispatchEvent(new Event("input"));
     });
     ["archSel","funcSel","actSel","optSel","lossSel"].forEach(id => {

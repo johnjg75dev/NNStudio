@@ -48,7 +48,6 @@ def simple_layer():
         n_in=2,
         n_out=4,
         activation=ACTIVATIONS["tanh"],
-        dropout=0.0,
         is_output=False
     )
 
@@ -61,7 +60,6 @@ def output_layer():
         n_in=4,
         n_out=1,
         activation=ACTIVATIONS["sigmoid"],
-        dropout=0.0,
         is_output=True
     )
 

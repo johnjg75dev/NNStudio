@@ -120,14 +120,6 @@
       <option value="mae">MAE</option>
     </select>
 
-    <label>Dropout
-      <span class="ti" data-tip="<b>Dropout</b><br>Randomly zeros activations during training.<br><br><span class='tp'>Regularises:</span> Prevents co-adaptation of neurons<br><span class='tc'>Too high:</span> Network can't learn patterns<br><span class='tr'>Typical: 0 (off), 0.1–0.3. Disabled at inference.</span>">?</span>
-    </label>
-    <div class="row">
-      <input type="range" id="dropSl" min="0" max="0.5" step="0.05" value="0">
-      <span class="val" id="dropV">0</span>
-    </div>
-
     <label>Weight Decay
       <span class="ti" data-tip="<b>Weight Decay (L2 Regularisation)</b><br>Penalises large weights to keep the model simple.<br><br><span class='tp'>Higher:</span> Better generalisation<br><span class='tc'>Too high:</span> Underfitting — weights shrink to zero<br><span class='tr'>Typical: 0 (off) to 0.01. AdamW default: 0.01</span>">?</span>
     </label>

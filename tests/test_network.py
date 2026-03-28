@@ -334,21 +334,23 @@ class TestNetworkBuilder:
         assert network.layers[1].activation.name == "tanh"
 
     def test_build_with_dropout(self):
-        """Should build network with dropout."""
+        """Should build network with dropout layer."""
         config = {
             "inputs": 2,
             "outputs": 1,
             "layers": [
-                {"neurons": 8, "activation": "relu", "type": "dense", "dropout": 0.2},
+                {"neurons": 8, "activation": "relu", "type": "dense"},
+                {"type": "dropout", "rate": 0.2},
             ],
             "optimizer": "adam",
             "loss": "bce",
             "lr": 0.01,
-            "dropout": 0.2,
         }
         network = NetworkBuilder.build(config)
-        
-        assert network.layers[0].dropout == 0.2
+
+        assert len(network.layers) == 3  # dense + dropout + output
+        assert network.layers[1].__class__.__name__ == "DropoutLayer"
+        assert network.layers[1].rate == 0.2
 
     def test_build_different_optimizers(self):
         """Should build network with different optimizers."""

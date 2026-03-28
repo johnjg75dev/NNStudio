@@ -42,11 +42,6 @@ class TestDenseLayerInit:
         layer = DenseLayer(n_in=10, n_out=1, activation=ACTIVATIONS["sigmoid"], is_output=True)
         assert layer.is_output is True
 
-    def test_dropout_default(self):
-        """Default dropout should be 0."""
-        layer = DenseLayer(n_in=10, n_out=5, activation=ACTIVATIONS["relu"])
-        assert layer.dropout == 0.0
-
 
 class TestDenseLayerForward:
     """Test DenseLayer forward pass."""
@@ -61,11 +56,11 @@ class TestDenseLayerForward:
         """Forward should compute W @ x + b."""
         np.random.seed(42)
         layer = DenseLayer(n_in=3, n_out=2, activation=ACTIVATIONS["relu"])
-        
+
         x = np.array([1.0, 2.0, 3.0])
         z = layer.W @ x + layer.b
         expected = np.maximum(0, z)  # ReLU
-        
+
         output = layer.forward(x)
         np.testing.assert_array_almost_equal(output, expected)
 
@@ -87,36 +82,9 @@ class TestDenseLayerForward:
         np.random.seed(42)
         x = np.random.randn(4)
         output = output_layer.forward(x)
-        
+
         # Sigmoid output should be in (0, 1)
         assert np.all(output > 0) and np.all(output < 1)
-
-    def test_forward_with_dropout(self):
-        """Forward with dropout should apply mask in training mode."""
-        np.random.seed(42)
-        layer = DenseLayer(n_in=10, n_out=10, activation=ACTIVATIONS["relu"], dropout=0.5)
-        
-        x = np.ones(10)
-        
-        # Training mode - should apply dropout
-        output_train = layer.forward(x, training=True)
-        assert layer._mask is not None
-        
-        # Some activations should be zeroed
-        n_zero = np.sum(output_train == 0)
-        assert n_zero > 0
-
-    def test_forward_dropout_eval_mode(self):
-        """Forward in eval mode should not apply dropout mask."""
-        np.random.seed(42)
-        layer = DenseLayer(n_in=10, n_out=10, activation=ACTIVATIONS["relu"], dropout=0.5)
-        
-        x = np.ones(10)
-        output = layer.forward(x, training=False)
-        
-        assert layer._mask is None
-        # Note: ReLU can still produce zeros for negative pre-activations
-        # Just check that the layer runs without applying dropout mask
 
 
 class TestDenseLayerBackward:
@@ -181,23 +149,6 @@ class TestDenseLayerBackward:
         # db = delta (for ReLU where activation is positive)
         np.testing.assert_array_almost_equal(layer._db, delta, decimal=5)
 
-    def test_backward_with_dropout(self):
-        """Backward should apply dropout mask to gradient."""
-        np.random.seed(42)
-        layer = DenseLayer(n_in=10, n_out=10, activation=ACTIVATIONS["relu"], dropout=0.5)
-        
-        x = np.ones(10)
-        layer.forward(x, training=True)
-        
-        delta = np.ones(10)
-        layer.backward(delta)
-        
-        # Gradients should be zero where mask was zero
-        mask_zero = layer._mask == 0
-        if np.any(mask_zero):
-            # Check that gradient flow was blocked
-            pass  # Implementation dependent
-
 
 class TestDenseLayerUpdate:
     """Test DenseLayer weight updates."""
@@ -227,12 +178,11 @@ class TestDenseLayerSerialization:
     def test_to_dict(self, simple_layer):
         """to_dict should serialize layer config and weights."""
         d = simple_layer.to_dict()
-        
+
         assert d["type"] == "dense"
         assert d["n_in"] == 2
         assert d["n_out"] == 4
         assert d["activation"] == "tanh"
-        assert d["dropout"] == 0.0
         assert d["is_output"] is False
         assert "W" in d
         assert "b" in d
@@ -241,7 +191,7 @@ class TestDenseLayerSerialization:
         """from_dict should reconstruct layer from dict."""
         d = simple_layer.to_dict()
         restored = DenseLayer.from_dict(d)
-        
+
         assert restored.n_in == simple_layer.n_in
         assert restored.n_out == simple_layer.n_out
         assert restored.activation.name == simple_layer.activation.name
@@ -252,9 +202,8 @@ class TestDenseLayerSerialization:
         """to_dict -> from_dict should produce identical layer."""
         np.random.seed(42)
         original = DenseLayer(
-            n_in=5, n_out=3, 
+            n_in=5, n_out=3,
             activation=ACTIVATIONS["relu"],
-            dropout=0.1,
             is_output=False
         )
         

@@ -16,8 +16,6 @@ class TinyXORPreset(PresetModule):
     optimizer     = "adam"
     loss          = "bce"
     lr            = 0.1
-    dropout       = 0.0
-    weight_decay  = 0.0
 
 
 class ANDGatePreset(PresetModule):
@@ -30,8 +28,6 @@ class ANDGatePreset(PresetModule):
     optimizer     = "adam"
     loss          = "bce"
     lr            = 0.05
-    dropout       = 0.0
-    weight_decay  = 0.0
 
 
 class SevenSegmentPreset(PresetModule):
@@ -47,8 +43,6 @@ class SevenSegmentPreset(PresetModule):
     optimizer     = "adam"
     loss          = "mse"
     lr            = 0.02
-    dropout       = 0.0
-    weight_decay  = 0.0
 
 
 class ParityPreset(PresetModule):
@@ -65,8 +59,6 @@ class ParityPreset(PresetModule):
     optimizer     = "adam"
     loss          = "bce"
     lr            = 0.01
-    dropout       = 0.0
-    weight_decay  = 0.0
 
 
 class SineFitPreset(PresetModule):
@@ -82,8 +74,6 @@ class SineFitPreset(PresetModule):
     optimizer     = "adam"
     loss          = "mse"
     lr            = 0.005
-    dropout       = 0.0
-    weight_decay  = 0.0
 
 
 class HalfAdderPreset(PresetModule):
@@ -96,8 +86,6 @@ class HalfAdderPreset(PresetModule):
     optimizer     = "adam"
     loss          = "bce"
     lr            = 0.05
-    dropout       = 0.0
-    weight_decay  = 0.0
 
 
 class SpiralPreset(PresetModule):
@@ -108,15 +96,16 @@ class SpiralPreset(PresetModule):
     func_key      = "spiral"
     layers        = [
         {"neurons": 12, "activation": "leakyrelu", "type": "dense"},
+        {"type": "dropout", "rate": 0.1},
         {"neurons": 12, "activation": "leakyrelu", "type": "dense"},
+        {"type": "dropout", "rate": 0.1},
         {"neurons": 12, "activation": "leakyrelu", "type": "dense"},
+        {"type": "dropout", "rate": 0.1},
         {"neurons": 12, "activation": "leakyrelu", "type": "dense"}
     ]
     optimizer     = "adam"
     loss          = "bce"
     lr            = 0.005
-    dropout       = 0.1
-    weight_decay  = 0.001
 
 
 class AutoencoderPreset(PresetModule):
@@ -132,8 +121,6 @@ class AutoencoderPreset(PresetModule):
     optimizer     = "adam"
     loss          = "mse"
     lr            = 0.01
-    dropout       = 0.0
-    weight_decay  = 0.0
 
 
 class CirclePreset(PresetModule):
@@ -149,8 +136,6 @@ class CirclePreset(PresetModule):
     optimizer     = "adam"
     loss          = "bce"
     lr            = 0.02
-    dropout       = 0.0
-    weight_decay  = 0.0
 
 
 class RegularisedPreset(PresetModule):
@@ -161,13 +146,16 @@ class RegularisedPreset(PresetModule):
     func_key      = "spiral"
     layers        = [
         {"neurons": 16, "activation": "gelu", "type": "dense"},
+        {"type": "dropout", "rate": 0.2},
         {"neurons": 16, "activation": "gelu", "type": "dense"},
+        {"type": "dropout", "rate": 0.2},
         {"neurons": 16, "activation": "gelu", "type": "dense"},
+        {"type": "dropout", "rate": 0.2},
         {"neurons": 16, "activation": "gelu", "type": "dense"},
+        {"type": "dropout", "rate": 0.2},
         {"neurons": 16, "activation": "gelu", "type": "dense"}
     ]
     optimizer     = "adamw"
     loss          = "bce"
     lr            = 0.003
-    dropout       = 0.2
     weight_decay  = 0.01

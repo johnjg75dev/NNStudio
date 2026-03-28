@@ -157,25 +157,31 @@ class NetworkBuilder:
             l_type = lc.get("type", "dense")
             l_cls  = LAYER_TYPES.get(l_type, DenseLayer)
 
-            n_neurons = int(lc.get("neurons", 4))
-            act       = ACTIVATIONS.get(lc.get("activation", "tanh"), ACTIVATIONS["tanh"])
-            drop      = float(lc.get("dropout", 0.0))
+            if l_type == "dropout":
+                # Dropout layer: no input/output size needed
+                rate = float(lc.get("rate", 0.5))
+                layers.append(l_cls(rate=rate))
+            elif l_type == "batchnorm":
+                # BatchNorm layer: needs feature count
+                layers.append(l_cls(n_features=curr_in))
+            else:
+                # Dense layer
+                n_neurons = int(lc.get("neurons", 4))
+                act       = ACTIVATIONS.get(lc.get("activation", "tanh"), ACTIVATIONS["tanh"])
 
-            layers.append(l_cls(
-                n_in=curr_in,
-                n_out=n_neurons,
-                activation=act,
-                dropout=drop,
-                is_output=False
-            ))
-            curr_in = n_neurons
+                layers.append(l_cls(
+                    n_in=curr_in,
+                    n_out=n_neurons,
+                    activation=act,
+                    is_output=False
+                ))
+                curr_in = n_neurons
 
         # Always add final output layer
         layers.append(DenseLayer(
             n_in=curr_in,
             n_out=n_out,
-            activation=ACTIVATIONS["sigmoid"], # Sigmoid for final
-            dropout=0.0,
+            activation=ACTIVATIONS["sigmoid"],  # Sigmoid for final
             is_output=True
         ))
 
