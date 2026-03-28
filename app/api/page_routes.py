@@ -11,9 +11,7 @@ page_bp = Blueprint("pages", __name__)
 @page_bp.get("/")
 def index():
     registry = get_registry()
-    data = registry.to_dict()
-    print(data)
     return render_template(
         "pages/index.html",
-        registry=data,
+        registry=registry.to_dict(),
     )

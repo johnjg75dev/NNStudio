@@ -12,7 +12,6 @@ from app.core.network import NeuralNetwork
 
 session_bp = Blueprint("session", __name__)
 
-
 @session_bp.post("/build")
 @api_route
 def build():
