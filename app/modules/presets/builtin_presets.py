@@ -12,9 +12,7 @@ class TinyXORPreset(PresetModule):
     description   = "Minimal 2-3-1 network solving XOR. Great first experiment."
     arch_key      = "mlp"
     func_key      = "xor"
-    hidden_layers = 1
-    neurons       = 3
-    activation    = "tanh"
+    layers        = [{"neurons": 3, "activation": "tanh", "type": "dense"}]
     optimizer     = "adam"
     loss          = "bce"
     lr            = 0.1
@@ -28,9 +26,7 @@ class ANDGatePreset(PresetModule):
     description   = "Linearly separable — converges fast with a single hidden layer."
     arch_key      = "mlp"
     func_key      = "and"
-    hidden_layers = 1
-    neurons       = 2
-    activation    = "sigmoid"
+    layers        = [{"neurons": 2, "activation": "sigmoid", "type": "dense"}]
     optimizer     = "adam"
     loss          = "bce"
     lr            = 0.05
@@ -44,9 +40,10 @@ class SevenSegmentPreset(PresetModule):
     description   = "Teach the network all 10 digit patterns for a 7-segment display."
     arch_key      = "mlp"
     func_key      = "seg7"
-    hidden_layers = 2
-    neurons       = 10
-    activation    = "tanh"
+    layers        = [
+        {"neurons": 10, "activation": "tanh", "type": "dense"},
+        {"neurons": 10, "activation": "tanh", "type": "dense"}
+    ]
     optimizer     = "adam"
     loss          = "mse"
     lr            = 0.02
@@ -60,9 +57,11 @@ class ParityPreset(PresetModule):
     description   = "4-bit parity — needs 3+ hidden layers to learn the complex XOR pattern."
     arch_key      = "mlp"
     func_key      = "parity"
-    hidden_layers = 3
-    neurons       = 8
-    activation    = "relu"
+    layers        = [
+        {"neurons": 8, "activation": "relu", "type": "dense"},
+        {"neurons": 8, "activation": "relu", "type": "dense"},
+        {"neurons": 8, "activation": "relu", "type": "dense"}
+    ]
     optimizer     = "adam"
     loss          = "bce"
     lr            = 0.01
@@ -76,9 +75,10 @@ class SineFitPreset(PresetModule):
     description   = "Regression task: approximate sin(2πx). Tests smooth function fitting."
     arch_key      = "mlp"
     func_key      = "sine"
-    hidden_layers = 2
-    neurons       = 8
-    activation    = "tanh"
+    layers        = [
+        {"neurons": 8, "activation": "tanh", "type": "dense"},
+        {"neurons": 8, "activation": "tanh", "type": "dense"}
+    ]
     optimizer     = "adam"
     loss          = "mse"
     lr            = 0.005
@@ -92,9 +92,7 @@ class HalfAdderPreset(PresetModule):
     description   = "Learn both Sum (XOR) and Carry (AND) simultaneously."
     arch_key      = "mlp"
     func_key      = "adder"
-    hidden_layers = 1
-    neurons       = 4
-    activation    = "tanh"
+    layers        = [{"neurons": 4, "activation": "tanh", "type": "dense"}]
     optimizer     = "adam"
     loss          = "bce"
     lr            = 0.05
@@ -108,9 +106,12 @@ class SpiralPreset(PresetModule):
     description   = "Interleaved spirals — needs a deep network and dropout regularisation."
     arch_key      = "mlp"
     func_key      = "spiral"
-    hidden_layers = 4
-    neurons       = 12
-    activation    = "leakyrelu"
+    layers        = [
+        {"neurons": 12, "activation": "leakyrelu", "type": "dense"},
+        {"neurons": 12, "activation": "leakyrelu", "type": "dense"},
+        {"neurons": 12, "activation": "leakyrelu", "type": "dense"},
+        {"neurons": 12, "activation": "leakyrelu", "type": "dense"}
+    ]
     optimizer     = "adam"
     loss          = "bce"
     lr            = 0.005
@@ -124,9 +125,10 @@ class AutoencoderPreset(PresetModule):
     description   = "Compress 8-bit one-hot vectors to 3 neurons and reconstruct."
     arch_key      = "autoencoder"
     func_key      = "autoenc"
-    hidden_layers = 2
-    neurons       = 3
-    activation    = "sigmoid"
+    layers        = [
+        {"neurons": 3, "activation": "sigmoid", "type": "dense"},
+        {"neurons": 3, "activation": "sigmoid", "type": "dense"}
+    ]
     optimizer     = "adam"
     loss          = "mse"
     lr            = 0.01
@@ -140,9 +142,10 @@ class CirclePreset(PresetModule):
     description   = "Classify points inside vs outside a circle — non-linear boundary."
     arch_key      = "mlp"
     func_key      = "circle"
-    hidden_layers = 2
-    neurons       = 6
-    activation    = "relu"
+    layers        = [
+        {"neurons": 6, "activation": "relu", "type": "dense"},
+        {"neurons": 6, "activation": "relu", "type": "dense"}
+    ]
     optimizer     = "adam"
     loss          = "bce"
     lr            = 0.02
@@ -156,9 +159,13 @@ class RegularisedPreset(PresetModule):
     description   = "Wide deep spiral solver with AdamW + dropout to demonstrate regularisation."
     arch_key      = "mlp"
     func_key      = "spiral"
-    hidden_layers = 5
-    neurons       = 16
-    activation    = "gelu"
+    layers        = [
+        {"neurons": 16, "activation": "gelu", "type": "dense"},
+        {"neurons": 16, "activation": "gelu", "type": "dense"},
+        {"neurons": 16, "activation": "gelu", "type": "dense"},
+        {"neurons": 16, "activation": "gelu", "type": "dense"},
+        {"neurons": 16, "activation": "gelu", "type": "dense"}
+    ]
     optimizer     = "adamw"
     loss          = "bce"
     lr            = 0.003

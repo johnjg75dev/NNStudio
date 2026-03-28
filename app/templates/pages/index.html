@@ -55,23 +55,22 @@
     <div class="info-box" id="funcDesc"></div>
 
     <hr class="dv">
-    <div class="shd">Network Size</div>
+    <div class="shd">Layer Editor</div>
 
-    <label>Hidden Layers
-      <span class="ti" data-tip="<b>Hidden Layers (Depth)</b><br>Each layer learns more abstract features.<br><br><span class='tp'>More:</span> Solves hierarchical problems<br><span class='tc'>Too many:</span> Vanishing gradients, slow convergence<br><span class='tr'>Typical: 1–3</span>">?</span>
-    </label>
-    <div class="row">
-      <input type="range" id="layersSl" min="1" max="6" value="1">
-      <span class="val" id="layersV">1</span>
+    <div class="row" style="margin-bottom: 8px;">
+      <label style="flex: 1; font-size: 11px;">Input Neurons
+        <input type="number" id="inputNeurons" value="2" min="1" max="64" style="width: 100%; background: var(--surf2); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 4px; font-size: 12px;">
+      </label>
+      <label style="flex: 1; font-size: 11px;">Output Neurons
+        <input type="number" id="outputNeurons" value="1" min="1" max="64" style="width: 100%; background: var(--surf2); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 4px; font-size: 12px;">
+      </label>
     </div>
 
-    <label>Neurons / Layer
-      <span class="ti" data-tip="<b>Neurons per Layer (Width)</b><br>Expressive capacity of each hidden layer.<br><br><span class='tp'>More:</span> Fits complex functions<br><span class='tc'>Too many:</span> Overfitting on small datasets<br><span class='tr'>Typical: 4–16</span>">?</span>
-    </label>
-    <div class="row">
-      <input type="range" id="neuronsSl" min="2" max="16" value="4">
-      <span class="val" id="neuronsV">4</span>
+    <div id="layersContainer" style="margin-bottom: 8px;">
+      <!-- Dynamic layers will be injected here -->
     </div>
+
+    <button class="btn secondary" id="addLayerBtn" style="width: 100%; margin-bottom: 12px; font-size: 11px;">+ Add Hidden Layer</button>
 
     <div class="btn-row">
       <button class="btn"       id="buildBtn">Build</button>

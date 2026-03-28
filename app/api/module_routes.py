@@ -21,6 +21,12 @@ def all_modules():
     if current_user.is_authenticated:
         user_presets = Preset.query.filter_by(user_id=current_user.id).all()
         all_data["presets"] = [p.to_dict() for p in user_presets]
+        
+        user_archs = ArchitectureDefinition.query.filter_by(user_id=current_user.id).all()
+        all_data["architectures"] = [a.to_dict() for a in user_archs]
+        
+        user_layers = LayerDefinition.query.filter_by(user_id=current_user.id).all()
+        all_data["layers"] = [l.to_dict() for l in user_layers]
     
     return ok(all_data)
 

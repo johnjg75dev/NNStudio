@@ -17,8 +17,7 @@ session_bp = Blueprint("session", __name__)
 def build():
     """
     Build a new network for this session.
-    Body: { func_key, arch_key, hidden_layers, neurons, activation,
-            optimizer, lr, loss, dropout, weight_decay }
+    Body: { func_key, arch_key, layers, inputs, outputs, activation, optimizer, lr, loss, dropout, weight_decay }
     """
     body = request.get_json(force=True)
     registry = get_registry()
@@ -30,11 +29,11 @@ def build():
 
     dataset = fn_mod.generate_dataset()
 
+    # Use user-specified inputs/outputs or fall back to function defaults
     config = {
-        "inputs":        fn_mod.inputs,
-        "outputs":       fn_mod.outputs,
-        "hidden_layers": int(body.get("hidden_layers", 1)),
-        "neurons":       int(body.get("neurons", 4)),
+        "inputs":        body.get("inputs", fn_mod.inputs),
+        "outputs":       body.get("outputs", fn_mod.outputs),
+        "layers":        body.get("layers", []),
         "activation":    body.get("activation", "tanh"),
         "optimizer":     body.get("optimizer", "adam"),
         "lr":            float(body.get("lr", 0.01)),
@@ -67,11 +66,21 @@ def reset_weights():
     ts.network._build_layers() if hasattr(ts.network, "_build_layers") else None
     # Rebuild layers in-place
     from app.core.network import NetworkBuilder
+    
+    # Build layers config from existing network
+    layers_config = []
+    for i, layer in enumerate(ts.network.layers[:-1]):  # Exclude output layer
+        layers_config.append({
+            "type": "dense",
+            "neurons": layer.n_out,
+            "activation": layer.activation.name,
+            "dropout": layer.dropout,
+        })
+    
     cfg = {
         "inputs":        ts.network.topology[0],
         "outputs":       ts.network.topology[-1],
-        "hidden_layers": len(ts.network.layers) - 1,
-        "neurons":       ts.network.topology[1] if len(ts.network.topology) > 2 else 4,
+        "layers":        layers_config,
         "activation":    ts.network.layers[0].activation.name,
         "optimizer":     ts.network.optimizer.__class__.__name__.lower(),
         "lr":            ts.network.optimizer.lr,

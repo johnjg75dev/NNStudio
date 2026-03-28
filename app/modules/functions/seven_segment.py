@@ -12,8 +12,10 @@ class SevenSegmentFunction(TrainingFunction):
     input_labels  = ["b3", "b2", "b1", "b0"]
     output_labels = ["a", "b", "c", "d", "e", "f", "g"]
     is_classification = True
-    recommended = {"hidden_layers": 2, "neurons": 10, "activation": "tanh",
-                   "optimizer": "adam", "loss": "mse", "dropout": 0.0, "lr": 0.02}
+    recommended = {"layers": [
+        {"neurons": 10, "activation": "tanh", "type": "dense"},
+        {"neurons": 10, "activation": "tanh", "type": "dense"}
+    ], "optimizer": "adam", "loss": "mse", "dropout": 0.0, "lr": 0.02}
 
     # segments[digit] = [a,b,c,d,e,f,g]
     _SEGMENTS = [

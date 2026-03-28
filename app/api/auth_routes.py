@@ -2,9 +2,10 @@
 app/api/auth_routes.py
 Authentication routes for registration and login.
 """
+import json
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from ..models import User, Preset
+from ..models import User, Preset, LayerDefinition, ArchitectureDefinition
 from .. import db
 from .helpers import api_route, ok, get_registry
 
@@ -61,7 +62,35 @@ def signup():
             new_user.set_password(password)
             db.session.add(new_user)
             db.session.commit()
-            
+
+            # Seed default Layers
+            # We hardcode the initial defaults for Dense here, or can pull from a Registry if we had one for Layers
+            db_l = LayerDefinition(
+                user_id=new_user.id,
+                name="dense",
+                label="Dense (Fully Connected)",
+                description="Standard fully connected layer where every input neuron connects to every output neuron.",
+                type="dense",
+                default_activation="tanh",
+                default_neurons=4
+            )
+            db.session.add(db_l)
+
+            # Seed default Architectures
+            arch_defaults = registry.all_of_category("architectures")
+            for a in arch_defaults:
+                db_a = ArchitectureDefinition(
+                    user_id=new_user.id,
+                    name=a.key,
+                    label=a.label,
+                    description=a.description,
+                    accent_color=getattr(a, "accent_color", "#58a6ff"),
+                    diagram_type=getattr(a, "diagram_type", "generic"),
+                    trainable=getattr(a, "trainable", False),
+                    is_autoencoder=getattr(a, "is_autoencoder", False)
+                )
+                db.session.add(db_a)
+
             # Seed default presets
             registry = get_registry()
             defaults = registry.all_of_category("presets")
@@ -72,8 +101,7 @@ def signup():
                     description=p.description,
                     arch_key=p.arch_key,
                     func_key=p.func_key,
-                    hidden_layers=p.hidden_layers,
-                    neurons=p.neurons,
+                    layers=json.dumps(p.layers),
                     activation=p.activation,
                     optimizer=p.optimizer,
                     loss=p.loss,

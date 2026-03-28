@@ -1,18 +1,18 @@
 from .. import db
+import json
 
 class Preset(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    
+
     # Metadata
     label = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=True)
-    
+
     # Network Configuration
     arch_key = db.Column(db.String(50), nullable=False)
     func_key = db.Column(db.String(50), nullable=False)
-    hidden_layers = db.Column(db.Integer, default=1)
-    neurons = db.Column(db.Integer, default=4)
+    layers = db.Column(db.Text, nullable=False, default='[]')  # JSON array of layer configs
     activation = db.Column(db.String(50), default='tanh')
     optimizer = db.Column(db.String(50), default='adam')
     loss = db.Column(db.String(50), default='bce')
@@ -28,8 +28,7 @@ class Preset(db.Model):
             "description": self.description,
             "arch_key": self.arch_key,
             "func_key": self.func_key,
-            "hidden_layers": self.hidden_layers,
-            "neurons": self.neurons,
+            "layers": json.loads(self.layers) if self.layers else [],
             "activation": self.activation,
             "optimizer": self.optimizer,
             "loss": self.loss,

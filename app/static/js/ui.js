@@ -20,6 +20,7 @@ class UIController {
     this._registry = registry;
     this._tipEl    = document.getElementById("tip");
     this._handlers = {};   // event name → callback, for external wiring
+    this._layers   = [];   // Initialize to avoid undefined map errors
   }
 
   on(event, fn) { this._handlers[event] = fn; }
@@ -35,6 +36,7 @@ class UIController {
     this._initSavePresetBtn();
     this._initArchSelect();
     this._initFuncSelect();
+    this._initLayerEditor();
     this._initSliders();
     this._initVizCheckboxes();
     this._initBuildBtn();
@@ -168,7 +170,7 @@ class UIController {
     const update = () => {
       const fn = (this._registry.functions || []).find(f => f.key === sel.value);
       if (desc && fn) desc.innerHTML = fn.description || "";
-      this._emit("funcChanged", sel.value);
+      this._emit("funcChanged", fn);
     };
     sel.addEventListener("change", update);
     update();
@@ -193,17 +195,133 @@ class UIController {
       update();
     };
 
-    bind("layersSl",  "layersV");
-    bind("neuronsSl", "neuronsV");
-    bind("lrSl",      "lrV",     v => Math.pow(10, v));
-    bind("dropSl",    "dropV",   v => v.toFixed(2));
     bind("wdSl",      "wdV",     v => v.toFixed(3));
     bind("stepsSl",   "stepsV");
 
-    ["actSel","optSel","lossSel"].forEach(id => {
+    ["optSel","lossSel"].forEach(id => {
       document.getElementById(id)?.addEventListener("change",
         () => this._emit("controlChanged", this.getConfig()));
     });
+  }
+
+  // ════════════════════════════════════════════════════════
+  // LAYER EDITOR
+  // ════════════════════════════════════════════════════════
+  _initLayerEditor() {
+    this._layers = []; // Local state for layer configs: [{ neurons: 4, activation: 'tanh' }]
+    const container = document.getElementById("layersContainer");
+    const addBtn = document.getElementById("addLayerBtn");
+    const inputNeuronsEl = document.getElementById("inputNeurons");
+    const outputNeuronsEl = document.getElementById("outputNeurons");
+
+    // Set defaults from function metadata
+    const updateIODefaults = (fnMeta) => {
+      if (fnMeta) {
+        if (inputNeuronsEl) inputNeuronsEl.value = fnMeta.inputs ?? 2;
+        if (outputNeuronsEl) outputNeuronsEl.value = fnMeta.outputs ?? 1;
+      }
+    };
+    this.on("funcChanged", updateIODefaults);
+
+    // Listen for IO changes
+    inputNeuronsEl?.addEventListener("input", () => {
+      this._emit("controlChanged", this.getConfig());
+    });
+    outputNeuronsEl?.addEventListener("input", () => {
+      this._emit("controlChanged", this.getConfig());
+    });
+
+    addBtn?.addEventListener("click", () => {
+      this.addLayer({ neurons: 4, activation: _val("actSel") || "tanh" });
+      this._emit("controlChanged", this.getConfig());
+    });
+
+    // Seed with one layer by default
+    if (this._layers.length === 0) {
+      this.addLayer({ neurons: 4, activation: "tanh" });
+    }
+  }
+
+  addLayer(config) {
+    const id = Math.random().toString(36).substr(2, 9);
+    const layer = { ...config, id };
+    this._layers.push(layer);
+    this._renderLayer(layer, this._layers.length);
+  }
+
+  _renderLayer(layer, index) {
+    const container = document.getElementById("layersContainer");
+    const div = document.createElement("div");
+    div.className = "layer-row";
+    div.id = `layer-${layer.id}`;
+    div.style = "display: flex; gap: 4px; align-items: center; margin-bottom: 4px; background: var(--surf2); padding: 4px; border-radius: 4px; border: 1px solid var(--border);";
+
+    // Layer index label
+    const idxLbl = document.createElement("span");
+    idxLbl.textContent = `H${index}`;
+    idxLbl.style = "font-size: 10px; color: var(--accent); font-weight: bold; width: 24px;";
+
+    // Neuron count
+    const nInput = document.createElement("input");
+    nInput.type = "number";
+    nInput.value = layer.neurons;
+    nInput.min = 1;
+    nInput.max = 64;
+    nInput.style = "width: 45px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px;";
+    nInput.addEventListener("input", () => {
+      layer.neurons = parseInt(nInput.value) || 1;
+      this._emit("controlChanged", this.getConfig());
+    });
+
+    // Label
+    const lbl = document.createElement("span");
+    lbl.textContent = "neurons";
+    lbl.style = "font-size: 10px; color: var(--text2); flex: 1;";
+
+    // Activation
+    const actSel = document.getElementById("actSel")?.cloneNode(true);
+    if (actSel) {
+      actSel.id = ""; // remove id
+      actSel.value = layer.activation;
+      actSel.style = "font-size: 10px; padding: 2px; height: auto; width: auto;";
+      actSel.addEventListener("change", () => {
+        layer.activation = actSel.value;
+        this._emit("controlChanged", this.getConfig());
+      });
+    }
+
+    // Delete
+    const delBtn = document.createElement("button");
+    delBtn.innerHTML = "×";
+    delBtn.style = "background: none; border: none; color: var(--red); cursor: pointer; font-weight: bold; font-size: 14px; padding: 0 4px;";
+    delBtn.addEventListener("click", () => {
+      this._layers = this._layers.filter(l => l.id !== layer.id);
+      div.remove();
+      this._rerenderLayerIndices();
+      this._emit("controlChanged", this.getConfig());
+    });
+
+    div.appendChild(idxLbl);
+    div.appendChild(nInput);
+    div.appendChild(lbl);
+    if (actSel) div.appendChild(actSel);
+    div.appendChild(delBtn);
+    container.appendChild(div);
+  }
+
+  _rerenderLayerIndices() {
+    const container = document.getElementById("layersContainer");
+    if (!container) return;
+    container.innerHTML = "";
+    this._layers.forEach((layer, i) => {
+      this._renderLayer(layer, i + 1);
+    });
+  }
+
+  clearLayers() {
+    this._layers = [];
+    const container = document.getElementById("layersContainer");
+    if (container) container.innerHTML = "";
   }
 
   // ════════════════════════════════════════════════════════
@@ -593,8 +711,9 @@ class UIController {
     return {
       arch_key:      _val("archSel"),
       func_key:      _val("funcSel"),
-      hidden_layers: +_val("layersSl"),
-      neurons:       +_val("neuronsSl"),
+      inputs:        parseInt(_val("inputNeurons")) || 2,
+      outputs:       parseInt(_val("outputNeurons")) || 1,
+      layers:        this._layers.map(l => ({ neurons: l.neurons, activation: l.activation, type: "dense" })),
       activation:    _val("actSel"),
       optimizer:     _val("optSel"),
       loss:          _val("lossSel"),
@@ -617,8 +736,13 @@ class UIController {
   applyPreset(p) {
     _setVal("archSel",   p.arch_key);
     _setVal("funcSel",   p.func_key);
-    _setVal("layersSl",  p.hidden_layers);
-    _setVal("neuronsSl", p.neurons);
+
+    // Clear and rebuild layers from preset
+    this.clearLayers();
+    if (p.layers && Array.isArray(p.layers)) {
+      p.layers.forEach(l => this.addLayer(l));
+    }
+
     _setVal("actSel",    p.activation);
     _setVal("optSel",    p.optimizer);
     _setVal("lossSel",   p.loss);
@@ -627,12 +751,16 @@ class UIController {
     _setVal("wdSl",      p.weight_decay ?? 0);
 
     // Trigger display updates
-    ["layersSl","neuronsSl","lrSl","dropSl","wdSl"].forEach(id => {
+    ["lrSl","dropSl","wdSl"].forEach(id => {
       document.getElementById(id)?.dispatchEvent(new Event("input"));
     });
     ["archSel","funcSel","actSel","optSel","lossSel"].forEach(id => {
       document.getElementById(id)?.dispatchEvent(new Event("change"));
     });
+
+    // Emit funcChanged to update IO defaults
+    const fn = (this._registry.functions || []).find(f => f.key === p.func_key);
+    if (fn) this._emit("funcChanged", fn);
   }
 
   // ════════════════════════════════════════════════════════

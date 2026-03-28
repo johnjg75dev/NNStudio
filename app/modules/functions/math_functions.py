@@ -12,8 +12,11 @@ class ParityFunction(TrainingFunction):
     input_labels  = ["b3", "b2", "b1", "b0"]
     output_labels = ["Odd?"]
     is_classification = True
-    recommended = {"hidden_layers": 3, "neurons": 8, "activation": "relu",
-                   "optimizer": "adam", "loss": "bce", "dropout": 0.0, "lr": 0.01}
+    recommended = {"layers": [
+        {"neurons": 8, "activation": "relu", "type": "dense"},
+        {"neurons": 8, "activation": "relu", "type": "dense"},
+        {"neurons": 8, "activation": "relu", "type": "dense"}
+    ], "optimizer": "adam", "loss": "bce", "dropout": 0.0, "lr": 0.01}
 
     def generate_dataset(self):
         data = []
@@ -32,8 +35,10 @@ class SineFunction(TrainingFunction):
     input_labels  = ["x"]
     output_labels = ["sin(x)"]
     is_classification = False
-    recommended = {"hidden_layers": 2, "neurons": 8, "activation": "tanh",
-                   "optimizer": "adam", "loss": "mse", "dropout": 0.0, "lr": 0.005}
+    recommended = {"layers": [
+        {"neurons": 8, "activation": "tanh", "type": "dense"},
+        {"neurons": 8, "activation": "tanh", "type": "dense"}
+    ], "optimizer": "adam", "loss": "mse", "dropout": 0.0, "lr": 0.005}
 
     def generate_dataset(self):
         return [
@@ -51,7 +56,7 @@ class HalfAdderFunction(TrainingFunction):
     input_labels  = ["A", "B"]
     output_labels = ["Sum", "Carry"]
     is_classification = True
-    recommended = {"hidden_layers": 1, "neurons": 4, "activation": "tanh",
+    recommended = {"layers": [{"neurons": 4, "activation": "tanh", "type": "dense"}],
                    "optimizer": "adam", "loss": "bce", "dropout": 0.0, "lr": 0.05}
 
     def generate_dataset(self):

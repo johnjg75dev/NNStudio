@@ -22,8 +22,7 @@ class TrainingFunction(BaseModule):
     is_classification: bool  = True
     # Default recommended architecture config
     recommended = {
-        "hidden_layers": 1,
-        "neurons":       4,
+        "layers":        [{"neurons": 4, "activation": "tanh", "type": "dense"}],
         "activation":    "tanh",
         "optimizer":     "adam",
         "loss":          "bce",

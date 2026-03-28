@@ -16,14 +16,17 @@ class PresetModule(BaseModule):
     # All config fields with safe defaults
     arch_key:      str   = "mlp"
     func_key:      str   = "xor"
-    hidden_layers: int   = 1
-    neurons:       int   = 4
+    layers:        list  = None  # List of layer configs: [{"neurons": 4, "activation": "tanh", "type": "dense"}]
     activation:    str   = "tanh"
     optimizer:     str   = "adam"
     loss:          str   = "bce"
     lr:            float = 0.01
     dropout:       float = 0.0
     weight_decay:  float = 0.0
+
+    def __init__(self):
+        if self.layers is None:
+            self.layers = []
 
     def to_dict(self) -> dict:
         return {
@@ -33,8 +36,7 @@ class PresetModule(BaseModule):
             "category":      self.category,
             "arch_key":      self.arch_key,
             "func_key":      self.func_key,
-            "hidden_layers": self.hidden_layers,
-            "neurons":       self.neurons,
+            "layers":        self.layers,
             "activation":    self.activation,
             "optimizer":     self.optimizer,
             "loss":          self.loss,

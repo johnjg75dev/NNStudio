@@ -12,8 +12,10 @@ class CircleFunction(TrainingFunction):
     input_labels  = ["x", "y"]
     output_labels = ["Inside"]
     is_classification = True
-    recommended = {"hidden_layers": 2, "neurons": 6, "activation": "relu",
-                   "optimizer": "adam", "loss": "bce", "dropout": 0.0, "lr": 0.02}
+    recommended = {"layers": [
+        {"neurons": 6, "activation": "relu", "type": "dense"},
+        {"neurons": 6, "activation": "relu", "type": "dense"}
+    ], "optimizer": "adam", "loss": "bce", "dropout": 0.0, "lr": 0.02}
 
     _POINTS = [
         (.1,.5),(.2,.2),(.5,.9),(.9,.5),(.8,.8),
@@ -39,8 +41,12 @@ class SpiralFunction(TrainingFunction):
     input_labels  = ["x", "y"]
     output_labels = ["Class"]
     is_classification = True
-    recommended = {"hidden_layers": 4, "neurons": 12, "activation": "leakyrelu",
-                   "optimizer": "adam", "loss": "bce", "dropout": 0.1, "lr": 0.005}
+    recommended = {"layers": [
+        {"neurons": 12, "activation": "leakyrelu", "type": "dense"},
+        {"neurons": 12, "activation": "leakyrelu", "type": "dense"},
+        {"neurons": 12, "activation": "leakyrelu", "type": "dense"},
+        {"neurons": 12, "activation": "leakyrelu", "type": "dense"}
+    ], "optimizer": "adam", "loss": "bce", "dropout": 0.1, "lr": 0.005}
 
     def generate_dataset(self):
         data = []
@@ -63,8 +69,10 @@ class AutoencoderFunction(TrainingFunction):
     input_labels  = [f"i{i}" for i in range(8)]
     output_labels = [f"o{i}" for i in range(8)]
     is_classification = False
-    recommended = {"hidden_layers": 2, "neurons": 3, "activation": "sigmoid",
-                   "optimizer": "adam", "loss": "mse", "dropout": 0.0, "lr": 0.01}
+    recommended = {"layers": [
+        {"neurons": 3, "activation": "sigmoid", "type": "dense"},
+        {"neurons": 3, "activation": "sigmoid", "type": "dense"}
+    ], "optimizer": "adam", "loss": "mse", "dropout": 0.0, "lr": 0.01}
 
     def generate_dataset(self):
         return [

@@ -12,7 +12,7 @@ class XORFunction(TrainingFunction):
     input_labels  = ["A", "B"]
     output_labels = ["Out"]
     is_classification = True
-    recommended = {"hidden_layers": 1, "neurons": 4, "activation": "tanh",
+    recommended = {"layers": [{"neurons": 4, "activation": "tanh", "type": "dense"}],
                    "optimizer": "adam", "loss": "bce", "dropout": 0.0, "lr": 0.1}
 
     def generate_dataset(self):
