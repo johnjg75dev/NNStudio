@@ -100,18 +100,18 @@ def app_config():
 def flask_app():
     """Create a Flask app for API testing."""
     from app import create_app
-    from app.core.session_manager import TrainingSessionManager
-    
+    from app.core.session_manager import SessionManager
+
     app = create_app({
         "TESTING": True,
         "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
         "WTF_CSRF_ENABLED": False,
         "SECRET_KEY": "test-secret-key",
     })
-    
+
     # Set up session manager
-    app.session_manager = TrainingSessionManager()
-    
+    app.extensions["session_manager"] = SessionManager()
+
     return app
 
 

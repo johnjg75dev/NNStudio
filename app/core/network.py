@@ -164,8 +164,73 @@ class NetworkBuilder:
             elif l_type == "batchnorm":
                 # BatchNorm layer: needs feature count
                 layers.append(l_cls(n_features=curr_in))
+            elif l_type == "conv2d":
+                # Conv2D layer
+                out_channels = int(lc.get("out_channels", 32))
+                kernel_size = int(lc.get("kernel_size", 3))
+                stride = int(lc.get("stride", 1))
+                padding = int(lc.get("padding", 1))
+                act_name = lc.get("activation", "relu")
+                act = ACTIVATIONS.get(act_name, ACTIVATIONS["relu"])
+                layers.append(l_cls(
+                    in_channels=curr_in,
+                    out_channels=out_channels,
+                    kernel_size=kernel_size,
+                    stride=stride,
+                    padding=padding,
+                    activation=act
+                ))
+                curr_in = out_channels
+            elif l_type == "maxpool2d":
+                # MaxPool2D layer
+                pool_size = int(lc.get("pool_size", 2))
+                stride = int(lc.get("stride", 2))
+                layers.append(l_cls(pool_size=pool_size, stride=stride))
+            elif l_type == "flatten":
+                # Flatten layer
+                layers.append(l_cls())
+            elif l_type == "simple_rnn":
+                # Simple RNN layer
+                hidden_size = int(lc.get("hidden_size", 64))
+                act_name = lc.get("activation", "tanh")
+                act = ACTIVATIONS.get(act_name, ACTIVATIONS["tanh"])
+                layers.append(l_cls(
+                    input_size=curr_in,
+                    hidden_size=hidden_size,
+                    activation=act,
+                    return_sequences=lc.get("return_sequences", True)
+                ))
+                curr_in = hidden_size
+            elif l_type == "lstm":
+                # LSTM layer
+                hidden_size = int(lc.get("hidden_size", 64))
+                layers.append(l_cls(
+                    input_size=curr_in,
+                    hidden_size=hidden_size,
+                    return_sequences=lc.get("return_sequences", True)
+                ))
+                curr_in = hidden_size
+            elif l_type == "embedding":
+                # Embedding layer
+                vocab_size = int(lc.get("vocab_size", 1000))
+                embed_dim = int(lc.get("embed_dim", 128))
+                layers.append(l_cls(vocab_size=vocab_size, embed_dim=embed_dim))
+                curr_in = embed_dim
+            elif l_type == "layernorm":
+                # LayerNorm layer
+                layers.append(l_cls(normalized_shape=curr_in))
+            elif l_type == "multihead_attention":
+                # Multi-Head Attention layer
+                embed_dim = int(lc.get("embed_dim", curr_in))
+                num_heads = int(lc.get("num_heads", 4))
+                layers.append(l_cls(embed_dim=embed_dim, num_heads=num_heads))
+            elif l_type == "positional_encoding":
+                # Positional Encoding layer
+                max_seq_len = int(lc.get("max_seq_len", 512))
+                embed_dim = int(lc.get("embed_dim", curr_in))
+                layers.append(l_cls(max_seq_len=max_seq_len, embed_dim=embed_dim))
             else:
-                # Dense layer
+                # Dense layer (default)
                 n_neurons = int(lc.get("neurons", 4))
                 act       = ACTIVATIONS.get(lc.get("activation", "tanh"), ACTIVATIONS["tanh"])
 

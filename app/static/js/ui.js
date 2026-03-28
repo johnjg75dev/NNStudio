@@ -272,9 +272,9 @@ class UIController {
 
     // Type selector
     const typeSelect = document.createElement("select");
-    typeSelect.innerHTML = '<option value="dense">Dense</option><option value="dropout">Dropout</option><option value="batchnorm">BatchNorm</option>';
+    typeSelect.innerHTML = '<option value="dense">Dense</option><option value="dropout">Dropout</option><option value="batchnorm">BatchNorm</option><option value="conv2d">Conv2D</option><option value="maxpool2d">MaxPool</option><option value="flatten">Flatten</option><option value="lstm">LSTM</option><option value="embedding">Embedding</option><option value="layernorm">LayerNorm</option><option value="multihead_attention">Attention</option>';
     typeSelect.value = layerType;
-    typeSelect.style = "font-size: 10px; padding: 2px; height: auto; width: 80px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px;";
+    typeSelect.style = "font-size: 10px; padding: 2px; height: auto; width: 100px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px;";
     typeSelect.addEventListener("change", () => {
       const newType = typeSelect.value;
       if (newType === "dropout") {
@@ -282,8 +282,58 @@ class UIController {
         layer.rate = 0.5;
         delete layer.neurons;
         delete layer.activation;
+        delete layer.out_channels;
+        delete layer.kernel_size;
+        delete layer.hidden_size;
+        delete layer.vocab_size;
+        delete layer.embed_dim;
       } else if (newType === "batchnorm") {
         layer.type = "batchnorm";
+        delete layer.neurons;
+        delete layer.activation;
+        delete layer.rate;
+        delete layer.out_channels;
+        delete layer.hidden_size;
+      } else if (newType === "conv2d") {
+        layer.type = "conv2d";
+        layer.out_channels = layer.out_channels || 32;
+        layer.kernel_size = layer.kernel_size || 3;
+        layer.activation = layer.activation || "relu";
+        delete layer.neurons;
+        delete layer.rate;
+      } else if (newType === "maxpool2d") {
+        layer.type = "maxpool2d";
+        layer.pool_size = layer.pool_size || 2;
+        delete layer.neurons;
+        delete layer.activation;
+        delete layer.rate;
+      } else if (newType === "flatten") {
+        layer.type = "flatten";
+        delete layer.neurons;
+        delete layer.activation;
+        delete layer.rate;
+      } else if (newType === "lstm") {
+        layer.type = "lstm";
+        layer.hidden_size = layer.hidden_size || 64;
+        delete layer.neurons;
+        delete layer.activation;
+        delete layer.rate;
+      } else if (newType === "embedding") {
+        layer.type = "embedding";
+        layer.vocab_size = layer.vocab_size || 1000;
+        layer.embed_dim = layer.embed_dim || 128;
+        delete layer.neurons;
+        delete layer.activation;
+        delete layer.rate;
+      } else if (newType === "layernorm") {
+        layer.type = "layernorm";
+        delete layer.neurons;
+        delete layer.activation;
+        delete layer.rate;
+      } else if (newType === "multihead_attention") {
+        layer.type = "multihead_attention";
+        layer.embed_dim = layer.embed_dim || 128;
+        layer.num_heads = layer.num_heads || 4;
         delete layer.neurons;
         delete layer.activation;
         delete layer.rate;
@@ -292,6 +342,8 @@ class UIController {
         layer.neurons = layer.neurons || 4;
         layer.activation = layer.activation || "tanh";
         delete layer.rate;
+        delete layer.out_channels;
+        delete layer.hidden_size;
       }
       this._rerenderLayerIndices();
       this._emit("controlChanged", this.getConfig());
@@ -365,6 +417,178 @@ class UIController {
       bnLbl.textContent = "Normalize features";
       bnLbl.style = "font-size: 10px; color: var(--text2);";
       controlsDiv.appendChild(bnLbl);
+    } else if (layerType === "conv2d") {
+      // Out channels
+      const ocInput = document.createElement("input");
+      ocInput.type = "number";
+      ocInput.value = layer.out_channels ?? 32;
+      ocInput.min = 1;
+      ocInput.max = 512;
+      ocInput.style = "width: 45px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      ocInput.addEventListener("input", () => {
+        layer.out_channels = parseInt(ocInput.value) || 32;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      const ocLbl = document.createElement("span");
+      ocLbl.textContent = "filters";
+      ocLbl.style = "font-size: 10px; color: var(--text2);";
+
+      // Kernel size
+      const ksInput = document.createElement("input");
+      ksInput.type = "number";
+      ksInput.value = layer.kernel_size ?? 3;
+      ksInput.min = 1;
+      ksInput.max = 7;
+      ksInput.style = "width: 35px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      ksInput.addEventListener("input", () => {
+        layer.kernel_size = parseInt(ksInput.value) || 3;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      const ksLbl = document.createElement("span");
+      ksLbl.textContent = "k";
+      ksLbl.style = "font-size: 10px; color: var(--text2);";
+
+      // Activation
+      const actSel = document.getElementById("actSel")?.cloneNode(true);
+      if (actSel) {
+        actSel.id = "";
+        actSel.value = layer.activation || "relu";
+        actSel.style = "font-size: 10px; padding: 2px; height: auto; width: auto;";
+        actSel.addEventListener("change", () => {
+          layer.activation = actSel.value;
+          this._emit("controlChanged", this.getConfig());
+        });
+      }
+
+      controlsDiv.appendChild(ocInput);
+      controlsDiv.appendChild(ocLbl);
+      controlsDiv.appendChild(ksInput);
+      controlsDiv.appendChild(ksLbl);
+      if (actSel) controlsDiv.appendChild(actSel);
+    } else if (layerType === "maxpool2d") {
+      // Pool size
+      const psInput = document.createElement("input");
+      psInput.type = "number";
+      psInput.value = layer.pool_size ?? 2;
+      psInput.min = 2;
+      psInput.max = 4;
+      psInput.style = "width: 35px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      psInput.addEventListener("input", () => {
+        layer.pool_size = parseInt(psInput.value) || 2;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      const psLbl = document.createElement("span");
+      psLbl.textContent = "pool";
+      psLbl.style = "font-size: 10px; color: var(--text2);";
+
+      controlsDiv.appendChild(psInput);
+      controlsDiv.appendChild(psLbl);
+    } else if (layerType === "flatten") {
+      const flLbl = document.createElement("span");
+      flLbl.textContent = "Flatten to 1D";
+      flLbl.style = "font-size: 10px; color: var(--text2);";
+      controlsDiv.appendChild(flLbl);
+    } else if (layerType === "lstm") {
+      // Hidden size
+      const hsInput = document.createElement("input");
+      hsInput.type = "number";
+      hsInput.value = layer.hidden_size ?? 64;
+      hsInput.min = 8;
+      hsInput.max = 512;
+      hsInput.style = "width: 45px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      hsInput.addEventListener("input", () => {
+        layer.hidden_size = parseInt(hsInput.value) || 64;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      const hsLbl = document.createElement("span");
+      hsLbl.textContent = "units";
+      hsLbl.style = "font-size: 10px; color: var(--text2);";
+
+      controlsDiv.appendChild(hsInput);
+      controlsDiv.appendChild(hsLbl);
+    } else if (layerType === "embedding") {
+      // Vocab size
+      const vsInput = document.createElement("input");
+      vsInput.type = "number";
+      vsInput.value = layer.vocab_size ?? 1000;
+      vsInput.min = 10;
+      vsInput.max = 50000;
+      vsInput.style = "width: 50px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      vsInput.addEventListener("input", () => {
+        layer.vocab_size = parseInt(vsInput.value) || 1000;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      const vsLbl = document.createElement("span");
+      vsLbl.textContent = "vocab";
+      vsLbl.style = "font-size: 10px; color: var(--text2);";
+
+      // Embed dim
+      const edInput = document.createElement("input");
+      edInput.type = "number";
+      edInput.value = layer.embed_dim ?? 128;
+      edInput.min = 4;
+      edInput.max = 512;
+      edInput.style = "width: 45px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      edInput.addEventListener("input", () => {
+        layer.embed_dim = parseInt(edInput.value) || 128;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      const edLbl = document.createElement("span");
+      edLbl.textContent = "dim";
+      edLbl.style = "font-size: 10px; color: var(--text2);";
+
+      controlsDiv.appendChild(vsInput);
+      controlsDiv.appendChild(vsLbl);
+      controlsDiv.appendChild(edInput);
+      controlsDiv.appendChild(edLbl);
+    } else if (layerType === "layernorm") {
+      const lnLbl = document.createElement("span");
+      lnLbl.textContent = "Normalize";
+      lnLbl.style = "font-size: 10px; color: var(--text2);";
+      controlsDiv.appendChild(lnLbl);
+    } else if (layerType === "multihead_attention") {
+      // Embed dim
+      const edInput = document.createElement("input");
+      edInput.type = "number";
+      edInput.value = layer.embed_dim ?? 128;
+      edInput.min = 16;
+      edInput.max = 512;
+      edInput.style = "width: 45px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      edInput.addEventListener("input", () => {
+        layer.embed_dim = parseInt(edInput.value) || 128;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      const edLbl = document.createElement("span");
+      edLbl.textContent = "dim";
+      edLbl.style = "font-size: 10px; color: var(--text2);";
+
+      // Num heads
+      const nhInput = document.createElement("input");
+      nhInput.type = "number";
+      nhInput.value = layer.num_heads ?? 4;
+      nhInput.min = 1;
+      nhInput.max = 16;
+      nhInput.style = "width: 35px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      nhInput.addEventListener("input", () => {
+        layer.num_heads = parseInt(nhInput.value) || 4;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      const nhLbl = document.createElement("span");
+      nhLbl.textContent = "heads";
+      nhLbl.style = "font-size: 10px; color: var(--text2);";
+
+      controlsDiv.appendChild(edInput);
+      controlsDiv.appendChild(edLbl);
+      controlsDiv.appendChild(nhInput);
+      controlsDiv.appendChild(nhLbl);
     }
 
     // Delete
@@ -791,12 +1015,40 @@ class UIController {
       inputs:        parseInt(_val("inputNeurons")) || 2,
       outputs:       parseInt(_val("outputNeurons")) || 1,
       layers:        this._layers.map(l => {
-        if (l.type === "dropout") {
-          return { type: "dropout", rate: l.rate ?? 0.5 };
-        } else if (l.type === "batchnorm") {
-          return { type: "batchnorm" };
-        } else {
-          return { type: "dense", neurons: l.neurons || 4, activation: l.activation || "tanh" };
+        switch (l.type) {
+          case "dropout":
+            return { type: "dropout", rate: l.rate ?? 0.5 };
+          case "batchnorm":
+            return { type: "batchnorm" };
+          case "conv2d":
+            return {
+              type: "conv2d",
+              out_channels: l.out_channels ?? 32,
+              kernel_size: l.kernel_size ?? 3,
+              activation: l.activation || "relu"
+            };
+          case "maxpool2d":
+            return { type: "maxpool2d", pool_size: l.pool_size ?? 2 };
+          case "flatten":
+            return { type: "flatten" };
+          case "lstm":
+            return { type: "lstm", hidden_size: l.hidden_size ?? 64 };
+          case "embedding":
+            return {
+              type: "embedding",
+              vocab_size: l.vocab_size ?? 1000,
+              embed_dim: l.embed_dim ?? 128
+            };
+          case "layernorm":
+            return { type: "layernorm" };
+          case "multihead_attention":
+            return {
+              type: "multihead_attention",
+              embed_dim: l.embed_dim ?? 128,
+              num_heads: l.num_heads ?? 4
+            };
+          default:
+            return { type: "dense", neurons: l.neurons || 4, activation: l.activation || "tanh" };
         }
       }),
       activation:    _val("actSel"),

@@ -5,10 +5,11 @@ class VAEArchitecture(ArchitectureModule):
     label        = "VAE — Variational Autoencoder"
     accent_color = "#f85149"
     diagram_type = "vae"
+    trainable    = True
     description  = (
         "<h3>Variational Autoencoder</h3>"
         "<code>x → Encoder → (μ, σ²) → Sample z → Decoder → x̂</code><br>"
         "Encoder outputs a distribution, not a point. "
         "KL divergence + reconstruction loss keep the latent space smooth. "
-        "Enables interpolation and generation by sampling from the prior."
+        "Enables interpolation and generation by sampling from the prior.<br><b>Live training enabled.</b>"
     )

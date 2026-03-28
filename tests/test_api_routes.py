@@ -319,8 +319,8 @@ class TestPresetRoutes:
                 data=json.dumps(preset_data),
                 content_type="application/json"
             )
-            # May return 401/403 if login required, or 200 if test mode
-            assert response.status_code in [200, 401, 403]
+            # May return 200, 302 (login redirect), 401, or 403
+            assert response.status_code in [200, 302, 401, 403]
 
 
 class TestIntegration:
