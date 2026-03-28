@@ -42,15 +42,17 @@ def create_app(config: dict | None = None) -> Flask:
     from .api.train_routes import train_bp
     from .api.module_routes import module_bp
     from .api.auth_routes import auth_bp
+    from .api.preset_routes import preset_bp
 
     app.register_blueprint(page_bp)
     app.register_blueprint(session_bp, url_prefix="/api/session")
     app.register_blueprint(train_bp,   url_prefix="/api/train")
     app.register_blueprint(module_bp,  url_prefix="/api/modules")
     app.register_blueprint(auth_bp)
+    app.register_blueprint(preset_bp,  url_prefix="/api/presets")
 
     # User loader
-    from .models import User
+    from .models import User, Preset
     @login_manager.user_loader
     def load_user(user_id):
         return User.query.get(int(user_id))

@@ -3,7 +3,9 @@ app/api/module_routes.py
 /api/modules/*  — expose the ModuleRegistry to the frontend.
 """
 from flask import Blueprint, request
+from flask_login import current_user
 from .helpers import ok, err, api_route, get_registry
+from ..models import Preset
 
 module_bp = Blueprint("modules", __name__)
 
@@ -13,7 +15,14 @@ module_bp = Blueprint("modules", __name__)
 def all_modules():
     """Return the full registry grouped by category."""
     registry = get_registry()
-    return ok(registry.to_dict())
+    all_data = registry.to_dict()
+    
+    # Override "presets" with user-specific ones from DB
+    if current_user.is_authenticated:
+        user_presets = Preset.query.filter_by(user_id=current_user.id).all()
+        all_data["presets"] = [p.to_dict() for p in user_presets]
+    
+    return ok(all_data)
 
 
 @module_bp.get("/category/<category>")

@@ -14,10 +14,12 @@ NNStudio is a modular, web-based neural network playground designed for educatio
 - **`app/models/`**: Contains the database models.
   - `__init__.py`: Exposes models for easier imports.
   - `user.py`: Defines the `User` model.
+  - `preset.py`: Defines the `Preset` model (user-specific configurations).
 - **`app/api/`**: Contains the RESTful API endpoints.
   - `page_routes.py`: Serves the main SPA shell (protected by login).
-  - `auth_routes.py`: Handles login, signup, and logout logic.
-  - `module_routes.py`: Exposes registered modules (functions, architectures, etc.).
+  - `auth_routes.py`: Handles login, signup (including preset seeding), and logout logic.
+  - `preset_routes.py`: CRUD operations for user-saved network presets.
+  - `module_routes.py`: Exposes registered modules (including user presets from DB).
   - `session_routes.py`: Manages the state of the neural network for each user session.
   - `train_routes.py`: Handles training execution and evaluation.
 - **`app/core/`**: The heart of the neural network logic.
@@ -110,3 +112,11 @@ graph TD
 ### Training (`/api/train`)
 - **POST `/step`**: Executes training epochs.
 - **POST `/evaluate`**: Runs a forward pass on all training samples.
+
+### Modules (`/api/modules`)
+- **GET `/all`**: Returns the entire `ModuleRegistry` contents (with user-specific presets).
+- **GET `/functions/<key>/dataset`**: Returns the dataset for a specific problem.
+
+### Presets (`/api/presets`)
+- **POST `/save`**: Saves the current network configuration as a new user-specific preset.
+- **DELETE `/<int:id>`**: Deletes a user-specific preset by ID.

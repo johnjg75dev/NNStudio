@@ -67,6 +67,24 @@ class App {
     ui.on("exportModel",  ()  => this._exportModel());
     ui.on("importModel",  data => this._importModel(data));
     ui.on("requestSummary", () => ui.renderModelSummary(this._snapshot));
+
+    ui.on("savePreset",   async cfg => {
+      try {
+        await API.savePreset(cfg);
+        await this._refreshRegistry();
+      } catch (e) {
+        alert("Failed to save preset: " + e.message);
+      }
+    });
+
+    ui.on("deletePreset", async id => {
+      try {
+        await API.deletePreset(id);
+        await this._refreshRegistry();
+      } catch (e) {
+        alert("Failed to delete preset: " + e.message);
+      }
+    });
   }
 
   // ════════════════════════════════════════════════════════
@@ -206,6 +224,17 @@ class App {
 
   _drawEmpty() {
     this._netRend.draw(null);
+  }
+
+  async _refreshRegistry() {
+    try {
+      const data = await API.getAllModules();
+      this._registry = data;
+      this._ui._registry = data; // Sync UI controller registry
+      this._ui._initPresets();   // Re-render presets grid
+    } catch (e) {
+      console.error("Failed to refresh registry:", e.message);
+    }
   }
 
   // ════════════════════════════════════════════════════════

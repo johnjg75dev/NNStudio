@@ -33,5 +33,9 @@ const API = (() => {
     // ── training ──
     trainStep:       (steps, lr) => request("POST", "/api/train/step",     { steps, lr }),
     evaluate:        ()          => request("POST", "/api/train/evaluate", {}),
+
+    // ── presets ──
+    savePreset:      (cfg)   => request("POST", "/api/presets/save",    cfg),
+    deletePreset:    (id)    => request("DELETE", `/api/presets/${id}`, {}),
   };
 })();

@@ -216,7 +216,9 @@ select:focus { border-color: var(--accent); }
 
 /* ── presets ── */
 .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.pbtn-wrap { position: relative; display: flex; }
 .pbtn {
+  flex: 1;
   background: var(--surf2);
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -230,6 +232,29 @@ select:focus { border-color: var(--accent); }
 }
 .pbtn:hover { border-color: var(--accent); color: var(--accent); }
 .pbtn .pa   { font-size: 9px; color: var(--text3); }
+
+.pdel {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 14px;
+  height: 14px;
+  background: var(--red);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 10px;
+  line-height: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity .15s;
+  z-index: 2;
+}
+.pbtn-wrap:hover .pdel { opacity: 1; }
+.pdel:hover { transform: scale(1.2); }
 
 /* ── stat boxes ── */
 .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }

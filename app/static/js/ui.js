@@ -32,6 +32,7 @@ class UIController {
     this._initTabs();
     this._initTooltips();
     this._initPresets();
+    this._initSavePresetBtn();
     this._initArchSelect();
     this._initFuncSelect();
     this._initSliders();
@@ -87,13 +88,43 @@ class UIController {
   _initPresets() {
     const grid = document.getElementById("presetGrid");
     if (!grid) return;
+    grid.innerHTML = "";
     const presets = this._registry.presets || [];
     presets.forEach(p => {
+      const container = document.createElement("div");
+      container.className = "pbtn-wrap";
+      
       const btn = document.createElement("button");
       btn.className = "pbtn";
       btn.innerHTML = `${p.label}<div class="pa">${p.func_key}</div>`;
       btn.addEventListener("click", () => this._emit("applyPreset", p));
-      grid.appendChild(btn);
+      container.appendChild(btn);
+
+      if (p.custom) {
+        const del = document.createElement("button");
+        del.className = "pdel";
+        del.innerHTML = "×";
+        del.dataset.tip = "Delete this preset";
+        del.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (confirm(`Delete preset "${p.label}"?`)) {
+            this._emit("deletePreset", p.id);
+          }
+        });
+        container.appendChild(del);
+      }
+
+      grid.appendChild(container);
+    });
+  }
+
+  _initSavePresetBtn() {
+    document.getElementById("savePresetBtn")?.addEventListener("click", () => {
+      const label = prompt("Enter a name for this preset:");
+      if (!label) return;
+      const desc = prompt("Enter a short description (optional):");
+      const cfg = this.getConfig();
+      this._emit("savePreset", { ...cfg, label, description: desc });
     });
   }
 

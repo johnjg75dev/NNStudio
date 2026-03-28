@@ -4,9 +4,9 @@ Authentication routes for registration and login.
 """
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from ..models import User
+from ..models import User, Preset
 from .. import db
-from .helpers import api_route, ok
+from .helpers import api_route, ok, get_registry
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -61,6 +61,29 @@ def signup():
             new_user.set_password(password)
             db.session.add(new_user)
             db.session.commit()
+            
+            # Seed default presets
+            registry = get_registry()
+            defaults = registry.all_of_category("presets")
+            for p in defaults:
+                db_p = Preset(
+                    user_id=new_user.id,
+                    label=p.label,
+                    description=p.description,
+                    arch_key=p.arch_key,
+                    func_key=p.func_key,
+                    hidden_layers=p.hidden_layers,
+                    neurons=p.neurons,
+                    activation=p.activation,
+                    optimizer=p.optimizer,
+                    loss=p.loss,
+                    lr=p.lr,
+                    dropout=p.dropout,
+                    weight_decay=p.weight_decay
+                )
+                db.session.add(db_p)
+            db.session.commit()
+
             login_user(new_user)
             return redirect(url_for("pages.index"))
             
