@@ -22,6 +22,8 @@
   </div>
 
   <div class="hdr-spacer"></div>
+  <span class="pill user-pill">👤 {{ current_user.username }}</span>
+  <a href="{{ url_for('auth.logout') }}" class="pill logout-btn">Logout</a>
   <span class="pill"  id="hStatus">Idle</span>
   <span class="pill"  id="hEpoch">Epoch 0</span>
   <span class="pill"  id="hLoss">Loss —</span>

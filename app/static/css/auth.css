@@ -1,0 +1,107 @@
+/* static/css/auth.css */
+body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background: #0d0d0d;
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+}
+.auth-card {
+    background: #1a1a1a;
+    padding: 2.5rem;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    width: 340px;
+    border: 1px solid #333;
+}
+.auth-card h1 {
+    color: #fff;
+    margin-top: 0;
+    font-weight: 600;
+    font-size: 1.5rem;
+    text-align: center;
+}
+.auth-card p {
+    color: #999;
+    text-align: center;
+    font-size: 0.9rem;
+    margin-bottom: 2rem;
+}
+.form-group {
+    margin-bottom: 1.25rem;
+    position: relative;
+}
+.form-group label {
+    display: block;
+    color: #ccc;
+    margin-bottom: 0.5rem;
+    font-size: 0.85rem;
+}
+.form-group input {
+    width: 100%;
+    padding: 0.75rem;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    color: #fff;
+    border-radius: 6px;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+.form-group input:focus {
+    outline: none;
+    border-color: #4a9eff;
+}
+.btn-auth {
+    width: 100%;
+    padding: 0.85rem;
+    background: #4a9eff;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 1rem;
+    transition: background 0.2s;
+}
+.btn-auth:hover {
+    background: #357abd;
+}
+.auth-footer {
+    margin-top: 1.5rem;
+    text-align: center;
+    font-size: 0.85rem;
+    color: #888;
+}
+.auth-footer a {
+    color: #4a9eff;
+    text-decoration: none;
+}
+.flash-messages {
+    color: #ff5555;
+    background: rgba(255, 85, 85, 0.1);
+    padding: 0.75rem;
+    border-radius: 6px;
+    margin-bottom: 1.5rem;
+    font-size: 0.85rem;
+    text-align: center;
+    border: 1px solid rgba(255, 85, 85, 0.2);
+}
+
+/* Status Indicator (Signup specific but safe to include) */
+.status-indicator {
+    position: absolute;
+    right: 12px;
+    top: 32px;
+    font-size: 1.2rem;
+    display: none;
+}
+.status-msg {
+    font-size: 0.75rem;
+    margin-top: 4px;
+    display: block;
+    min-height: 1em;
+}
+.available { color: #3fb950; }
+.taken { color: #f85149; }

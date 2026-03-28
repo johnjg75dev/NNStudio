@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NNStudio - Sign Up</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body>
+    <div class="auth-card">
+        <h1>Create Account</h1>
+        <p>Join NNStudio to start training models</p>
+        
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="flash-messages">
+              {{ messages[0] }}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST" id="signupForm">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autocomplete="username">
+                <span id="statusIcon" class="status-indicator"></span>
+                <span id="statusMsg" class="status-msg"></span>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="new-password">
+            </div>
+            <button type="submit" id="submitBtn" class="btn-auth">Sign Up</button>
+        </form>
+
+        <div class="auth-footer">
+            Already have an account? <a href="{{ url_for('auth.login') }}">Login</a>
+        </div>
+    </div>
+
+    <script>
+        const usernameInput = document.getElementById('username');
+        const statusIcon = document.getElementById('statusIcon');
+        const statusMsg = document.getElementById('statusMsg');
+        const submitBtn = document.getElementById('submitBtn');
+        let timeout = null;
+
+        usernameInput.addEventListener('input', () => {
+            clearTimeout(timeout);
+            const username = usernameInput.value.trim();
+            
+            if (!username) {
+                resetStatus();
+                return;
+            }
+
+            // Debounce to avoid too many API calls
+            timeout = setTimeout(async () => {
+                try {
+                    const res = await fetch(`/check-username?username=${encodeURIComponent(username)}`);
+                    const json = await res.json();
+                    
+                    if (json.ok) {
+                        const data = json.data;
+                        statusIcon.style.display = 'block';
+                        statusMsg.textContent = data.message;
+                        
+                        if (data.available) {
+                            statusIcon.textContent = '✓';
+                            statusIcon.className = 'status-indicator available';
+                            statusMsg.className = 'status-msg available';
+                            usernameInput.style.borderColor = '#3fb950';
+                            submitBtn.disabled = false;
+                            submitBtn.style.opacity = '1';
+                        } else {
+                            statusIcon.textContent = '✗';
+                            statusIcon.className = 'status-indicator taken';
+                            statusMsg.className = 'status-msg taken';
+                            usernameInput.style.borderColor = '#f85149';
+                            submitBtn.disabled = true;
+                            submitBtn.style.opacity = '0.6';
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error checking username:', err);
+                }
+            }, 400);
+        });
+
+        function resetStatus() {
+            statusIcon.style.display = 'none';
+            statusMsg.textContent = '';
+            usernameInput.style.borderColor = '#444';
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+        }
+    </script>
+</body>
+</html>
