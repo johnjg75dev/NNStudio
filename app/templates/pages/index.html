@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neural Network Trainer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════════════ -->
+<header>
+  <h1>⬡ Neural Network Trainer</h1>
+
+  <div class="tab-bar" id="mainTabs">
+    <button class="tab active" data-pg="train">Train</button>
+    <button class="tab"        data-pg="test">Test Inputs</button>
+    <button class="tab"        data-pg="saveload">Save / Load</button>
+    <button class="tab"        data-pg="learn">Learn</button>
+  </div>
+
+  <div class="hdr-spacer"></div>
+  <span class="pill"  id="hStatus">Idle</span>
+  <span class="pill"  id="hEpoch">Epoch 0</span>
+  <span class="pill"  id="hLoss">Loss —</span>
+  <span class="pill"  id="hAcc">Acc —</span>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════
+     PAGE: TRAIN
+══════════════════════════════════════════════════════════ -->
+<div class="page active" id="pgTrain">
+
+  <!-- LEFT PANEL -->
+  <div class="panel left">
+
+    <div class="shd">Architecture Type
+      <span class="ti" data-tip="<b>Architecture</b><br>MLP and Autoencoder support live training.<br>Others show educational diagrams.">?</span>
+    </div>
+    <select id="archSel"></select>
+    <div class="info-box" id="archInfo"></div>
+
+    <hr class="dv">
+    <div class="shd">Presets</div>
+    <div class="preset-grid" id="presetGrid"></div>
+
+    <hr class="dv">
+    <div class="shd">Training Task</div>
+    <select id="funcSel"></select>
+    <div class="info-box" id="funcDesc"></div>
+
+    <hr class="dv">
+    <div class="shd">Network Size</div>
+
+    <label>Hidden Layers
+      <span class="ti" data-tip="<b>Hidden Layers (Depth)</b><br>Each layer learns more abstract features.<br><br><span class='tp'>More:</span> Solves hierarchical problems<br><span class='tc'>Too many:</span> Vanishing gradients, slow convergence<br><span class='tr'>Typical: 1–3</span>">?</span>
+    </label>
+    <div class="row">
+      <input type="range" id="layersSl" min="1" max="6" value="1">
+      <span class="val" id="layersV">1</span>
+    </div>
+
+    <label>Neurons / Layer
+      <span class="ti" data-tip="<b>Neurons per Layer (Width)</b><br>Expressive capacity of each hidden layer.<br><br><span class='tp'>More:</span> Fits complex functions<br><span class='tc'>Too many:</span> Overfitting on small datasets<br><span class='tr'>Typical: 4–16</span>">?</span>
+    </label>
+    <div class="row">
+      <input type="range" id="neuronsSl" min="2" max="16" value="4">
+      <span class="val" id="neuronsV">4</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn"       id="buildBtn">Build</button>
+      <button class="btn secondary" id="resetBtn">Reset Weights</button>
+    </div>
+
+    <hr class="dv">
+    <div class="shd">Hyperparameters</div>
+
+    <label>Learning Rate
+      <span class="ti" data-tip="<b>Learning Rate (η)</b><br>Step size for each weight update.<br><br><span class='tp'>Higher:</span> Trains faster initially<br><span class='tc'>Too high:</span> Loss explodes or oscillates<br><span class='tc'>Too low:</span> Very slow convergence<br><span class='tr'>Adam: 1e-4 to 1e-2 · SGD: 0.01–0.1</span>">?</span>
+    </label>
+    <div class="row">
+      <input type="range" id="lrSl" min="-4" max="-1" step="0.05" value="-2">
+      <span class="val" id="lrV">0.01</span>
+    </div>
+
+    <label>Activation
+      <span class="ti" data-tip="<b>Activation Function</b><br>Non-linearity applied after each neuron's weighted sum.<br><br><b>ReLU:</b> Fast, sparse. Dead neuron risk.<br><b>Tanh:</b> Zero-centred. Good default.<br><b>Sigmoid:</b> Saturates. Use with BCE.<br><b>Leaky ReLU:</b> Fixes dead neurons.<br><b>GELU:</b> Used in GPT, BERT.<br><b>Swish:</b> Self-gated, modern nets.<br><span class='tr'>Default: Tanh or ReLU</span>">?</span>
+    </label>
+    <select id="actSel">
+      <option value="relu">ReLU</option>
+      <option value="tanh" selected>Tanh</option>
+      <option value="sigmoid">Sigmoid</option>
+      <option value="leakyrelu">Leaky ReLU</option>
+      <option value="gelu">GELU</option>
+      <option value="swish">Swish</option>
+    </select>
+
+    <label>Optimizer
+      <span class="ti" data-tip="<b>Optimizer</b><br>Algorithm that turns gradients into weight updates.<br><br><b>SGD:</b> Simple, sensitive to LR.<br><b>Momentum:</b> Smooths oscillations.<br><b>RMSProp:</b> Adaptive per-param LR.<br><b>Adam:</b> Best all-round default.<br><b>AdamW:</b> Adam + weight decay. Best generalisation.<br><span class='tr'>Recommended: Adam or AdamW</span>">?</span>
+    </label>
+    <select id="optSel">
+      <option value="sgd">SGD</option>
+      <option value="momentum">SGD + Momentum</option>
+      <option value="rmsprop">RMSProp</option>
+      <option value="adam" selected>Adam</option>
+      <option value="adamw">AdamW</option>
+    </select>
+
+    <label>Loss Function
+      <span class="ti" data-tip="<b>Loss Function</b><br>What the network minimises.<br><br><b>MSE:</b> (ŷ−y)². Regression. Penalises large errors.<br><b>BCE:</b> Binary cross-entropy. Best for 0/1 classification.<br><b>MAE:</b> |ŷ−y|. Robust to outliers.<br><span class='tr'>Classification → BCE · Regression → MSE or MAE</span>">?</span>
+    </label>
+    <select id="lossSel">
+      <option value="mse" selected>MSE</option>
+      <option value="bce">Binary Cross-Entropy</option>
+      <option value="mae">MAE</option>
+    </select>
+
+    <label>Dropout
+      <span class="ti" data-tip="<b>Dropout</b><br>Randomly zeros activations during training.<br><br><span class='tp'>Regularises:</span> Prevents co-adaptation of neurons<br><span class='tc'>Too high:</span> Network can't learn patterns<br><span class='tr'>Typical: 0 (off), 0.1–0.3. Disabled at inference.</span>">?</span>
+    </label>
+    <div class="row">
+      <input type="range" id="dropSl" min="0" max="0.5" step="0.05" value="0">
+      <span class="val" id="dropV">0</span>
+    </div>
+
+    <label>Weight Decay
+      <span class="ti" data-tip="<b>Weight Decay (L2 Regularisation)</b><br>Penalises large weights to keep the model simple.<br><br><span class='tp'>Higher:</span> Better generalisation<br><span class='tc'>Too high:</span> Underfitting — weights shrink to zero<br><span class='tr'>Typical: 0 (off) to 0.01. AdamW default: 0.01</span>">?</span>
+    </label>
+    <div class="row">
+      <input type="range" id="wdSl" min="0" max="0.05" step="0.001" value="0">
+      <span class="val" id="wdV">0</span>
+    </div>
+
+    <label>Steps / Frame
+      <span class="ti" data-tip="<b>Steps per Animation Frame</b><br>Training iterations between each screen redraw.<br><br><span class='tp'>Higher:</span> Much faster training<br><span class='tc'>Higher:</span> Less smooth visualisation<br><span class='tr'>1 = watch weights live · 50–200 = fast convergence</span>">?</span>
+    </label>
+    <div class="row">
+      <input type="range" id="stepsSl" min="1" max="200" value="10">
+      <span class="val" id="stepsV">10</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn"       id="trainBtn" style="flex:1">▶ Train</button>
+      <button class="btn danger" id="stopBtn" disabled>■ Stop</button>
+    </div>
+
+    <hr class="dv">
+    <div class="shd">Visualisation</div>
+    <label><input type="checkbox" id="cbLabels" checked> Node labels</label>
+    <label><input type="checkbox" id="cbActs"   checked> Activation colours</label>
+    <label><input type="checkbox" id="cbBias">           Bias arrows</label>
+    <label><input type="checkbox" id="cbGrad">           Gradient overlay</label>
+
+    <hr class="dv">
+    <div class="shd">Live Stats</div>
+    <div class="stats-grid">
+      <div class="stat-box"><div class="sv" id="sEpoch">0</div><div class="sk">Epoch</div></div>
+      <div class="stat-box"><div class="sv" id="sLoss">—</div><div class="sk">Loss</div></div>
+      <div class="stat-box"><div class="sv" id="sAcc">—</div><div class="sk">Accuracy</div></div>
+      <div class="stat-box"><div class="sv" id="sParams">0</div><div class="sk">Params</div></div>
+    </div>
+
+  </div><!-- /left panel -->
+
+  <!-- CENTER -->
+  <div class="center">
+    <canvas id="netCanvas"></canvas>
+    <div class="bottom">
+      <div style="flex-shrink:0">
+        <div class="shd" style="margin-bottom:3px">Loss Curve</div>
+        <canvas id="lossChart"></canvas>
+      </div>
+      <div style="flex:1;min-width:140px">
+        <div class="shd" style="margin-bottom:4px">Legend</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--text2)">
+          <span><span style="color:var(--green)">━</span> Positive weight</span>
+          <span><span style="color:var(--red)">━</span> Negative weight</span>
+          <span>Thickness ∝ |weight|</span>
+          <span><span style="color:var(--accent)">●</span> Activation</span>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text3);line-height:1.9;flex-shrink:0">
+        <b style="color:var(--text2)">Keys:</b> Space = train/pause<br>
+        R = reset weights · B = rebuild
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel right">
+    <div class="rptabs">
+      <button class="rptab active" data-rp="io">I/O</button>
+      <button class="rptab"        data-rp="node">Node</button>
+      <button class="rptab"        data-rp="wmat">Weights</button>
+    </div>
+    <div class="rppane active" id="rp-io">
+      <div id="ioContainer"><div class="info-box">Build a network to see predictions.</div></div>
+    </div>
+    <div class="rppane" id="rp-node">
+      <div class="info-box" id="nodeInfo">Click a node to inspect it.</div>
+    </div>
+    <div class="rppane" id="rp-wmat">
+      <div id="wmatContainer"><div class="info-box">Build a network to see weight matrices.</div></div>
+    </div>
+  </div>
+
+</div><!-- /pgTrain -->
+
+<!-- ══════════════════════════════════════════════════════════
+     PAGE: TEST
+══════════════════════════════════════════════════════════ -->
+<div class="page" id="pgTest">
+  <div class="scroll-center">
+    <div class="content-col">
+      <div class="card">
+        <h3>🔬 Manual Input Tester</h3>
+        <p>Enter values for each input neuron and run a forward pass through the trained model to see live predictions.</p>
+      </div>
+      <div class="card">
+        <div class="shd" style="margin-bottom:8px">Input Values</div>
+        <div id="testInpContainer">
+          <div class="info-box">Build a network in the Train tab first.</div>
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn"           id="runTestBtn">▶ Run Forward Pass</button>
+          <button class="btn secondary" id="randTestBtn">🎲 Random</button>
+          <button class="btn secondary" id="sweepBtn">📊 Sweep All</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="shd" style="margin-bottom:6px">Model Output</div>
+        <div id="testOutContainer"><div class="info-box">Run a forward pass above.</div></div>
+      </div>
+      <div class="card">
+        <div class="shd" style="margin-bottom:6px">Sweep — All Training Samples</div>
+        <div id="sweepContainer"><div class="info-box">Click "Sweep All" to evaluate every sample.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     PAGE: SAVE / LOAD
+══════════════════════════════════════════════════════════ -->
+<div class="page" id="pgSaveload">
+  <div class="scroll-center">
+    <div class="content-col">
+      <div class="card">
+        <h3>💾 Model Manager</h3>
+        <p>Export the current model (all weights, biases, architecture and hyperparameters) as a JSON file. Import it later to resume training or run inference — no rebuilding required.</p>
+      </div>
+      <div class="card">
+        <div class="shd" style="margin-bottom:8px">Export Model</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <input type="text" id="modelName" value="my-model" style="flex:1">
+          <button class="btn success" id="saveBtn">⬇ Export JSON</button>
+        </div>
+        <div class="info-box" id="saveInfo">Build and train a model first.</div>
+      </div>
+      <div class="card">
+        <div class="shd" style="margin-bottom:8px">Import Model</div>
+        <div class="btn-row" style="margin-bottom:8px">
+          <button class="btn warn" id="loadBtn">⬆ Import JSON</button>
+          <input type="file" id="fileInp" accept=".json" style="display:none">
+        </div>
+        <div class="info-box" id="loadInfo">Select a previously exported .json file.</div>
+      </div>
+      <div class="card">
+        <div class="shd" style="margin-bottom:8px">Current Model Summary</div>
+        <div id="modelSummary"><div class="info-box">No model built yet.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     PAGE: LEARN
+══════════════════════════════════════════════════════════ -->
+<div class="page" id="pgLearn">
+  <div class="learn-cols">
+    <div class="learn-col">
+      <h2>📚 Architecture Zoo</h2>
+      <div class="concept-card"><h4>MLP — Multi-Layer Perceptron</h4><p>The foundational feedforward network. Every neuron connects to every neuron in the next layer (fully connected). Trains via backpropagation and gradient descent. Best for tabular data, logic gates, function approximation. <b>This is what runs in the Train tab.</b></p></div>
+      <div class="concept-card"><h4>CNN — Convolutional Neural Network</h4><p>Uses sliding kernel filters to detect local spatial patterns (edges, textures). Parameters are shared across positions — very efficient for image data. Key layers: Conv → ReLU → MaxPool → Dense. Foundation of ResNet, VGG, EfficientNet.</p></div>
+      <div class="concept-card"><h4>Autoencoder</h4><p>Hourglass architecture: Encoder compresses input to a small latent vector (bottleneck), Decoder reconstructs the original. Trained to minimise reconstruction error. The bottleneck forces compact representations. Used for compression, denoising, anomaly detection. Core component of VAEs and Stable Diffusion.</p></div>
+      <div class="concept-card"><h4>RNN / LSTM / GRU</h4><p>Recurrent networks process sequences by maintaining a hidden state across timesteps. Vanilla RNNs suffer from vanishing gradients. LSTMs add forget/input/output gates to selectively remember and forget. GRUs are a simplified variant. Best for time series, language modelling, speech.</p></div>
+      <div class="concept-card"><h4>Transformer</h4><p>Replaces recurrence with Self-Attention: every token attends to every other token in parallel. Multi-head attention learns different relationships simultaneously. Residual connections + LayerNorm enable very deep stacks. Foundation of GPT, BERT, T5 — virtually all modern AI.</p></div>
+      <div class="concept-card"><h4>ViT — Vision Transformer</h4><p>Applies a standard Transformer to images by splitting into fixed-size patches (e.g. 16×16), linearly embedding each patch as a token, prepending a [CLS] token, then running through a Transformer encoder. [CLS] output used for classification. Outperforms CNNs at scale (Dosovitskiy et al., 2020).</p></div>
+      <div class="concept-card"><h4>VAE — Variational Autoencoder</h4><p>Like an autoencoder, but the encoder outputs a distribution (μ, σ²) rather than a single point. Sampling uses the reparameterisation trick: z = μ + σ·ε. Trained with reconstruction loss + KL divergence. Enables smooth latent-space interpolation and generation.</p></div>
+      <div class="concept-card"><h4>Diffusion / Stable Diffusion</h4><p>Forward: gradually add Gaussian noise over T timesteps. Reverse: a U-Net learns to predict and remove noise at each step. At inference: start from pure noise and iteratively denoise. Stable Diffusion adds a VAE (works in latent space) and CLIP text conditioning via cross-attention.</p></div>
+      <div class="concept-card"><h4>GAN — Generative Adversarial Network</h4><p>Generator G(z) maps noise to fake data. Discriminator D(x) distinguishes real from fake. Adversarial training: G tries to fool D; D improves, forcing G to improve. Produces very sharp outputs but training is notoriously unstable (mode collapse, gradient vanishing).</p></div>
+    </div>
+
+    <div class="learn-col">
+      <h2>⚙️ Hyperparameter Guide</h2>
+      <div class="concept-card"><h4>Learning Rate — The Most Critical Hyperparameter</h4><p>Too high → loss diverges or oscillates wildly. Too low → extremely slow convergence. Adam is much less sensitive to LR than SGD. Rule of thumb: start at 1e-3 with Adam. Use learning rate finders or cosine annealing schedules in production.</p></div>
+      <div class="concept-card"><h4>Batch Size and Gradient Quality</h4><p>Large batch: smoother gradients, faster GPU use, but often worse generalisation ("sharp minima"). Small batch: noisy gradients act as implicit regularisation. Linear scaling rule: if you double batch size, also double LR. Full-batch (all data at once) is used here.</p></div>
+      <div class="concept-card"><h4>Overfitting vs Underfitting</h4><p><b>Underfitting:</b> Model too simple or not trained enough. High training loss. Fix: more capacity, lower regularisation, train longer.<br><b>Overfitting:</b> Low training loss, high validation loss. Fix: Dropout, weight decay, data augmentation, early stopping.</p></div>
+      <div class="concept-card"><h4>Vanishing &amp; Exploding Gradients</h4><p>In deep networks, gradients can exponentially shrink (vanish) or grow (explode) as they propagate backwards. Solutions: residual/skip connections, batch/layer normalisation, gradient clipping, He/Xavier initialisation, LSTM gates, modern activations (GELU, Swish).</p></div>
+      <div class="concept-card"><h4>Weight Initialisation</h4><p>Bad init = symmetry problem or dead start. <b>Xavier/Glorot:</b> scale ~ √(1/fanIn), for Tanh/Sigmoid. <b>He init:</b> scale ~ √(2/fanIn), for ReLU. <b>Zero init:</b> always broken — all neurons learn identically (symmetry not broken). This trainer uses He init.</p></div>
+      <div class="concept-card"><h4>Backpropagation — How Networks Learn</h4><p>1. Forward pass: compute output. 2. Compute loss. 3. Backward pass: apply chain rule layer-by-layer to compute ∂Loss/∂W for every weight. 4. Optimizer applies gradients to update weights. Repeat millions of times. Differentiable activations are essential for step 3.</p></div>
+      <div class="concept-card"><h4>Self-Attention Mechanism</h4><p>For each token, compute Query (Q), Key (K), Value (V) via learned linear projections. Attention scores = Softmax(QKᵀ / √d_k). Output = scores · V. Every position can "look at" every other in O(n²) time. Multi-head attention runs h parallel heads and concatenates, learning different relationship types simultaneously.</p></div>
+      <div class="concept-card"><h4>Dropout &amp; Regularisation</h4><p>Dropout randomly zeros neurons during training (disabled at inference), forcing the network to learn redundant representations. Weight decay (L2) penalises large weights. Together they prevent the network from memorising training data. AdamW's decoupled weight decay is more principled than L2 in Adam.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOOLTIP ── -->
+<div id="tip"></div>
+
+<!-- ── REGISTRY INJECTION ── -->
+<script>
+  // Server-rendered registry — available to all JS modules
+  window.REGISTRY = {{ registry | tojson }};
+</script>
+
+<!-- ── SCRIPTS (load order matters — no bundler) ── -->
+<script src="{{ url_for('static', filename='js/api.js') }}"></script>
+<script src="{{ url_for('static', filename='js/renderer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/trainer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+
+</body>
+</html>

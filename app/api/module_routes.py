@@ -1,0 +1,49 @@
+"""
+app/api/module_routes.py
+/api/modules/*  — expose the ModuleRegistry to the frontend.
+"""
+from flask import Blueprint, request
+from .helpers import ok, err, api_route, get_registry
+
+module_bp = Blueprint("modules", __name__)
+
+
+@module_bp.get("/all")
+@api_route
+def all_modules():
+    """Return the full registry grouped by category."""
+    registry = get_registry()
+    return ok(registry.to_dict())
+
+
+@module_bp.get("/category/<category>")
+@api_route
+def by_category(category: str):
+    registry = get_registry()
+    modules  = registry.all_of_category(category)
+    if not modules:
+        return err(f"No modules in category '{category}'", 404)
+    return ok([m.to_dict() for m in modules])
+
+
+@module_bp.get("/<key>")
+@api_route
+def single_module(key: str):
+    registry = get_registry()
+    mod      = registry.get(key)
+    if mod is None:
+        return err(f"Module '{key}' not found", 404)
+    return ok(mod.to_dict())
+
+
+@module_bp.get("/functions/<key>/dataset")
+@api_route
+def function_dataset(key: str):
+    """Return the raw dataset for a training function."""
+    registry = get_registry()
+    mod      = registry.get(key)
+    if mod is None:
+        return err(f"Function '{key}' not found", 404)
+    if not hasattr(mod, "generate_dataset"):
+        return err(f"'{key}' is not a TrainingFunction", 400)
+    return ok(mod.generate_dataset())
