@@ -63,6 +63,9 @@ def signup():
             db.session.add(new_user)
             db.session.commit()
 
+            # Initialize registry for seeding defaults
+            registry = get_registry()
+
             # Seed default Layers
             # We hardcode the initial defaults for Dense here, or can pull from a Registry if we had one for Layers
             db_l = LayerDefinition(
@@ -92,7 +95,6 @@ def signup():
                 db.session.add(db_a)
 
             # Seed default presets
-            registry = get_registry()
             defaults = registry.all_of_category("presets")
             for p in defaults:
                 db_p = Preset(
@@ -102,12 +104,12 @@ def signup():
                     arch_key=p.arch_key,
                     func_key=p.func_key,
                     layers=json.dumps(p.layers),
-                    activation=p.activation,
-                    optimizer=p.optimizer,
-                    loss=p.loss,
-                    lr=p.lr,
-                    dropout=p.dropout,
-                    weight_decay=p.weight_decay
+                    activation=getattr(p, "activation", "tanh"),
+                    optimizer=getattr(p, "optimizer", "adam"),
+                    loss=getattr(p, "loss", "bce"),
+                    lr=getattr(p, "lr", 0.01),
+                    dropout=getattr(p, "dropout", 0.0),
+                    weight_decay=getattr(p, "weight_decay", 0.0)
                 )
                 db.session.add(db_p)
             db.session.commit()

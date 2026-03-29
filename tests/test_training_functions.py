@@ -71,10 +71,10 @@ class TestSevenSegmentFunction:
         assert fn.outputs == 7
 
     def test_seg7_dataset_size(self):
-        """7-segment dataset should have 10 samples (digits 0-9)."""
+        """7-segment dataset should have 16 samples (hex digits 0-F)."""
         fn = SevenSegmentFunction()
         dataset = fn.generate_dataset()
-        assert len(dataset) == 10
+        assert len(dataset) == 16
 
     def test_seg7_input_range(self):
         """7-segment inputs should be 4-bit binary."""

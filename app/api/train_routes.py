@@ -70,24 +70,60 @@ def train_step():
 @api_route
 def evaluate():
     """
-    Evaluate all training samples and return per-sample predictions.
+    Evaluate training samples or a range sweep.
     Body: {} (uses current session dataset)
+    Body: { "ranges": [{"min": 0, "max": 1, "step": 0.2}, ...] } (grid sweep of input ranges)
     """
+    import itertools
     ts  = get_training_session()
     if ts.network is None:
         return err("No network built.")
 
+    data = request.get_json() or {}
+    ranges = data.get("ranges")
+    
     results = []
-    for sample in ts.dataset:
-        pred = ts.predict(sample["x"])
-        results.append({
-            "x":    sample["x"],
-            "y":    sample["y"],
-            "pred": pred,
-        })
+    
+    if ranges:
+        # Grid sweep: evaluate all combinations across input ranges
+        # step is the increment between points (e.g., step=0.2 with min=0, max=1 → 0, 0.2, 0.4, 0.6, 0.8, 1.0)
+        range_lists = []
+        
+        for r in ranges:
+            min_val = r.get("min", 0)
+            max_val = r.get("max", 1)
+            step_val = r.get("step", 0.2)
+            
+            # Generate points from min to max with given step
+            points = []
+            current = min_val
+            while current <= max_val + 1e-9:  # Small epsilon for floating point
+                points.append(round(current, 10))  # Round to avoid floating point errors
+                current += step_val
+            
+            range_lists.append(points)
+        
+        # Generate all combinations
+        for combo in itertools.product(*range_lists):
+            x = list(combo)
+            pred = ts.predict(x)
+            results.append({
+                "x":    x,
+                "y":    [0] * len(pred),  # No ground truth for range sweep
+                "pred": pred,
+            })
+    else:
+        # Standard: evaluate all training samples
+        for sample in ts.dataset:
+            pred = ts.predict(sample["x"])
+            results.append({
+                "x":    sample["x"],
+                "y":    sample["y"],
+                "pred": pred,
+            })
 
-    loss = ts.network.compute_loss(ts.dataset)
-    acc  = ts.network.compute_accuracy(ts.dataset)
+    loss = ts.network.compute_loss(ts.dataset) if not ranges else 0.0
+    acc  = ts.network.compute_accuracy(ts.dataset) if not ranges else 0.0
 
     return ok({
         "samples":  results,

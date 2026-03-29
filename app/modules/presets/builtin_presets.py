@@ -33,7 +33,7 @@ class ANDGatePreset(PresetModule):
 class SevenSegmentPreset(PresetModule):
     key           = "preset_seg7"
     label         = "7-Segment"
-    description   = "Teach the network all 10 digit patterns for a 7-segment display."
+    description   = "Teach the network all 16 hex digit patterns (0-9, A-F) for a 7-segment display."
     arch_key      = "mlp"
     func_key      = "seg7"
     layers        = [

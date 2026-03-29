@@ -21,6 +21,8 @@ class UIController {
     this._tipEl    = document.getElementById("tip");
     this._handlers = {};   // event name → callback, for external wiring
     this._layers   = [];   // Initialize to avoid undefined map errors
+    this._fnMeta   = null; // Store function metadata for test tab
+    this._sweepRanges = {}; // Store sweep range for each input
   }
 
   on(event, fn) { this._handlers[event] = fn; }
@@ -59,7 +61,7 @@ class UIController {
         const pg = "pg" + btn.dataset.pg[0].toUpperCase() + btn.dataset.pg.slice(1);
         document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
         document.getElementById(pg)?.classList.add("active");
-        if (btn.dataset.pg === "test")     this._renderTestInputs();
+        if (btn.dataset.pg === "test")     this._renderTestInputs(this._fnMeta);
         if (btn.dataset.pg === "saveload") this._renderModelSummary();
       });
     });
@@ -640,12 +642,43 @@ class UIController {
     }
     c.innerHTML = fnMeta.input_labels.map((lbl, i) => {
       const defVal = firstSample?.[i] ?? 0;
+      // Initialize sweep ranges if not exist
+      if (!this._sweepRanges[i]) {
+        this._sweepRanges[i] = { min: 0, max: 1, steps: 5 };
+      }
       return `<div class="trow">
         <label>${lbl}</label>
         <input type="number" id="ti${i}" value="${defVal.toFixed(3)}"
                step="0.01" min="0" max="1">
       </div>`;
     }).join("");
+  }
+
+  _renderSweepRangeControls(fnMeta) {
+    if (!fnMeta) return;
+    const c = document.getElementById("testInpContainer");
+    if (!c) return;
+
+    // Add range controls after the inputs
+    let rangeHTML = '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">';
+    rangeHTML += '<div style="font-size:12px;color:var(--text2);margin-bottom:8px"><b>Sweep Ranges (for Sweep All)</b></div>';
+    rangeHTML += fnMeta.input_labels.map((lbl, i) => `
+      <div style="margin-bottom:8px;font-size:11px">
+        <label style="display:block;margin-bottom:4px">${lbl}</label>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <label style="min-width:30px">Min:</label>
+          <input type="number" id="sweep-min-${i}" value="0" step="0.01" min="0" max="1" style="width:60px;padding:4px">
+          <label style="min-width:30px">Max:</label>
+          <input type="number" id="sweep-max-${i}" value="1" step="0.01" min="0" max="1" style="width:60px;padding:4px">
+          <label style="min-width:30px">Step:</label>
+          <input type="number" id="sweep-step-${i}" value="0.2" step="0.01" min="0.01" max="1" style="width:60px;padding:4px" title="Increment between points">
+        </div>
+      </div>
+    `).join("");
+    rangeHTML += '</div>';
+    
+    // Insert after input container
+    c.insertAdjacentHTML('afterend', rangeHTML);
   }
 
   _getTestInputs() {
@@ -695,7 +728,12 @@ class UIController {
     if (!c) return;
     if (isSeg7) {
       c.innerHTML = '<div class="seg-display">' +
-        results.map(r => `<div class="seg-digit">${segSVG(r.pred)}</div>`).join("") +
+        results.map(r => {
+          // Convert 4-bit input to hex digit
+          const digit = (r.x[0] << 3) | (r.x[1] << 2) | (r.x[2] << 1) | r.x[3];
+          const hexChar = digit < 10 ? digit : String.fromCharCode(65 + digit - 10); // 0-9, A-F
+          return `<div class="seg-digit" title="Hex digit ${hexChar}"><div style="font-size:9px;text-align:center;color:var(--text2);margin-bottom:2px">${hexChar}</div>${segSVG(r.pred)}</div>`;
+        }).join("") +
         "</div>";
       return;
     }
@@ -1025,10 +1063,28 @@ class UIController {
   // PUBLIC HELPERS for App to call
   // ════════════════════════════════════════════════════════
   renderTestInputsFor(fnMeta, firstSample) {
+    this._fnMeta = fnMeta; // Store for later access
     this._renderTestInputs(fnMeta, firstSample);
+    this._renderSweepRangeControls(fnMeta);
   }
 
   getTestInputs() { return this._getTestInputs(); }
+
+  getSweepRanges() {
+    const ranges = [];
+    const inputs = this._fnMeta?.input_labels || [];
+    for (let i = 0; i < inputs.length; i++) {
+      const minEl = document.getElementById(`sweep-min-${i}`);
+      const maxEl = document.getElementById(`sweep-max-${i}`);
+      const stepEl = document.getElementById(`sweep-step-${i}`);
+      ranges.push({
+        min: minEl ? parseFloat(minEl.value) || 0 : 0,
+        max: maxEl ? parseFloat(maxEl.value) || 1 : 1,
+        step: stepEl ? parseFloat(stepEl.value) || 0.2 : 0.2
+      });
+    }
+    return ranges;
+  }
 }
 
 // ── DOM tiny helpers (module-level, not on class) ──

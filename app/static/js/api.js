@@ -40,8 +40,8 @@ const API = (() => {
 
     // ── training ──
     trainStep:       (steps, lr) => request("POST", "/api/train/step",     { steps, lr }),
-    evaluate:        async () => {
-      const result = await request("POST", "/api/train/evaluate", {});
+    evaluate:        async (ranges) => {
+      const result = await request("POST", "/api/train/evaluate", ranges ? { ranges } : {});
       console.log("evaluate result:", result);
       return result;
     },

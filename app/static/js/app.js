@@ -382,7 +382,8 @@ class App {
   async _sweep() {
     if (!this._snapshot?.built) { alert("Build a network first."); return; }
     try {
-      const data   = await API.evaluate();
+      const ranges = this._ui.getSweepRanges();
+      const data   = await API.evaluate(ranges);
       const isSeg7 = this._fnMeta?.key === "seg7";
       this._ui.renderSweepResults(data.samples, this._fnMeta, isSeg7);
     } catch (e) {

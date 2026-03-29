@@ -4,8 +4,8 @@ from .base_function import TrainingFunction
 
 class SevenSegmentFunction(TrainingFunction):
     key         = "seg7"
-    label       = "7-Segment Display"
-    description = ("<b>7-Segment</b>: 4-bit binary input (digits 0–9) → "
+    label       = "7-Segment Display (Hex)"
+    description = ("<b>7-Segment Hex</b>: 4-bit binary input (0–F, 16 hex digits) → "
                    "7 segment outputs a–g. Tests multi-output classification.")
     inputs      = 4
     outputs     = 7
@@ -17,7 +17,7 @@ class SevenSegmentFunction(TrainingFunction):
         {"neurons": 10, "activation": "tanh", "type": "dense"}
     ], "optimizer": "adam", "loss": "mse", "dropout": 0.0, "lr": 0.02}
 
-    # segments[digit] = [a,b,c,d,e,f,g]
+    # segments[digit] = [a,b,c,d,e,f,g] for 0-9 and A-F
     _SEGMENTS = [
         [1,1,1,1,1,1,0],  # 0
         [0,1,1,0,0,0,0],  # 1
@@ -29,6 +29,12 @@ class SevenSegmentFunction(TrainingFunction):
         [1,1,1,0,0,0,0],  # 7
         [1,1,1,1,1,1,1],  # 8
         [1,1,1,1,0,1,1],  # 9
+        [1,1,1,0,1,1,1],  # A
+        [1,0,1,1,1,1,1],  # B
+        [1,0,0,1,1,1,0],  # C
+        [0,1,1,1,1,0,1],  # D
+        [1,0,0,1,1,1,1],  # E
+        [1,0,0,0,1,1,1],  # F
     ]
 
     def generate_dataset(self):
@@ -37,5 +43,5 @@ class SevenSegmentFunction(TrainingFunction):
                 "x": [(i >> 3) & 1, (i >> 2) & 1, (i >> 1) & 1, i & 1],
                 "y": self._SEGMENTS[i],
             }
-            for i in range(10)
+            for i in range(16)
         ]

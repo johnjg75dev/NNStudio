@@ -21,6 +21,7 @@ class PresetModule(BaseModule):
     optimizer:     str   = "adam"
     loss:          str   = "bce"
     lr:            float = 0.01
+    dropout:       float = 0.0
     weight_decay:  float = 0.0
 
     def __init__(self):
@@ -40,5 +41,6 @@ class PresetModule(BaseModule):
             "optimizer":     self.optimizer,
             "loss":          self.loss,
             "lr":            self.lr,
+            "dropout":       self.dropout,
             "weight_decay":  self.weight_decay,
         }
