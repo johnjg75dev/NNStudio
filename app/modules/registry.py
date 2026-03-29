@@ -91,6 +91,40 @@ class ModuleRegistry:
     # ── retrieval ────────────────────────────────────────────────────
     def get(self, key: str) -> BaseModule | None:
         return self._modules.get(key)
+    
+    def get_with_custom(self, key: str, user_id: int | None = None) -> BaseModule | None:
+        """
+        Get a module by key, checking custom functions if static module not found.
+        
+        Args:
+            key: Module key (e.g., 'custom_5' for custom function with ID 5)
+            user_id: Current user ID (required to filter custom functions)
+            
+        Returns:
+            BaseModule instance or None
+        """
+        # Try static module first
+        if key in self._modules:
+            return self._modules[key]
+        
+        # Try custom function if key starts with 'custom_'
+        if key.startswith('custom_') and user_id:
+            try:
+                from ..models import CustomTrainingFunction
+                from .functions.custom_function_wrapper import DynamicCustomFunction
+                
+                custom_id = int(key.split('_')[1])
+                custom_func = CustomTrainingFunction.query.filter_by(
+                    id=custom_id,
+                    user_id=user_id
+                ).first()
+                
+                if custom_func and custom_func.is_valid:
+                    return DynamicCustomFunction(custom_func)
+            except Exception:
+                pass
+        
+        return None
 
     def all_of_category(self, category: str) -> list[BaseModule]:
         keys = self._by_category.get(category, [])
