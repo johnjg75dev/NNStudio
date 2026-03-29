@@ -27,6 +27,17 @@ def get_training_session():
     return mgr.get_or_create(sid)
 
 
+def get_session_manager():
+    """Get the global SessionManager instance."""
+    from app.core.session_manager import SessionManager
+    mgr: SessionManager = current_app.extensions.get("session_manager")
+    if mgr is None:
+        # lazy-init
+        mgr = SessionManager()
+        current_app.extensions["session_manager"] = mgr
+    return mgr
+
+
 def get_registry():
     return current_app.extensions["module_registry"]
 

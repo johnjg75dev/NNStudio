@@ -4,3 +4,5 @@ flask-sqlalchemy
 flask-login
 pytest>=7.4
 pytest-cov>=4.1
+safetensors>=0.4.0
+onnx>=1.14.0
