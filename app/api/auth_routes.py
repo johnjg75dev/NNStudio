@@ -5,7 +5,7 @@ Authentication routes for registration and login.
 import json
 from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from ..models import User, Preset, LayerDefinition, ArchitectureDefinition
+from ..models import User, Preset, LayerDefinition, ArchitectureDefinition, Dataset
 from .. import db
 from .helpers import api_route, ok, get_registry
 
@@ -112,6 +112,23 @@ def signup():
                     weight_decay=getattr(p, "weight_decay", 0.0)
                 )
                 db.session.add(db_p)
+            
+            # Seed default Datasets
+            # Predefined MNIST
+            mnist = Dataset(
+                user_id=new_user.id,
+                name="MNIST Digits",
+                description="The classic dataset of 28x28 handwritten digits.",
+                ds_type="mnist",
+                num_inputs=784,
+                num_outputs=10,
+                width=28,
+                height=28,
+                is_predefined=True,
+                downloaded=False
+            )
+            db.session.add(mnist)
+
             db.session.commit()
 
             login_user(new_user)

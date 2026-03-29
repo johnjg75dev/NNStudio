@@ -468,7 +468,40 @@ def get_templates():
         }
     }
     
+    # Add common examples
+    examples = {
+        "python": [
+            {
+                "name": "XOR (Logic)",
+                "code": "def f(x):\n    # x = [0, 1] etc\n    return [1.0 if (x[0] > 0.5) != (x[1] > 0.5) else 0.0]"
+            },
+            {
+                "name": "Sine Wave",
+                "code": "def f(x):\n    import math\n    return [math.sin(x[0] * 2 * math.pi)]"
+            },
+            {
+                "name": "Distance from Center",
+                "code": "def f(x):\n    return [x[0]**2 + x[1]**2]"
+            }
+        ],
+        "javascript": [
+            {
+                "name": "XOR (Logic)",
+                "code": "function f(x) {\n    return [(x[0] > 0.5) !== (x[1] > 0.5) ? 1.0 : 0.0];\n}"
+            },
+            {
+                "name": "Sine Wave",
+                "code": "function f(x) {\n    return [Math.sin(x[0] * 2 * Math.PI)];\n}"
+            },
+            {
+                "name": "Average",
+                "code": "function f(x) {\n    return [x.reduce((a, b) => a + b, 0) / x.length];\n}"
+            }
+        ]
+    }
+    
     return jsonify({
         "success": True,
         "templates": templates,
+        "examples": examples
     }), 200

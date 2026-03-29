@@ -68,7 +68,7 @@ class FunctionExecutor:
             if 'def f(' not in code and 'def f (' not in code:
                 return ExecutionResult(
                     success=False,
-                    error="Function must be named 'f' and take parameter 'x': def f(x):"
+                    error="Could not find function 'f' in code. Ensure your function is named exactly 'f'."
                 )
             
             # Create safe execution environment
@@ -240,7 +240,7 @@ class FunctionExecutor:
             
             # Check for required function
             if 'def f(' not in code and 'def f (' not in code:
-                return False, "Function must be named 'f' and take parameter 'x': def f(x):"
+                return False, "Could not find function 'f' in code. Ensure your function is named exactly 'f'."
             
             return True, None
             
@@ -259,7 +259,7 @@ class FunctionExecutor:
         """
         # Check for required function
         if 'function f(' not in code and 'const f' not in code and 'let f' not in code:
-            return False, "Function must be named 'f': function f(x) { ... }"
+            return False, "Could not find function 'f' in code. Ensure your function is named exactly 'f'."
         
         # Basic brace matching
         open_braces = code.count('{')

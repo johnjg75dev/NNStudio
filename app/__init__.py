@@ -45,6 +45,7 @@ def create_app(config: dict | None = None) -> Flask:
     from .api.preset_routes import preset_bp
     from .api.model_routes import model_bp
     from .api.custom_function_routes import custom_function_bp
+    from .api.dataset_routes import dataset_bp
 
     app.register_blueprint(page_bp)
     app.register_blueprint(session_bp, url_prefix="/api/session")
@@ -54,6 +55,7 @@ def create_app(config: dict | None = None) -> Flask:
     app.register_blueprint(preset_bp,  url_prefix="/api/presets")
     app.register_blueprint(model_bp,   url_prefix="/api/models")
     app.register_blueprint(custom_function_bp, url_prefix="/api/functions/custom")
+    app.register_blueprint(dataset_bp, url_prefix="/api/datasets")
 
     # User loader
     from .models import User, Preset

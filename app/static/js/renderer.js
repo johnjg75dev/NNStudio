@@ -82,17 +82,17 @@ class NetworkRenderer {
   zoomReset() { return this.setZoom(1.0); }
   
   // Toggle layer group expansion
-  toggleLayerExpanded(layerIndex) {
-    const current = this._expandedLayers.get(layerIndex) || false;
-    this._expandedLayers.set(layerIndex, !current);
+  toggleLayerExpanded(layerIdx) {
+    const current = this._expandedLayers.get(layerIdx) || false;
+    this._expandedLayers.set(layerIdx, !current);
     if (this._lastSnapshot) {
       this.draw(this._lastSnapshot);
     }
     return !current;
   }
   
-  isLayerExpanded(layerIndex) {
-    return this._expandedLayers.get(layerIndex) || false;
+  isLayerExpanded(layerIdx) {
+    return this._expandedLayers.get(layerIdx) || false;
   }
 
   // ── resize canvas to its CSS size ──
@@ -105,11 +105,17 @@ class NetworkRenderer {
   // ── Check if layer should be shown as grouped ──
   _isGroupedLayer(layerInfo) {
     if (!layerInfo) return false;
-    const type = layerInfo.type || 'dense';
+    const type = (layerInfo.type || 'dense').toLowerCase();
+    
+    // Non-visual layers that should still be represented
+    if (['dropout', 'batchnorm', 'flatten', 'layernorm', 'positional_encoding'].includes(type)) {
+      return true;
+    }
+
     // Group Conv2D when they have many channels
     if (type === 'conv2d') {
       const outCh = layerInfo.out_channels || 16;
-      return outCh > 4;  // Group if more than 4 output channels
+      return outCh > 4;
     }
     // Group MaxPool layers
     if (type === 'maxpool2d') {
@@ -123,6 +129,14 @@ class NetworkRenderer {
     if (!layerInfo || !this._isGroupedLayer(layerInfo)) {
       return topologyValue;
     }
+    
+    const type = (layerInfo.type || '').toLowerCase();
+    const utilityTypes = ['dropout', 'batchnorm', 'flatten', 'layernorm', 'positional_encoding'];
+    
+    if (utilityTypes.includes(type)) {
+      return expanded ? 1 : 1;
+    }
+
     if (expanded) {
       const outCh = layerInfo.out_channels || topologyValue;
       return Math.min(outCh, 16);  // Show max 16 channels when expanded
@@ -136,6 +150,14 @@ class NetworkRenderer {
     if (!layerInfo || !this._isGroupedLayer(layerInfo)) {
       return baseRadius;
     }
+    
+    const type = (layerInfo.type || '').toLowerCase();
+    const utilityTypes = ['dropout', 'batchnorm', 'flatten', 'layernorm', 'positional_encoding'];
+    
+    if (utilityTypes.includes(type)) {
+      return baseRadius * 0.8; // Utility layers are smaller
+    }
+
     if (expanded) {
       return baseRadius;
     } else {
@@ -179,44 +201,26 @@ class NetworkRenderer {
     const W = this.canvas.width, H = this.canvas.height;
     const padX = 80, padY = 48;
     
-    // Map topology indices to actual layer info
-    let layerIndex = 0;
     const positions = [];
     
-    for (let topoIdx = 0; topoIdx < topology.length; topoIdx++) {
-      // Find corresponding layer info
-      let layerInfo = null;
-      while (layerIndex < layers.length) {
-        const li = layers[layerIndex];
-        if (!li.W || !Array.isArray(li.W) || li.W.length === 0) {
-          if (li.type !== 'dropout' && li.type !== 'batchnorm' && 
-              li.type !== 'flatten' && li.type !== 'maxpool2d') {
-            layerIndex++;
-            continue;
-          }
-        }
-        layerInfo = li;
-        break;
-      }
-      
-      const expanded = this.isLayerExpanded(layerIndex);
-      const n = this._getLayerDisplaySize(layerInfo, topology[topoIdx], expanded);
+    // The number of columns is topology.length
+    for (let l = 0; l < topology.length; l++) {
+      // Each column l corresponds to layer info in layers[l-1] (except l=0 which is input)
+      const layerInfo = l === 0 ? { type: 'input' } : layers[l-1];
+      const expanded = this.isLayerExpanded(l);
+      const n = this._getLayerDisplaySize(layerInfo, topology[l], expanded);
       
       positions.push(
         Array.from({ length: n }, (_, i) => ({
-          x: padX + (topoIdx / Math.max(1, topology.length - 1)) * (W - 2 * padX),
+          x: padX + (l / Math.max(1, topology.length - 1)) * (W - 2 * padX),
           y: n === 1 ? H / 2 : padY + (i / (n - 1)) * (H - 2 * padY),
-          layer: topoIdx, 
+          layer: l, 
           idx: i,
           isGrouped: this._isGroupedLayer(layerInfo),
           isExpanded: expanded,
           layerInfo: layerInfo,
         }))
       );
-      
-      if (layerInfo && (layerInfo.W || layerInfo.type === 'maxpool2d')) {
-        layerIndex++;
-      }
     }
     
     return positions;
@@ -230,38 +234,60 @@ class NetworkRenderer {
 
   _drawEdges(pts, layers, nodeR) {
     const { ctx } = this;
-    // Only draw edges for layers that have visual nodes (skip Conv2D, MaxPool, Flatten, etc.)
-    // pts array corresponds to topology, not layers array
-    let ptsIndex = 0;
-    layers.forEach((layer, l) => {
-      // Skip layers without weights (Dropout, BatchNorm, Flatten, MaxPool, etc.)
-      if (!layer.W || !Array.isArray(layer.W) || layer.W.length === 0) {
-        return;
-      }
-      // Check if we have corresponding points
-      if (!pts[ptsIndex] || !pts[ptsIndex + 1]) {
-        ptsIndex++;
-        return;
-      }
-      (layer.W || []).forEach((row, i) => {
-        row.forEach((w, j) => {
-          const fr = pts[ptsIndex][j], to = pts[ptsIndex + 1][i];
-          if (!fr || !to) return;
-          const dx = to.x - fr.x, dy = to.y - fr.y;
-          const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-          const ux = dx/dist, uy = dy/dist;
-          ctx.beginPath();
-          ctx.moveTo(fr.x + ux * nodeR, fr.y + uy * nodeR);
-          ctx.lineTo(to.x - ux * nodeR, to.y - uy * nodeR);
-          ctx.strokeStyle = weightColor(w);
-          ctx.lineWidth   = Math.min(6, 0.4 + Math.abs(w) * 1.3);
-          ctx.globalAlpha = 0.4 + Math.min(0.6, Math.abs(w) * 0.25);
-          ctx.stroke();
-          ctx.globalAlpha = 1;
+    
+    // pts corresponds to [Input, L1, L2, ..., Output]
+    // layers corresponds to [L1, L2, ..., Output]
+    
+    for (let l = 0; l < layers.length; l++) {
+      const layer = layers[l];
+      const frPts = pts[l];
+      const toPts = pts[l + 1];
+      if (!frPts || !toPts) continue;
+
+      const layerType = (layer.type || '').toLowerCase();
+      
+      // If it's a weighted layer, draw edges for each weight
+      if (layer.W && Array.isArray(layer.W) && layer.W.length > 0) {
+        layer.W.forEach((row, i) => {
+          row.forEach((w, j) => {
+            const fr = frPts[j], to = toPts[i];
+            if (!fr || !to) return;
+            this._drawSingleEdge(ctx, fr, to, weightColor(w), Math.min(6, 0.4 + Math.abs(w) * 1.3), nodeR);
+          });
         });
-      });
-      ptsIndex++;
-    });
+      } else {
+        // Non-weighted layer (Dropout, BatchNorm, etc.)
+        // Draw symbolic connections (e.g., identity-like)
+        const nFr = frPts.length;
+        const nTo = toPts.length;
+        
+        if (nFr === 1 && nTo === 1) {
+          this._drawSingleEdge(ctx, frPts[0], toPts[0], "#58a6ff22", 1, nodeR);
+        } else {
+          // Connect first, middle, last to avoid too many lines
+          const indices = [0, Math.floor(nFr/2), nFr-1].filter((v, i, a) => a.indexOf(v) === i);
+          indices.forEach(idx => {
+            if (frPts[idx] && toPts[idx % nTo]) {
+              this._drawSingleEdge(ctx, frPts[idx], toPts[idx % nTo], "#58a6ff22", 1, nodeR);
+            }
+          });
+        }
+      }
+    }
+  }
+
+  _drawSingleEdge(ctx, fr, to, color, width, nodeR) {
+    const dx = to.x - fr.x, dy = to.y - fr.y;
+    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+    const ux = dx/dist, uy = dy/dist;
+    ctx.beginPath();
+    ctx.moveTo(fr.x + ux * nodeR, fr.y + uy * nodeR);
+    ctx.lineTo(to.x - ux * nodeR, to.y - uy * nodeR);
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = width;
+    ctx.globalAlpha = 0.4;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
   _drawBias(pts, layers, nodeR) {
@@ -318,40 +344,24 @@ class NetworkRenderer {
 
   _drawNodes(pts, acts, layers, nodeR, fn) {
     const { ctx } = this;
-    // Map topology index to layer index (skip non-visual layers)
-    let layerIndex = 0;
 
     pts.forEach((layerPts, l) => {
-      // Find the corresponding layer info
-      let layerInfo = null;
-      while (layerIndex < layers.length) {
-        const li = layers[layerIndex];
-        // Skip layers without visual representation
-        if (!li.W || !Array.isArray(li.W) || li.W.length === 0) {
-          if (li.type !== 'dropout' && li.type !== 'batchnorm' &&
-              li.type !== 'flatten' && li.type !== 'maxpool2d') {
-            layerIndex++;
-          }
-        }
-        layerInfo = li;
-        break;
-      }
-      const layerType = layerInfo?.type || "dense";
+      const layerInfo = l === 0 ? { type: 'input' } : layers[l-1];
+      const layerType = (layerInfo?.type || "dense").toLowerCase();
       const isGrouped = this._isGroupedLayer(layerInfo);
-      const isExpanded = this.isLayerExpanded(layerIndex);
+      const isExpanded = this.isLayerExpanded(l);
       
       // Use larger radius for collapsed grouped layers
       const actualNodeR = this._getNodeRadiusForLayer(layerInfo, nodeR, isExpanded);
 
       layerPts.forEach(({ x, y, layer, idx }) => {
         // Get activation safely
-        const actIndex = acts.length > l ? l : (acts.length > 0 ? acts.length - 1 : 0);
-        const av  = acts[actIndex]?.[idx] ?? 0;
+        const av  = acts[l]?.[idx] ?? 0;
         const sel = this._selectedNode;
         const isSel = sel && sel.layer === l && sel.idx === idx;
 
         // glow
-        if (this.opts.showActivations && acts[actIndex]) {
+        if (this.opts.showActivations && acts[l]) {
           const grd = ctx.createRadialGradient(x, y, 0, x, y, actualNodeR * 2.8);
           grd.addColorStop(0, activationColor(av, 0.3));
           grd.addColorStop(1, "rgba(0,0,0,0)");
@@ -362,11 +372,20 @@ class NetworkRenderer {
         // circle - draw larger circle for collapsed grouped layers
         ctx.beginPath(); 
         ctx.arc(x, y, actualNodeR, 0, Math.PI * 2);
-        ctx.fillStyle   = (this.opts.showActivations && acts[actIndex]) ? activationColor(av) : "#2d333b";
+        ctx.fillStyle   = (this.opts.showActivations && acts[l]) ? activationColor(av) : "#2d333b";
+        
+        // Visual distinction for utility layers
+        const utilityTypes = ['dropout', 'batchnorm', 'flatten', 'layernorm', 'positional_encoding'];
+        if (utilityTypes.includes(layerType)) {
+            ctx.fillStyle = "#2d333b";
+            ctx.setLineDash([2, 2]);
+        }
+        
         ctx.fill();
         ctx.strokeStyle = isSel ? "#fff" : "#58a6ff";
         ctx.lineWidth   = isSel ? 2.5 : 1.5;
         ctx.stroke();
+        ctx.setLineDash([]);
         
         // For collapsed grouped layers, draw a distinctive pattern
         if (isGrouped && !isExpanded) {
@@ -397,10 +416,20 @@ class NetworkRenderer {
           ctx.textBaseline = "middle";
           const isIn  = l === 0;
           const isOut = l === pts.length - 1;
-          const lbl   = isIn  && fn.input_labels?.[idx]  ? fn.input_labels[idx]
-                      : isOut && fn.output_labels?.[idx] ? fn.output_labels[idx]
-                      : isGrouped && !isExpanded ? `${layerInfo?.out_channels || pts[l].length}ch`
-                      : av.toFixed(1);
+          
+          let lbl = "";
+          if (isIn && fn.input_labels?.[idx]) {
+            lbl = fn.input_labels[idx];
+          } else if (isOut && fn.output_labels?.[idx]) {
+            lbl = fn.output_labels[idx];
+          } else if (isGrouped && !isExpanded) {
+            lbl = `${layerInfo?.out_channels || pts[l].length}ch`;
+          } else if (utilityTypes.includes(layerType)) {
+            lbl = layerType.charAt(0).toUpperCase();
+          } else {
+            lbl = av.toFixed(1);
+          }
+          
           ctx.fillText(lbl, x, y);
         }
 
@@ -479,7 +508,6 @@ class NetworkRenderer {
           }
         }
       });
-      layerIndex++;
     });
   }
 
@@ -491,7 +519,7 @@ class NetworkRenderer {
     
     for (let l = 0; l < pts.length; l++) {
       const layerPts = pts[l];
-      const layerInfo = layers?.[l];
+      const layerInfo = l === 0 ? { type: 'input' } : layers[l-1];
       const isGrouped = this._isGroupedLayer(layerInfo);
       const isExpanded = this.isLayerExpanded(l);
       const nodeR = this._getNodeRadiusForLayer(layerInfo, baseNodeR, isExpanded);
