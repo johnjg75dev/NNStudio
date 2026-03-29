@@ -226,7 +226,7 @@ class TestDatasetGenerator:
 class TestCustomTrainingFunctionModel:
     """Test CustomTrainingFunction database model."""
     
-    def test_create_custom_function(self, flask_app, user: User):
+    def test_create_custom_function(self, flask_app, user):
         """Test creating a custom function in database."""
         with flask_app.app_context():
             custom_func = CustomTrainingFunction(
@@ -255,7 +255,7 @@ class TestCustomTrainingFunctionModel:
             assert retrieved.language == "python"
             assert retrieved.num_inputs == 2
     
-    def test_custom_function_to_dict(self, flask_app, user: User):
+    def test_custom_function_to_dict(self, flask_app, user):
         """Test to_dict() excludes code."""
         with flask_app.app_context():
             custom_func = CustomTrainingFunction(
@@ -277,7 +277,7 @@ class TestCustomTrainingFunctionModel:
             assert result["name"] == "Test"
             assert result["is_valid"] is True
     
-    def test_custom_function_to_dict_full(self, flask_app, user: User):
+    def test_custom_function_to_dict_full(self, flask_app, user):
         """Test to_dict_full() includes code."""
         with flask_app.app_context():
             custom_func = CustomTrainingFunction(
@@ -302,7 +302,7 @@ class TestCustomTrainingFunctionModel:
 class TestCustomFunctionWrapper:
     """Test DynamicCustomFunction wrapper."""
     
-    def test_wrap_custom_function(self, flask_app, user: User):
+    def test_wrap_custom_function(self, flask_app, user):
         """Test wrapping custom function as TrainingFunction."""
         with flask_app.app_context():
             custom_func = CustomTrainingFunction(
@@ -329,7 +329,7 @@ class TestCustomFunctionWrapper:
             assert wrapper.inputs == 2
             assert wrapper.outputs == 1
     
-    def test_generate_dataset_from_custom_function(self, flask_app, user: User):
+    def test_generate_dataset_from_custom_function(self, flask_app, user):
         """Test generating dataset from custom function."""
         with flask_app.app_context():
             custom_func = CustomTrainingFunction(
@@ -358,7 +358,7 @@ class TestCustomFunctionWrapper:
 class TestCustomFunctionAPI:
     """Test custom function API endpoints."""
     
-    def test_create_function_endpoint(self, flask_app, user: User):
+    def test_create_function_endpoint(self, flask_app, user):
         """Test POST /api/functions/custom endpoint."""
         with flask_app.app_context():
             client = flask_app.test_client()

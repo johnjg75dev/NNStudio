@@ -13,11 +13,11 @@ dataset_bp = Blueprint('datasets', __name__)
 
 @dataset_bp.route('', methods=['GET'])
 @login_required
-def list_datasets():
+def list_datasets():  
     """List datasets for the current user including predefined ones."""
     # User's custom datasets
     custom = Dataset.query.filter_by(user_id=current_user.id).all()
-
+a    
     # Predefined datasets (global or specific user)
     # For now, let's just show user's ones and some placeholder predefined
     return jsonify({
@@ -35,7 +35,7 @@ def create_dataset():
         for field in required:
             if field not in data:
                 return jsonify({"success": False, "error": f"Missing field: {field}"}), 400
-
+        
         new_ds = Dataset(
             user_id=current_user.id,
             name=data['name'],
@@ -52,10 +52,10 @@ def create_dataset():
             data=data.get('data'),
             is_predefined=False
         )
-
+        
         db.session.add(new_ds)
         db.session.commit()
-
+        
         return jsonify({"success": True, "dataset": new_ds.to_dict()}), 201
     except Exception as e:
         db.session.rollback()
@@ -78,12 +78,12 @@ def update_dataset(ds_id):
         ds = Dataset.query.filter_by(id=ds_id, user_id=current_user.id).first()
         if not ds:
             return jsonify({"success": False, "error": "Dataset not found"}), 404
-
+              
         data = request.get_json()
         for field in ['name', 'description', 'data', 'is_input_only', 'num_inputs', 'num_outputs', 'width', 'height']:
             if field in data:
                 setattr(ds, field, data[field])
-
+              
         db.session.commit()
         return jsonify({"success": True, "dataset": ds.to_dict()}), 200
     except Exception as e:
@@ -97,7 +97,7 @@ def delete_dataset(ds_id):
     ds = Dataset.query.filter_by(id=ds_id, user_id=current_user.id).first()
     if not ds:
         return jsonify({"success": False, "error": "Dataset not found"}), 404
-
+    
     db.session.delete(ds)
     db.session.commit()
     return jsonify({"success": True, "message": "Dataset deleted"}), 200
@@ -110,9 +110,9 @@ def download_predefined(ds_id):
     ds = Dataset.query.filter_by(id=ds_id, user_id=current_user.id, is_predefined=True).first()
     if not ds:
         return jsonify({"success": False, "error": "Predefined dataset not found"}), 404
-
+    
     # In reality, this would start a background thread to download
     ds.downloaded = True
     db.session.commit()
-
+    
     return jsonify({"success": True, "message": "Download started"}), 200

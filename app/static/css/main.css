@@ -105,6 +105,16 @@ header h1 {
 ══════════════════════════════════════════════════ */
 .main { display: flex; flex: 1; overflow: hidden; }
 
+body.maximized {
+  background: #080c10;
+}
+body.maximized .page.active {
+  padding: 0;
+}
+body.maximized .center {
+  height: 100vh;
+}
+
 /* ── pages ── */
 .page { display: none; flex: 1; overflow: hidden; }
 .page.active { display: flex; }
@@ -135,6 +145,39 @@ header h1 {
   display: flex;
   align-items: center;
   gap: 3px;
+}
+
+/* ── collapsible details ── */
+details {
+  margin-bottom: 4px;
+}
+summary.shd {
+  list-style: none;
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+  transition: color 0.15s;
+}
+summary.shd:hover {
+  color: var(--text2);
+}
+summary.shd::-webkit-details-marker {
+  display: none;
+}
+summary.shd::before {
+  content: "▸";
+  display: inline-block;
+  width: 12px;
+  transition: transform 0.15s;
+}
+details[open] > summary.shd::before {
+  transform: rotate(90deg);
+}
+.details-content {
+  padding: 4px 0 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
 }
 
 /* tooltip trigger icon */

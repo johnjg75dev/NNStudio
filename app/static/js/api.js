@@ -49,5 +49,22 @@ const API = (() => {
     // ── presets ──
     savePreset:      (cfg)   => request("POST", "/api/presets/save",    cfg),
     deletePreset:    (id)    => request("DELETE", `/api/presets/${id}`, {}),
+
+    // ── custom functions ──
+    listCustomFunctions:   ()      => request("GET",  "/api/functions/custom"),
+    getCustomFunction:    (id)    => request("GET",  `/api/functions/custom/${id}`),
+    createCustomFunction: (data)  => request("POST", "/api/functions/custom", data),
+    updateCustomFunction: (id, d) => request("PUT",  `/api/functions/custom/${id}`, d),
+    deleteCustomFunction: (id)    => request("DELETE", `/api/functions/custom/${id}`),
+    testCustomFunction:   (id, x) => request("POST", `/api/functions/custom/${id}/test`, { input: x }),
+    getCustomTemplates:   ()      => request("GET",  "/api/functions/custom/templates"),
+
+    // ── datasets ──
+    listDatasets:         ()      => request("GET",  "/api/datasets"),
+    getDataset:           (id)    => request("GET",  `/api/datasets/${id}`),
+    createDataset:        (data)  => request("POST", "/api/datasets", data),
+    updateDataset:        (id, d) => request("PUT",  `/api/datasets/${id}`, d),
+    deleteDataset:        (id)    => request("DELETE", `/api/datasets/${id}`),
+    downloadDataset:      (id)    => request("POST", `/api/datasets/${id}/download`),
   };
 })();

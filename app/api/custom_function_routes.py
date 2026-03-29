@@ -501,8 +501,9 @@ def get_templates():
             }
         ]
     }
-
-    return ok({
+    
+    return jsonify({
+        "success": True,
         "templates": templates,
         "examples": examples
-    })
+    }), 200

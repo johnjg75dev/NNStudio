@@ -17,8 +17,11 @@ def all_modules():
     registry = get_registry()
     all_data = registry.to_dict()
     
-    # Override "presets" with user-specific ones from DB
+    # Override with user-specific data from DB
     if current_user.is_authenticated:
+        from ..models import Preset, ArchitectureDefinition, LayerDefinition, CustomTrainingFunction
+        from ..modules.functions.custom_function_wrapper import DynamicCustomFunction
+
         user_presets = Preset.query.filter_by(user_id=current_user.id).all()
         all_data["presets"] = [p.to_dict() for p in user_presets]
         
@@ -27,6 +30,11 @@ def all_modules():
         
         user_layers = LayerDefinition.query.filter_by(user_id=current_user.id).all()
         all_data["layers"] = [l.to_dict() for l in user_layers]
+
+        # Add custom functions to "functions" category
+        user_funcs = CustomTrainingFunction.query.filter_by(user_id=current_user.id, is_valid=True).all()
+        custom_func_dicts = [DynamicCustomFunction(f).to_dict() for f in user_funcs]
+        all_data.setdefault("functions", []).extend(custom_func_dicts)
     
     return ok(all_data)
 

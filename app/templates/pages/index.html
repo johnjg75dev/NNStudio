@@ -19,6 +19,8 @@
     <button class="tab"        data-pg="datasets">Datasets</button>
     <button class="tab"        data-pg="test">Test Inputs</button>
     <button class="tab"        data-pg="saveload">Save / Load</button>
+    <button class="tab"        data-pg="custom">Custom Functions</button>
+    <button class="tab"        data-pg="datasets">Datasets</button>
     <button class="tab"        data-pg="learn">Learn</button>
   </div>
 
@@ -53,39 +55,12 @@
     <hr class="dv">
     <div class="shd">Training Task / Dataset</div>
     <div style="display: flex; gap: 4px; margin-bottom: 4px;">
-      <button class="btn secondary" id="taskLibBtn" style="flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis;">Select Task...</button>
+      <select id="funcSel" style="flex: 1;"></select>
       <select id="dsSel" style="flex: 1;">
         <option value="">(No Dataset Selected)</option>
       </select>
     </div>
     <div class="info-box" id="funcDesc">Select a task or a custom dataset.</div>
-
-    <!-- Hidden native select for compatibility -->
-    <select id="funcSel" style="display: none;"></select>
-
-    <!-- Task Library Modal -->
-    <div id="taskLibModal" class="card" style="display: none; position: fixed; top: 10%; left: 10%; width: 80%; height: 80%; z-index: 2000; box-shadow: 0 20px 60px rgba(0,0,0,0.8); background: var(--surf3); flex-direction: column; overflow: hidden;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h3>📚 Task & Architecture Library</h3>
-        <button class="btn secondary" id="taskLibCloseBtn" style="padding: 2px 8px;">×</button>
-      </div>
-
-      <div style="display: flex; gap: 15px; flex: 1; overflow: hidden;">
-        <!-- Categories -->
-        <div style="width: 180px; display: flex; flex-direction: column; gap: 5px;">
-          <button class="tab active" data-task-cat="all">All Tasks</button>
-          <button class="tab" data-task-cat="logic">Logic Gates</button>
-          <button class="tab" data-task-cat="math">Mathematics</button>
-          <button class="tab" data-task-cat="image">Computer Vision</button>
-          <button class="tab" data-task-cat="custom">My Functions</button>
-        </div>
-
-        <!-- Task Grid -->
-        <div id="taskGrid" style="flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; overflow-y: auto; padding-right: 5px;">
-          <!-- Task cards injected here -->
-        </div>
-      </div>
-    </div>
 
     <hr class="dv">
     <div class="shd">Layer Editor</div>
@@ -369,6 +344,204 @@
       <div class="card">
         <div class="shd" style="margin-bottom:8px">Current Model Summary</div>
         <div id="modelSummary"><div class="info-box">No model built yet.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     PAGE: CUSTOM FUNCTIONS
+══════════════════════════════════════════════════════════ -->
+<div class="page" id="pgCustom">
+  <div class="scroll-center">
+    <div class="content-col" style="max-width: 900px;">
+      <div class="card">
+        <h3>🛠️ Custom Training Functions</h3>
+        <p>Write your own Python or JavaScript functions to define what the network should learn. Your function should be named <code>f</code>, accept an input array <code>x</code>, and return an output array or value.</p>
+      </div>
+
+      <div style="display: flex; gap: 12px; height: 500px;">
+        <!-- Left: Function List -->
+        <div class="card" style="width: 250px; display: flex; flex-direction: column; padding: 10px;">
+          <div class="shd" style="margin-bottom: 8px;">My Functions</div>
+          <div id="customFuncList" style="flex: 1; overflow-y: auto; margin-bottom: 10px;">
+            <div class="info-box">Loading...</div>
+          </div>
+          <button class="btn success" id="newFuncBtn" style="width: 100%;">+ New Function</button>
+        </div>
+
+        <!-- Right: Editor -->
+        <div class="card" style="flex: 1; display: flex; flex-direction: column; padding: 10px;">
+          <div id="funcEditorEmpty" class="info-box" style="height: 100%; display: flex; align-items: center; justify-content: center;">
+            Select a function or create a new one to start editing.
+          </div>
+          
+          <div id="funcEditor" style="display: none; flex-direction: column; height: 100%; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="cfName" placeholder="Function Name" style="flex: 1;">
+              <select id="cfLang" style="width: 120px;">
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+              </select>
+            </div>
+            
+            <div style="display: flex; gap: 8px;">
+              <div style="flex: 1;">
+                <label style="font-size: 10px;">Inputs</label>
+                <input type="number" id="cfInputs" value="2" min="1" max="256">
+              </div>
+              <div style="flex: 1;">
+                <label style="font-size: 10px;">Outputs</label>
+                <input type="number" id="cfOutputs" value="1" min="1" max="256">
+              </div>
+              <div style="display: flex; align-items: flex-end; padding-bottom: 5px;">
+                <label style="font-size: 11px;"><input type="checkbox" id="cfClassify"> Classify</label>
+              </div>
+            </div>
+
+            <div style="flex: 1; position: relative;">
+              <textarea id="cfCode" style="width: 100%; height: 100%; font-family: monospace; font-size: 12px; background: #010409; color: #e6edf3; border: 1px solid var(--border); border-radius: 4px; padding: 10px; resize: none; outline: none;"></textarea>
+              
+              <!-- Examples Overlay -->
+              <div id="cfExamples" style="position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 5px;">
+                <button class="btn secondary" id="cfExampleBtn" style="font-size: 10px; padding: 2px 6px;">Examples ▾</button>
+                <div id="cfExampleMenu" style="display: none; background: var(--surf3); border: 1px solid var(--border); border-radius: 4px; padding: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10;">
+                  <!-- Examples injected here -->
+                </div>
+              </div>
+            </div>
+
+            <div id="cfTestResult" class="info-box" style="display: none; font-family: monospace; font-size: 10px; background: #0d1117;"></div>
+
+            <div class="btn-row">
+              <button class="btn success" id="cfSaveBtn">💾 Save Function</button>
+              <button class="btn" id="cfTestBtn">🧪 Test Run</button>
+              <button class="btn danger" id="cfDeleteBtn">🗑️ Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     PAGE: DATASETS
+══════════════════════════════════════════════════════════ -->
+<div class="page" id="pgDatasets">
+  <div class="scroll-center">
+    <div class="content-col" style="max-width: 1000px;">
+      <div class="card">
+        <h3>📊 Dataset Manager</h3>
+        <p>Define datasets via manual entry, CSV upload, synthetic generation, or download predefined ones like MNIST.</p>
+      </div>
+      
+      <div style="display: flex; gap: 12px; height: 600px;">
+        <!-- Left: Dataset List -->
+        <div class="card" style="width: 250px; display: flex; flex-direction: column; padding: 10px;">
+          <div class="shd" style="margin-bottom: 8px;">My Datasets</div>
+          <div id="datasetList" style="flex: 1; overflow-y: auto; margin-bottom: 10px;">
+            <div class="info-box">Loading...</div>
+          </div>
+          <button class="btn success" id="newDatasetBtn" style="width: 100%;">+ New Dataset</button>
+        </div>
+
+        <!-- Right: Editor -->
+        <div class="card" style="flex: 1; display: flex; flex-direction: column; padding: 10px; overflow: hidden;">
+          <div id="datasetEditorEmpty" class="info-box" style="height: 100%; display: flex; align-items: center; justify-content: center;">
+            Select a dataset or create a new one to start editing.
+          </div>
+          
+          <div id="datasetEditor" style="display: none; flex-direction: column; height: 100%; gap: 10px; overflow: hidden;">
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="dsName" placeholder="Dataset Name" style="flex: 1;">
+              <select id="dsType" style="width: 150px;">
+                <option value="tabular">Tabular / Manual</option>
+                <option value="image">Image / Pixel</option>
+                <option value="mnist">Predefined (MNIST)</option>
+              </select>
+            </div>
+
+            <!-- Tabular Editor -->
+            <div id="dsTabularView" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; gap: 8px;">
+              <div class="btn-row">
+                <button class="btn secondary" id="dsAddRowBtn">+ Add Row</button>
+                <button class="btn secondary" id="dsSyntheticBtn">✨ Synthetic Range</button>
+                <button class="btn secondary" id="dsImportCsvBtn">📄 Import CSV</button>
+                <button class="btn secondary" id="dsClearBtn">🗑️ Clear All</button>
+              </div>
+              <div id="dsTableContainer" style="flex: 1; overflow: auto; background: #010409; border: 1px solid var(--border); border-radius: 4px;">
+                <table id="dsTable" class="io-table">
+                  <!-- Table header and rows injected here -->
+                </table>
+              </div>
+            </div>
+
+            <!-- Synthetic Modal (Floating Card) -->
+            <div id="dsSyntheticModal" class="card" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 350px; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.7); background: var(--surf3);">
+              <div class="shd" style="margin-bottom: 10px;">✨ Synthetic Range Generator</div>
+              <div id="dsSyntheticInputs" style="max-height: 300px; overflow-y: auto; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px;">
+                <!-- Range inputs per dimension -->
+              </div>
+              <div class="btn-row">
+                <button class="btn success" id="dsSyntheticGenerateBtn">Generate & Append</button>
+                <button class="btn secondary" id="dsSyntheticCloseBtn">Cancel</button>
+              </div>
+            </div>
+
+            <!-- Image Editor -->
+            <div id="dsImageView" style="display: none; flex: 1; flex-direction: column; overflow: hidden; gap: 10px;">
+              <div style="display: flex; gap: 10px; flex: 1; overflow: hidden;">
+                <!-- Pixel Grid -->
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 5px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="shd">Pixel Editor</div>
+                    <div class="btn-row">
+                      <button class="btn secondary" id="dsImgZoomOut">−</button>
+                      <span id="dsImgZoomVal" style="font-size: 10px; min-width: 30px; text-align: center;">4x</span>
+                      <button class="btn secondary" id="dsImgZoomIn">+</button>
+                    </div>
+                  </div>
+                  <div id="dsPixelContainer" style="flex: 1; overflow: auto; background: #000; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;">
+                    <canvas id="dsPixelCanvas"></canvas>
+                  </div>
+                </div>
+                <!-- Tools/Stats -->
+                <div style="width: 200px; display: flex; flex-direction: column; gap: 10px;">
+                  <div class="card" style="padding: 8px; margin-bottom: 0;">
+                    <div class="shd" style="margin-bottom: 5px;">Paint Tool</div>
+                    <input type="color" id="dsColorPicker" value="#ffffff" style="width: 100%; height: 30px; border: none; background: none; cursor: pointer;">
+                    <div id="dsColorInfo" style="font-size: 10px; margin-top: 5px; color: var(--text2);">RGB: 255, 255, 255</div>
+                  </div>
+                  <div class="card" style="padding: 8px; flex: 1; margin-bottom: 0;">
+                    <div class="shd" style="margin-bottom: 5px;">Statistics</div>
+                    <canvas id="dsImgHist" style="width: 100%; height: 100px; background: #010409;"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Predefined View -->
+            <div id="dsPredefinedView" style="display: none; padding: 20px;">
+              <div class="info-box">
+                <h3>Predefined Dataset</h3>
+                <p id="dsPredefinedDesc">Download and use official datasets like MNIST.</p>
+                <button class="btn success" id="dsDownloadBtn" style="margin-top: 10px;">Download Dataset</button>
+                <div id="dsDownloadProgress" style="display: none; margin-top: 10px;">
+                  <div style="height: 10px; background: var(--surf2); border-radius: 5px; overflow: hidden;">
+                    <div id="dsDownloadBar" style="height: 100%; width: 0%; background: var(--green);"></div>
+                  </div>
+                  <div id="dsDownloadStatus" style="font-size: 10px; color: var(--text2); margin-top: 4px;">Downloading...</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="btn-row" style="margin-top: auto;">
+              <button class="btn success" id="dsSaveBtn">💾 Save Dataset</button>
+              <label style="margin-left: 10px; font-size: 11px;"><input type="checkbox" id="dsInputOnly"> Input-Only (Use with Custom Function)</label>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

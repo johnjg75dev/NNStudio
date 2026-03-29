@@ -34,7 +34,6 @@ class UIController {
   init() {
     this._initTabs();
     this._initDatasetSelect();
-    this._initTaskLibrary();
     this._initTooltips();
     this._initPresets();
     this._initSavePresetBtn();
@@ -50,6 +49,8 @@ class UIController {
     this._initSaveLoad();
     this._initRightPanelTabs();
     this._initKeyboard();
+    this._initCustomFunctionsTab();
+    this._initDatasetsTab();
   }
 
   // ════════════════════════════════════════════════════════
@@ -65,7 +66,8 @@ class UIController {
         document.getElementById(pg)?.classList.add("active");
         if (btn.dataset.pg === "test")     this._renderTestInputs(this._fnMeta);
         if (btn.dataset.pg === "saveload") this._renderModelSummary();
-        if (btn.dataset.pg === "datasets") window.datasetUI.refreshDatasets();
+        if (btn.dataset.pg === "custom")   this._onCustomTabOpen();
+        if (btn.dataset.pg === "datasets") this._onDatasetsTabOpen();
       });
     });
   }
@@ -173,68 +175,21 @@ class UIController {
     });
   }
 
-  _initTaskLibrary() {
-    const btn = document.getElementById("taskLibBtn");
-    const modal = document.getElementById("taskLibModal");
-    const close = document.getElementById("taskLibCloseBtn");
-    if (!btn) return;
-
-    btn.addEventListener("click", () => {
-      modal.style.display = "flex";
-      this._renderTaskGrid("all");
-    });
-    close.addEventListener("click", () => modal.style.display = "none");
-
-    // Category switching
-    modal.querySelectorAll("[data-task-cat]").forEach(b => {
-      b.addEventListener("click", () => {
-        modal.querySelectorAll("[data-task-cat]").forEach(x => x.classList.remove("active"));
-        b.classList.add("active");
-        this._renderTaskGrid(b.dataset.taskCat);
-      });
-    });
-  }
-
-  _renderTaskGrid(category) {
-    const grid = document.getElementById("taskGrid");
-    grid.innerHTML = "";
-
-    let tasks = (this._registry.functions || []).concat(this._registry.custom_functions || []);
-    if (category !== "all") {
-      tasks = tasks.filter(t => t.category === category || (category === "custom" && t.key.startsWith("custom_")));
-    }
-
-    tasks.forEach(t => {
-      const card = document.createElement("div");
-      card.className = "card";
-      card.style = "cursor:pointer; transition: transform 0.1s; padding:10px; margin-bottom:0;";
-      card.innerHTML = `
-        <div style="font-weight:bold; color:var(--accent); margin-bottom:5px;">${t.label}</div>
-        <div style="font-size:10px; color:var(--text2); line-height:1.4;">${t.description}</div>
-        <div style="margin-top:8px; font-size:9px; color:var(--text3); font-family:monospace;">${t.inputs} in → ${t.outputs} out</div>
-      `;
-      card.onmouseover = () => card.style.transform = "scale(1.02)";
-      card.onmouseout = () => card.style.transform = "scale(1)";
-      card.onclick = () => {
-        this._selectTask(t);
-        document.getElementById("taskLibModal").style.display = "none";
-      };
-      grid.appendChild(card);
-    });
-  }
-
-  _selectTask(task) {
-    _setVal("funcSel", task.key);
-    document.getElementById("taskLibBtn").textContent = task.label;
-    document.getElementById("funcDesc").innerHTML = task.description;
-    this._emit("funcChanged", task);
-    _setVal("dsSel", "");
+    const update = () => {
+      const fn = (this._registry.functions || []).find(f => f.key === sel.value);
+      if (desc && fn) desc.innerHTML = fn.description || "";
+      this._emit("funcChanged", fn);
+      // Reset dataset select when function changes
+      _setVal("dsSel", "");
+    };
+    sel.addEventListener("change", update);
+    update();
   }
 
   _initDatasetSelect() {
     const sel = document.getElementById("dsSel");
     if (!sel) return;
-
+    
     sel.addEventListener("change", () => {
       const dsId = sel.value;
       if (dsId) {
@@ -1053,6 +1008,7 @@ class UIController {
     return {
       arch_key:      _val("archSel"),
       func_key:      _val("funcSel"),
+      ds_id:         _val("dsSel"),
       inputs:        this._inputNeurons || 2,
       outputs:       this._outputNeurons || 1,
       layers:        this._hiddenLayers.map(l => {
@@ -1129,11 +1085,21 @@ class UIController {
   // KEYBOARD
   // ════════════════════════════════════════════════════════
   _initKeyboard() {
-    document.addEventListener("keydown", e => {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
-      if (e.code === "Space") { e.preventDefault(); this._emit("trainToggle"); }
-      if (e.code === "KeyR")  this._emit("reset");
-      if (e.code === "KeyB")  this._emit("build", this.getConfig());
+    document.addEventListener("keydown", (e) => {
+      if (
+        e.target.tagName === "INPUT" ||
+        e.target.tagName === "SELECT" ||
+        e.target.tagName === "TEXTAREA" ||
+        e.target.isContentEditable
+      ) {
+        return;
+      }
+      if (e.code === "Space") {
+        e.preventDefault();
+        this._emit("trainToggle");
+      }
+      if (e.code === "KeyR") this._emit("reset");
+      if (e.code === "KeyB") this._emit("build", this.getConfig());
     });
   }
 
@@ -1162,6 +1128,527 @@ class UIController {
       });
     }
     return ranges;
+  }
+
+  // ════════════════════════════════════════════════════════
+  // CUSTOM FUNCTIONS TAB
+  // ════════════════════════════════════════════════════════
+  _initCustomFunctionsTab() {
+    this._customTemplates = null;
+    this._customExamples = null;
+    this._selectedFuncId = null;
+
+    document.getElementById("newFuncBtn")?.addEventListener("click", () => this._createNewFunc());
+    document.getElementById("cfSaveBtn")?.addEventListener("click", () => this._saveCustomFunc());
+    document.getElementById("cfTestBtn")?.addEventListener("click", () => this._testCustomFunc());
+    document.getElementById("cfDeleteBtn")?.addEventListener("click", () => this._deleteCustomFunc());
+    
+    document.getElementById("cfLang")?.addEventListener("change", () => this._onLangChange());
+    
+    // Examples menu
+    const exBtn = document.getElementById("cfExampleBtn");
+    const exMenu = document.getElementById("cfExampleMenu");
+    exBtn?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      exMenu.style.display = exMenu.style.display === "block" ? "none" : "block";
+    });
+    document.addEventListener("click", () => { if (exMenu) exMenu.style.display = "none"; });
+  }
+
+  async _onCustomTabOpen() {
+    if (!this._customTemplates) {
+      try {
+        const res = await API.getCustomTemplates();
+        this._customTemplates = res.templates;
+        this._customExamples = res.examples;
+      } catch (e) { console.error("Failed to load templates:", e); }
+    }
+    this._refreshCustomFuncList();
+  }
+
+  _refreshCustomFuncList() {
+    this._emit("refreshCustomFuncs");
+  }
+
+  renderCustomFuncList(funcs) {
+    const list = document.getElementById("customFuncList");
+    if (!list) return;
+    list.innerHTML = "";
+    if (funcs.length === 0) {
+      list.innerHTML = '<div class="info-box">No custom functions yet.</div>';
+      return;
+    }
+    funcs.forEach(f => {
+      const item = document.createElement("div");
+      item.className = "pbtn-wrap" + (this._selectedFuncId === f.id ? " active" : "");
+      item.style = "margin-bottom: 4px;";
+      
+      const btn = document.createElement("button");
+      btn.className = "pbtn";
+      btn.style = "text-align: left; padding: 6px 8px;";
+      btn.innerHTML = `<b>${f.name}</b><div class="pa">${f.language} · ${f.num_inputs}→${f.num_outputs}</div>`;
+      btn.addEventListener("click", () => {
+        this._selectedFuncId = f.id;
+        this._emit("customFuncSelected", f.id);
+        this._refreshCustomFuncList(); // to update active state
+      });
+      
+      item.appendChild(btn);
+      list.appendChild(item);
+    });
+  }
+
+  _createNewFunc() {
+    this._selectedFuncId = null;
+    document.getElementById("funcEditorEmpty").style.display = "none";
+    document.getElementById("funcEditor").style.display = "flex";
+    
+    document.getElementById("cfName").value = "New Function";
+    document.getElementById("cfLang").value = "python";
+    document.getElementById("cfInputs").value = 2;
+    document.getElementById("cfOutputs").value = 1;
+    document.getElementById("cfClassify").checked = false;
+    document.getElementById("cfCode").value = this._customTemplates?.python?.code 
+      .replace("{num_inputs}", "2").replace("{num_outputs}", "1") || "";
+    document.getElementById("cfTestResult").style.display = "none";
+    document.getElementById("cfDeleteBtn").style.display = "none";
+    
+    this._renderExamples("python");
+  }
+
+  selectCustomFunc(f) {
+    this._selectedFuncId = f.id;
+    document.getElementById("funcEditorEmpty").style.display = "none";
+    document.getElementById("funcEditor").style.display = "flex";
+    
+    document.getElementById("cfName").value = f.name;
+    document.getElementById("cfLang").value = f.language;
+    document.getElementById("cfInputs").value = f.num_inputs;
+    document.getElementById("cfOutputs").value = f.num_outputs;
+    document.getElementById("cfClassify").checked = f.is_classification;
+    document.getElementById("cfCode").value = f.code;
+    document.getElementById("cfTestResult").style.display = "none";
+    document.getElementById("cfDeleteBtn").style.display = "block";
+    
+    this._renderExamples(f.language);
+  }
+
+  _onLangChange() {
+    const lang = document.getElementById("cfLang").value;
+    const code = document.getElementById("cfCode").value;
+    const nIn = document.getElementById("cfInputs").value;
+    const nOut = document.getElementById("cfOutputs").value;
+
+    // Only swap template if current code is empty or matches previous template
+    if (!code || code.includes("Custom training function")) {
+      document.getElementById("cfCode").value = this._customTemplates?.[lang]?.code
+        .replace("{num_inputs}", nIn).replace("{num_outputs}", nOut) || "";
+    }
+    this._renderExamples(lang);
+  }
+
+  _renderExamples(lang) {
+    const menu = document.getElementById("cfExampleMenu");
+    if (!menu || !this._customExamples) return;
+    const examples = this._customExamples[lang] || [];
+    menu.innerHTML = "";
+    examples.forEach((ex, i) => {
+      const div = document.createElement("div");
+      div.className = "ex-item";
+      div.style = "padding:4px 8px; cursor:pointer; font-size:10px; color:var(--text2); border-radius:3px;";
+      div.textContent = ex.name;
+      div.onmouseover = () => { div.style.background = "var(--surf2)"; div.style.color = "var(--text)"; };
+      div.onmouseout = () => { div.style.background = "transparent"; div.style.color = "var(--text2)"; };
+      div.onclick = (e) => {
+        e.stopPropagation();
+        this.applyExample(i);
+        menu.style.display = "none";
+      };
+      menu.appendChild(div);
+    });
+  }
+
+  applyExample(idx) {
+    const lang = document.getElementById("cfLang").value;
+    const ex = this._customExamples[lang][idx];
+    if (ex) {
+      document.getElementById("cfCode").value = ex.code;
+    }
+  }
+
+  _saveCustomFunc() {
+    const data = {
+      name: document.getElementById("cfName").value,
+      language: document.getElementById("cfLang").value,
+      num_inputs: parseInt(document.getElementById("cfInputs").value),
+      num_outputs: parseInt(document.getElementById("cfOutputs").value),
+      is_classification: document.getElementById("cfClassify").checked,
+      code: document.getElementById("cfCode").value,
+    };
+    
+    if (this._selectedFuncId) {
+      this._emit("updateCustomFunc", { id: this._selectedFuncId, data });
+    } else {
+      this._emit("createCustomFunc", data);
+    }
+  }
+
+  _testCustomFunc() {
+    if (!this._selectedFuncId) {
+      alert("Save the function first before testing.");
+      return;
+    }
+    const nIn = parseInt(document.getElementById("cfInputs").value);
+    const input = Array.from({ length: nIn }, () => Math.random());
+    this._emit("testCustomFunc", { id: this._selectedFuncId, input });
+  }
+
+  showCustomTestResult(res) {
+    const el = document.getElementById("cfTestResult");
+    el.style.display = "block";
+    if (res.success) {
+      el.innerHTML = `<span style="color:var(--green)">✓ Success</span> (${res.exec_time.toFixed(4)}s)<br>` +
+                     `In:  [${res.input.map(v => v.toFixed(2)).join(", ")}]<br>` +
+                     `Out: [${res.output.map(v => v.toFixed(4)).join(", ")}]`;
+    } else {
+      el.innerHTML = `<span style="color:var(--red)">✗ Error:</span> ${res.error}`;
+    }
+  }
+
+  _deleteCustomFunc() {
+    if (this._selectedFuncId && confirm("Are you sure you want to delete this function?")) {
+      this._emit("deleteCustomFunc", this._selectedFuncId);
+      this._selectedFuncId = null;
+      document.getElementById("funcEditor").style.display = "none";
+      document.getElementById("funcEditor").style.display = "none";
+      document.getElementById("funcEditorEmpty").style.display = "flex";
+    }
+  }
+
+  // ════════════════════════════════════════════════════════
+  // DATASETS TAB
+  // ════════════════════════════════════════════════════════
+  _initDatasetsTab() {
+    this._selectedDatasetId = null;
+    this._datasetData = []; // Rows for tabular editor
+
+    document.getElementById("newDatasetBtn")?.addEventListener("click", () => this._createNewDataset());
+    document.getElementById("dsSaveBtn")?.addEventListener("click", () => this._saveDataset());
+    document.getElementById("dsType")?.addEventListener("change", () => this._onDsTypeChange());
+    document.getElementById("dsAddRowBtn")?.addEventListener("click", () => this._addDsRow());
+    document.getElementById("dsClearBtn")?.addEventListener("click", () => {
+      if (confirm("Clear all rows?")) { this._datasetData = []; this._renderDsTable(); }
+    });
+    document.getElementById("dsSyntheticBtn")?.addEventListener("click", () => this._showSyntheticModal());
+    document.getElementById("dsSyntheticCloseBtn")?.addEventListener("click", () => {
+      document.getElementById("dsSyntheticModal").style.display = "none";
+    });
+    document.getElementById("dsSyntheticGenerateBtn")?.addEventListener("click", () => this._generateSynthetic());
+    
+    // CSV Import
+    document.getElementById("dsImportCsvBtn")?.addEventListener("click", () => this._importCsv());
+
+    // Image Editor
+    this._initImageEditor();
+  }
+
+  async _onDatasetsTabOpen() {
+    this._emit("refreshDatasets");
+  }
+
+  renderDatasetList(datasets) {
+    const list = document.getElementById("datasetList");
+    if (!list) return;
+    list.innerHTML = "";
+    if (datasets.length === 0) {
+      list.innerHTML = '<div class="info-box">No datasets yet.</div>';
+      return;
+    }
+    datasets.forEach(d => {
+      const item = document.createElement("div");
+      item.className = "pbtn-wrap" + (this._selectedDatasetId === d.id ? " active" : "");
+      item.style = "margin-bottom: 4px;";
+      
+      const btn = document.createElement("button");
+      btn.className = "pbtn";
+      btn.style = "text-align: left; padding: 6px 8px;";
+      btn.innerHTML = `<b>${d.name}</b><div class="pa">${d.ds_type} · ${d.num_inputs} in</div>`;
+      btn.addEventListener("click", () => {
+        this._selectedDatasetId = d.id;
+        this._emit("datasetSelected", d.id);
+        this.renderDatasetList(datasets); // to update active state
+      });
+      
+      item.appendChild(btn);
+      list.appendChild(item);
+    });
+  }
+
+  _createNewDataset() {
+    this._selectedDatasetId = null;
+    this._datasetData = [];
+    document.getElementById("datasetEditorEmpty").style.display = "none";
+    document.getElementById("datasetEditor").style.display = "flex";
+    
+    document.getElementById("dsName").value = "New Dataset";
+    document.getElementById("dsType").value = "tabular";
+    document.getElementById("dsInputOnly").checked = false;
+    
+    this._onDsTypeChange();
+  }
+
+  selectDataset(ds) {
+    this._selectedDatasetId = ds.id;
+    this._datasetData = ds.data || [];
+    document.getElementById("datasetEditorEmpty").style.display = "none";
+    document.getElementById("datasetEditor").style.display = "flex";
+    
+    document.getElementById("dsName").value = ds.name;
+    document.getElementById("dsType").value = ds.ds_type;
+    document.getElementById("dsInputOnly").checked = ds.is_input_only;
+    
+    this._onDsTypeChange();
+    if (ds.ds_type === "tabular") this._renderDsTable();
+  }
+
+  _onDsTypeChange() {
+    const type = document.getElementById("dsType").value;
+    document.getElementById("dsTabularView").style.display = type === "tabular" ? "flex" : "none";
+    document.getElementById("dsImageView").style.display = type === "image" ? "flex" : "none";
+    document.getElementById("dsPredefinedView").style.display = type === "mnist" ? "block" : "none";
+    
+    if (type === "tabular") this._renderDsTable();
+    if (type === "image") this._renderPixelGrid();
+  }
+
+  _renderDsTable() {
+    const table = document.getElementById("dsTable");
+    const isInputOnly = document.getElementById("dsInputOnly").checked;
+    const nIn = this._fnMeta?.inputs || 2;
+    const nOut = isInputOnly ? 0 : (this._fnMeta?.outputs || 1);
+    
+    let html = "<thead><tr>";
+    for (let i = 0; i < nIn; i++) html += `<th>In ${i}</th>`;
+    if (!isInputOnly) {
+      for (let i = 0; i < nOut; i++) html += `<th>Out ${i}</th>`;
+    }
+    html += "<th></th></tr></thead><tbody>";
+    
+    this._datasetData.forEach((row, ri) => {
+      html += `<tr>`;
+      for (let i = 0; i < nIn; i++) {
+        html += `<td><input type="number" step="0.1" value="${row.x[i] || 0}" onchange="UI._updateDsVal(${ri}, 'x', ${i}, this.value)"></td>`;
+      }
+      if (!isInputOnly) {
+        for (let i = 0; i < nOut; i++) {
+          html += `<td><input type="number" step="0.1" value="${row.y[i] || 0}" onchange="UI._updateDsVal(${ri}, 'y', ${i}, this.value)"></td>`;
+        }
+      }
+      html += `<td><button class="btn danger" style="padding:2px 5px" onclick="UI._removeDsRow(${ri})">×</button></td></tr>`;
+    });
+    table.innerHTML = html + "</tbody>";
+  }
+
+  _addDsRow() {
+    const nIn = this._fnMeta?.inputs || 2;
+    const nOut = this._fnMeta?.outputs || 1;
+    this._datasetData.push({
+      x: Array(nIn).fill(0),
+      y: Array(nOut).fill(0)
+    });
+    this._renderDsTable();
+  }
+
+  _updateDsVal(ri, type, ci, val) {
+    this._datasetData[ri][type][ci] = parseFloat(val) || 0;
+  }
+
+  _removeDsRow(ri) {
+    this._datasetData.splice(ri, 1);
+    this._renderDsTable();
+  }
+
+  _showSyntheticModal() {
+    const modal = document.getElementById("dsSyntheticModal");
+    const container = document.getElementById("dsSyntheticInputs");
+    const nIn = this._fnMeta?.inputs || 2;
+    
+    modal.style.display = "block";
+    container.innerHTML = "";
+    
+    for (let i = 0; i < nIn; i++) {
+      const div = document.createElement("div");
+      div.style = "border: 1px solid var(--border); padding: 6px; border-radius: 4px; background: var(--surf2);";
+      div.innerHTML = `
+        <div style="font-size:10px; margin-bottom:4px; font-weight:bold;">Input ${i}</div>
+        <div style="display:flex; gap:5px; align-items:center;">
+          <input type="number" id="dsSynMin${i}" value="0" step="0.1" style="width:60px; font-size:10px;" placeholder="Min">
+          <input type="number" id="dsSynMax${i}" value="1" step="0.1" style="width:60px; font-size:10px;" placeholder="Max">
+          <input type="number" id="dsSynStep${i}" value="0.5" step="0.1" style="width:60px; font-size:10px;" placeholder="Step">
+        </div>
+      `;
+      container.appendChild(div);
+    }
+  }
+
+  _generateSynthetic() {
+    const nIn = this._fnMeta?.inputs || 2;
+    const nOut = this._fnMeta?.outputs || 1;
+    const ranges = [];
+    
+    for (let i = 0; i < nIn; i++) {
+      const min = parseFloat(document.getElementById(`dsSynMin${i}`).value) || 0;
+      const max = parseFloat(document.getElementById(`dsSynMax${i}`).value) || 1;
+      const step = parseFloat(document.getElementById(`dsSynStep${i}`).value) || 1;
+      
+      const points = [];
+      for (let v = min; v <= max + 0.0001; v += step) points.push(v);
+      ranges.push(points);
+    }
+    
+    // Cartesian product
+    const cartesian = (...args) => args.reduce((a, b) => a.flatMap(d => b.map(e => [d, e].flat())));
+    const results = nIn === 1 ? ranges[0].map(v => [v]) : cartesian(...ranges);
+    
+    results.forEach(x => {
+      this._datasetData.push({
+        x: Array.isArray(x) ? x : [x],
+        y: Array(nOut).fill(0)
+      });
+    });
+    
+    document.getElementById("dsSyntheticModal").style.display = "none";
+    this._renderDsTable();
+  }
+
+  _importCsv() {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".csv";
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const text = ev.target.result;
+        const rows = text.split("\n").map(r => r.split(","));
+        const nIn = this._fnMeta?.inputs || 2;
+        const nOut = this._fnMeta?.outputs || 1;
+        
+        rows.forEach(r => {
+          if (r.length >= nIn) {
+            const x = r.slice(0, nIn).map(v => parseFloat(v) || 0);
+            const y = r.length >= nIn + nOut ? r.slice(nIn, nIn + nOut).map(v => parseFloat(v) || 0) : Array(nOut).fill(0);
+            this._datasetData.push({ x, y });
+          }
+        });
+        this._renderDsTable();
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }
+
+  _initImageEditor() {
+    this._dsZoom = 8;
+    this._dsWidth = 8;
+    this._dsHeight = 8;
+    this._dsPixels = new Float32Array(8 * 8).fill(0);
+    this._dsPainting = false;
+
+    const canvas = document.getElementById("dsPixelCanvas");
+    if (!canvas) return;
+
+    canvas.addEventListener("mousedown", () => this._dsPainting = true);
+    window.addEventListener("mouseup", () => this._dsPainting = false);
+    canvas.addEventListener("mousemove", (e) => {
+      if (!this._dsPainting) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((e.clientX - rect.left) / this._dsZoom);
+      const y = Math.floor((e.clientY - rect.top) / this._dsZoom);
+      if (x >= 0 && x < this._dsWidth && y >= 0 && y < this._dsHeight) {
+        const val = document.getElementById("dsColorPicker").value === "#ffffff" ? 1.0 : 0.0;
+        this._dsPixels[y * this._dsWidth + x] = val;
+        this._renderPixelGrid();
+      }
+    });
+
+    document.getElementById("dsImgZoomIn")?.addEventListener("click", () => {
+      this._dsZoom = Math.min(32, this._dsZoom * 2);
+      this._renderPixelGrid();
+    });
+    document.getElementById("dsImgZoomOut")?.addEventListener("click", () => {
+      this._dsZoom = Math.max(2, this._dsZoom / 2);
+      this._renderPixelGrid();
+    });
+  }
+
+  _renderPixelGrid() {
+    const canvas = document.getElementById("dsPixelCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    
+    canvas.width = this._dsWidth * this._dsZoom;
+    canvas.height = this._dsHeight * this._dsZoom;
+    
+    document.getElementById("dsImgZoomVal").textContent = this._dsZoom + "x";
+
+    for (let y = 0; y < this._dsHeight; y++) {
+      for (let x = 0; x < this._dsWidth; x++) {
+        const val = this._dsPixels[y * this._dsWidth + x];
+        ctx.fillStyle = `rgb(${val * 255}, ${val * 255}, ${val * 255})`;
+        ctx.fillRect(x * this._dsZoom, y * this._dsZoom, this._dsZoom, this._dsZoom);
+        
+        // Grid lines
+        if (this._dsZoom >= 4) {
+          ctx.strokeStyle = "#30363d";
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(x * this._dsZoom, y * this._dsZoom, this._dsZoom, this._dsZoom);
+        }
+      }
+    }
+    
+    this._renderDsHistogram();
+  }
+
+  _renderDsHistogram() {
+    const canvas = document.getElementById("dsImgHist");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const W = canvas.width = canvas.clientWidth;
+    const H = canvas.height = canvas.clientHeight;
+    
+    ctx.fillStyle = "#010409";
+    ctx.fillRect(0, 0, W, H);
+    
+    const bins = new Array(10).fill(0);
+    this._dsPixels.forEach(v => {
+      const b = Math.min(9, Math.floor(v * 10));
+      bins[b]++;
+    });
+    
+    const max = Math.max(...bins, 1);
+    ctx.fillStyle = "var(--accent)";
+    bins.forEach((count, i) => {
+      const bh = (count / max) * H;
+      ctx.fillRect(i * (W/10), H - bh, (W/10) - 2, bh);
+    });
+  }
+
+  _saveDataset() {
+    const data = {
+      name: document.getElementById("dsName").value,
+      ds_type: document.getElementById("dsType").value,
+      is_input_only: document.getElementById("dsInputOnly").checked,
+      num_inputs: this._fnMeta?.inputs || 2,
+      num_outputs: document.getElementById("dsInputOnly").checked ? null : (this._fnMeta?.outputs || 1),
+      data: this._datasetData
+    };
+    
+    if (this._selectedDatasetId) {
+      this._emit("updateDataset", { id: this._selectedDatasetId, data });
+    } else {
+      this._emit("createDataset", data);
+    }
   }
 }
 

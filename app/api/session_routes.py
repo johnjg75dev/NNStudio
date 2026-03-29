@@ -18,17 +18,38 @@ session_bp = Blueprint("session", __name__)
 def build():
     """
     Build a new network for this session.
-    Body: { func_key, arch_key, layers, inputs, outputs, activation, optimizer, lr, loss, weight_decay }
+    Body: { func_key, ds_id, arch_key, layers, inputs, outputs, activation, optimizer, lr, loss, weight_decay }
     """
     body = request.get_json(force=True)
     registry = get_registry()
 
-    func_key = body.get("func_key", "xor")
-    fn_mod   = registry.get(func_key)
-    if fn_mod is None:
-        return err(f"Unknown function key: {func_key!r}", 404)
+    from ..models import Dataset, CustomTrainingFunction
+    from ..modules.functions.custom_function_wrapper import DynamicCustomFunction
 
-    dataset = fn_mod.generate_dataset()
+    ds_id = body.get("ds_id")
+    func_key = body.get("func_key", "xor")
+    
+    dataset = []
+    fn_mod = None
+
+    if ds_id:
+        ds = Dataset.query.filter_by(id=ds_id, user_id=current_user.id).first()
+        if ds:
+            dataset = ds.data or []
+            # Create a mock fn_mod from dataset metadata
+            class DatasetMock:
+                inputs = ds.num_inputs
+                outputs = ds.num_outputs or 1
+                def to_dict(self):
+                    return {"key": f"ds_{ds.id}", "label": ds.name, "inputs": self.inputs, "outputs": self.outputs}
+            fn_mod = DatasetMock()
+
+    if not fn_mod:
+        fn_mod = registry.get_with_custom(func_key, current_user.id)
+        if fn_mod:
+            dataset = fn_mod.generate_dataset()
+        else:
+            return err(f"Unknown function key: {func_key!r}", 404)
 
     # Use user-specified inputs/outputs or fall back to function defaults
     config = {

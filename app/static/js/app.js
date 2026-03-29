@@ -30,6 +30,12 @@ class App {
     this._bindTrainerEvents();
     this._bindResize();
 
+    // Pre-fetch templates and examples
+    API.getCustomTemplates().then(res => {
+      this._ui._customTemplates = res.templates;
+      this._ui._customExamples = res.examples;
+    }).catch(e => console.error("Failed to load templates:", e));
+
     // Apply first preset automatically
     const firstPreset = this._registry.presets?.[0];
     if (firstPreset) {
@@ -70,14 +76,75 @@ class App {
     ui.on("importModel",  data => this._importModel(data));
     ui.on("requestSummary", () => ui.renderModelSummary(this._snapshot));
 
-    ui.on("datasetSelectedForTrain", async dsId => {
+    // Custom functions
+    ui.on("createCustomFunc", async data => {
       try {
-        const cfg = ui.getConfig();
-        cfg.dataset_id = dsId;
-        await this._build(cfg);
+        await API.createCustomFunction(data);
+        await this._refreshCustomFunctions();
+        await this._refreshRegistry();
+      } catch (e) { alert("Failed to create: " + e.message); }
+    });
+    ui.on("updateCustomFunc", async ({ id, data }) => {
+      try {
+        await API.updateCustomFunction(id, data);
+        await this._refreshCustomFunctions();
+        await this._refreshRegistry();
+      } catch (e) { alert("Failed to update: " + e.message); }
+    });
+    ui.on("deleteCustomFunc", async id => {
+      try {
+        await API.deleteCustomFunction(id);
+        await this._refreshCustomFunctions();
+        await this._refreshRegistry();
+      } catch (e) { alert("Failed to delete: " + e.message); }
+    });
+    ui.on("testCustomFunc", async ({ id, input }) => {
+      try {
+        const res = await API.testCustomFunction(id, input);
+        ui.showCustomTestResult({ success: true, ...res, input });
       } catch (e) {
-        console.error("Failed to load dataset for training", e);
+        ui.showCustomTestResult({ success: false, error: e.message });
       }
+    });
+    ui.on("customFuncSelected", async id => {
+      try {
+        const res = await API.getCustomFunction(id);
+        ui.selectCustomFunc(res.function);
+      } catch (e) { alert("Failed to fetch function: " + e.message); }
+    });
+    ui.on("refreshCustomFuncs", () => this._refreshCustomFunctions());
+
+    // Datasets
+    ui.on("refreshDatasets", () => this._refreshDatasets());
+    ui.on("datasetSelected", async id => {
+      try {
+        const res = await API.getDataset(id);
+        ui.selectDataset(res.dataset);
+      } catch (e) { alert("Failed to fetch dataset: " + e.message); }
+    });
+    ui.on("createDataset", async data => {
+      try {
+        await API.createDataset(data);
+        await this._refreshDatasets();
+      } catch (e) { alert("Failed to create: " + e.message); }
+    });
+    ui.on("updateDataset", async ({ id, data }) => {
+      try {
+        await API.updateDataset(id, data);
+        await this._refreshDatasets();
+      } catch (e) { alert("Failed to update: " + e.message); }
+    });
+    ui.on("deleteDataset", async id => {
+      try {
+        await API.deleteDataset(id);
+        await this._refreshDatasets();
+      } catch (e) { alert("Failed to delete: " + e.message); }
+    });
+    ui.on("downloadDataset", async id => {
+      try {
+        await API.downloadDataset(id);
+        await this._refreshDatasets();
+      } catch (e) { alert("Failed to download: " + e.message); }
     });
 
     ui.on("savePreset",   async cfg => {
@@ -288,9 +355,25 @@ class App {
       this._registry = data;
       this._ui._registry = data; // Sync UI controller registry
       this._ui._initPresets();   // Re-render presets grid
+      this._ui._initFuncSelect(); // Refresh function dropdown
     } catch (e) {
       console.error("Failed to refresh registry:", e.message);
     }
+  }
+
+  async _refreshCustomFunctions() {
+    try {
+      const data = await API.listCustomFunctions();
+      this._ui.renderCustomFuncList(data.functions || []);
+    } catch (e) { console.error("Failed to load custom functions:", e); }
+  }
+
+  async _refreshDatasets() {
+    try {
+      const data = await API.listDatasets();
+      this._ui.renderDatasetList(data.datasets || []);
+      this._ui.renderDatasetSelect(data.datasets || []);
+    } catch (e) { console.error("Failed to load datasets:", e); }
   }
 
   // ════════════════════════════════════════════════════════
