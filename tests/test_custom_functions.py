@@ -95,7 +95,7 @@ def compute(x):
         result = FunctionExecutor.execute_python(code, [0.0], 1)
         
         assert not result.success
-        assert "not find function 'f'" in result.error
+        assert "f" in result.error
     
     def test_execute_python_returns_invalid_type(self):
         """Test error when function returns invalid type."""

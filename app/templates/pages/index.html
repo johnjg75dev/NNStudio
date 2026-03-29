@@ -16,6 +16,7 @@
 
   <div class="tab-bar" id="mainTabs">
     <button class="tab active" data-pg="train">Train</button>
+    <button class="tab"        data-pg="datasets">Datasets</button>
     <button class="tab"        data-pg="test">Test Inputs</button>
     <button class="tab"        data-pg="saveload">Save / Load</button>
     <button class="tab"        data-pg="custom">Custom Functions</button>
@@ -198,6 +199,88 @@
   </div>
 
 </div><!-- /pgTrain -->
+
+<!-- ══════════════════════════════════════════════════════════
+     PAGE: DATASETS
+══════════════════════════════════════════════════════════ -->
+<div class="page" id="pgDatasets">
+  <div class="panel left" style="width: 260px;">
+    <div class="shd">Your Datasets</div>
+    <div id="datasetList" style="flex:1; overflow-y:auto; margin: 8px 0;"></div>
+    <button class="btn secondary" id="newDatasetBtn">+ Create New</button>
+  </div>
+
+  <div class="center" style="background: var(--bg); padding: 20px;">
+    <div class="content-col" style="max-width: 800px; margin: 0 auto;">
+      <div id="datasetEditorHeader"></div>
+
+      <div class="card" id="tabularEditor" style="display:none;">
+        <div class="shd" style="margin-bottom:8px">Tabular Editor</div>
+        <div id="tableContainer" style="overflow-x:auto; max-height: 400px;"></div>
+        <hr class="dv" style="margin: 15px 0;">
+        <div class="shd" style="margin-bottom:8px">Synthetic Generator</div>
+        <div class="btn-row">
+          <select id="syntheticType" style="width:120px;">
+            <option value="sine">Sine Wave</option>
+            <option value="linear">Linear</option>
+          </select>
+          <input type="number" id="syntheticSamples" value="50" style="width:80px;">
+          <button class="btn secondary" id="genSyntheticBtn">Generate Samples</button>
+        </div>
+      </div>
+
+      <div class="card" id="pixelEditor" style="display:none;">
+        <div class="shd" style="margin-bottom:8px">Pixel Editor</div>
+        <div style="display:flex; gap: 20px; align-items: flex-start;">
+          <div id="pixelGrid" class="pixel-grid"></div>
+          <div style="flex:1;">
+            <label>Grid Size</label>
+            <select id="pixelGridSize">
+              <option value="8">8 x 8</option>
+              <option value="16">16 x 16</option>
+              <option value="28">28 x 28 (MNIST)</option>
+            </select>
+            <p style="margin-top:10px; font-size:10px; color:var(--text3)">Left-click to toggle pixels. This editor modifies the first sample in the dataset.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="btn-row" style="margin-top:20px;">
+        <button class="btn success" id="saveDatasetBtn">Save Dataset Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Dataset Modal -->
+  <div id="createDatasetModal" class="card" style="display: none; position: fixed; top: 20%; left: 30%; width: 40%; z-index: 2000; box-shadow: 0 20px 60px rgba(0,0,0,0.8); background: var(--surf3); flex-direction: column;">
+    <h3>🆕 Create New Dataset</h3>
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+      <label>Name</label>
+      <input type="text" id="newDsName" placeholder="My Dataset">
+      <label>Type</label>
+      <select id="newDsType">
+        <option value="tabular">Tabular</option>
+        <option value="image">Image / Grid</option>
+      </select>
+      <div style="display:flex; gap:10px;">
+        <div style="flex:1">
+          <label>Inputs</label>
+          <input type="number" id="newDsInputs" value="2">
+        </div>
+        <div style="flex:1">
+          <label>Outputs</label>
+          <input type="number" id="newDsOutputs" value="1">
+        </div>
+      </div>
+      <label><input type="checkbox" id="newDsInputOnly"> Input Only (labels from function)</label>
+
+      <div class="btn-row" style="margin-top:10px; justify-content:flex-end;">
+        <button class="btn secondary" onclick="document.getElementById('createDatasetModal').style.display='none'">Cancel</button>
+        <button class="btn success" onclick="datasetUI._confirmCreate()">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- ══════════════════════════════════════════════════════════
      PAGE: TEST
@@ -509,6 +592,7 @@
 <script src="{{ url_for('static', filename='js/api.js') }}"></script>
 <script src="{{ url_for('static', filename='js/renderer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/trainer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dataset_ui.js') }}"></script>
 <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 

@@ -13,6 +13,7 @@ Routes:
 """
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
+from .helpers import api_route, ok
 
 from .. import db
 from ..models import CustomTrainingFunction
@@ -430,6 +431,7 @@ def preview_dataset(func_id):
 # ════════════════════════════════════════════════════════════════════════
 @custom_function_bp.route('/templates', methods=['GET'])
 @login_required
+@api_route
 def get_templates():
     """Get code templates for Python and JavaScript."""
     templates = {

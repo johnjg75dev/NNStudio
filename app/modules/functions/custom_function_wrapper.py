@@ -45,6 +45,11 @@ class DynamicCustomFunction(TrainingFunction):
         # Cached dataset
         self._dataset_cache = None
     
+    def f(self, x: np.ndarray) -> list[float]:
+        """Directly call the custom function with an input array."""
+        func = self._get_executor_func()
+        return func(x)
+
     def _get_executor_func(self):
         """Get executable function from code."""
         code = self.custom_func_record.code

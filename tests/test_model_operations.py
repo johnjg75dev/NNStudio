@@ -18,11 +18,13 @@ def sample_network():
     """Create a simple trained neural network for testing."""
     config = {
         "layers": [
-            {"type": "dense", "n_in": 2, "n_out": 4, "activation": "relu"},
-            {"type": "dense", "n_in": 4, "n_out": 1, "activation": "sigmoid"}
+            {"type": "dense", "neurons": 4, "activation": "relu"},
         ],
         "optimizer": "adam",
         "loss": "mse",
+        "lr": 0.01,
+        "inputs": 2,
+        "outputs": 1
     }
     network = NetworkBuilder.build(config)
     
@@ -41,9 +43,9 @@ def sample_network():
 
 
 @pytest.fixture
-def test_user(app):
+def test_user(flask_app):
     """Create a test user."""
-    with app.app_context():
+    with flask_app.app_context():
         user = User(username="testuser")
         user.set_password("testpass")
         db.session.add(user)
@@ -256,9 +258,9 @@ class TestModelExporter:
 class TestSavedModelDatabase:
     """Test SavedModel database model."""
     
-    def test_create_saved_model(self, app, test_user):
+    def test_create_saved_model(self, flask_app, test_user):
         """Test creating a SavedModel entry in database."""
-        with app.app_context():
+        with flask_app.app_context():
             model_data = {
                 "layers": [{"type": "dense", "n_in": 2, "n_out": 1}],
                 "optimizer": "adam",
@@ -290,9 +292,9 @@ class TestSavedModelDatabase:
             assert retrieved.epochs_trained == 10
             assert retrieved.final_loss == 0.3
     
-    def test_saved_model_to_dict(self, app, test_user):
+    def test_saved_model_to_dict(self, flask_app, test_user):
         """Test SavedModel.to_dict() method."""
-        with app.app_context():
+        with flask_app.app_context():
             model_data = {
                 "layers": [],
                 "optimizer": "adam",
@@ -323,9 +325,9 @@ class TestSavedModelDatabase:
             assert "created_at" in result
             assert "model_data" not in result  # Should not include full model data
     
-    def test_saved_model_to_dict_full(self, app, test_user):
+    def test_saved_model_to_dict_full(self, flask_app, test_user):
         """Test SavedModel.to_dict_full() method includes model data."""
-        with app.app_context():
+        with flask_app.app_context():
             model_data = {"layers": [], "optimizer": "adam"}
             
             saved = SavedModel(
@@ -346,15 +348,22 @@ class TestSavedModelDatabase:
 class TestModelAPIEndpoints:
     """Test model management API endpoints."""
     
-    def test_save_model_endpoint(self, app, test_user, sample_network):
+    def test_save_model_endpoint(self, flask_app, test_user, sample_network):
         """Test POST /api/models/save endpoint."""
-        with app.app_context():
-            client = app.test_client()
+        with flask_app.app_context():
+            # Inject network into session manager
+            sm = flask_app.extensions["session_manager"]
+            session = sm.get_or_create("test_session_id")
+            session.network = sample_network
+            session.arch_key = "mlp"
+            session.func_key = "xor"
+
+            client = flask_app.test_client()
             
             # Login user
             with client:
                 # Simulate logged-in state by setting user context
-                @app.before_request
+                @flask_app.before_request
                 def before_request():
                     from flask_login import current_user
                     if not current_user.is_authenticated:
@@ -371,12 +380,14 @@ class TestModelAPIEndpoints:
                     follow_redirects=True
                 )
                 
-                # Should require authentication
-                assert response.status_code in [200, 302, 401]
+                assert response.status_code == 201
+                data = response.get_json()
+                assert data["success"] is True
+                assert data["name"] == "Test Model"
     
-    def test_list_models_endpoint(self, app, test_user):
+    def test_list_models_endpoint(self, flask_app, test_user):
         """Test GET /api/models endpoint."""
-        with app.app_context():
+        with flask_app.app_context():
             # Create test models
             model_data = {"layers": [], "optimizer": "adam"}
             
@@ -390,10 +401,10 @@ class TestModelAPIEndpoints:
             
             db.session.commit()
             
-            client = app.test_client()
+            client = flask_app.test_client()
             
             with client:
-                @app.before_request
+                @flask_app.before_request
                 def before_request():
                     from flask_login import current_user
                     if not current_user.is_authenticated:

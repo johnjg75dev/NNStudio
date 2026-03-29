@@ -13,11 +13,11 @@ dataset_bp = Blueprint('datasets', __name__)
 
 @dataset_bp.route('', methods=['GET'])
 @login_required
-def list_datasets():
+def list_datasets():  
     """List datasets for the current user including predefined ones."""
     # User's custom datasets
     custom = Dataset.query.filter_by(user_id=current_user.id).all()
-    
+a    
     # Predefined datasets (global or specific user)
     # For now, let's just show user's ones and some placeholder predefined
     return jsonify({
@@ -78,12 +78,12 @@ def update_dataset(ds_id):
         ds = Dataset.query.filter_by(id=ds_id, user_id=current_user.id).first()
         if not ds:
             return jsonify({"success": False, "error": "Dataset not found"}), 404
-            
+              
         data = request.get_json()
         for field in ['name', 'description', 'data', 'is_input_only', 'num_inputs', 'num_outputs', 'width', 'height']:
             if field in data:
                 setattr(ds, field, data[field])
-        
+              
         db.session.commit()
         return jsonify({"success": True, "dataset": ds.to_dict()}), 200
     except Exception as e:

@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import time
 import uuid
+import numpy as np
 from dataclasses import dataclass, field
 from typing import Optional
 
 from .network import NeuralNetwork, NetworkBuilder
+from ..modules.registry import get_registry
 
 
 # ── per-session state ────────────────────────────────────────────────
@@ -35,14 +37,42 @@ class TrainingSession:
         self.touch()
 
     def train_steps(self, steps: int, lr: float) -> dict:
-        if self.network is None or not self.dataset:
-            raise RuntimeError("Network or dataset not initialised.")
+        if self.network is None:
+            raise RuntimeError("Network not initialised.")
+
+        # Resolve dataset labels if input-only
+        active_dataset = self.dataset
+        if not active_dataset:
+            # Generate temporary live dataset from active function if no dataset provided
+            registry = get_registry()
+            fn_mod = registry.get_with_custom(self.func_key)
+            if fn_mod:
+                active_dataset = fn_mod.generate_dataset()
+            else:
+                raise RuntimeError("No dataset or function available for training.")
+
+        # Check if first sample is input-only (missing 'y')
+        if active_dataset and "y" not in active_dataset[0]:
+            registry = get_registry()
+            fn_mod = registry.get_with_custom(self.func_key)
+            if fn_mod:
+                # Generate labels on-the-fly for the current batch
+                if hasattr(fn_mod, 'f'):
+                    for sample in active_dataset:
+                        sample["y"] = fn_mod.f(np.array(sample["x"]))
+                else:
+                    # Fallback to re-generating a full dummy and matching by input
+                    # This is better than assigning first sample's y to all
+                    dummy = fn_mod.generate_dataset()
+                    dummy_map = {tuple(s["x"]): s["y"] for s in dummy}
+                    for sample in active_dataset:
+                        sample["y"] = dummy_map.get(tuple(sample["x"]), dummy[0]["y"])
 
         for _ in range(steps):
-            self.network.train_epoch(self.dataset, lr=lr)
+            self.network.train_epoch(active_dataset, lr=lr)
 
-        loss = self.network.compute_loss(self.dataset)
-        acc  = self.network.compute_accuracy(self.dataset)
+        loss = self.network.compute_loss(active_dataset)
+        acc  = self.network.compute_accuracy(active_dataset)
         self.network.loss_history.append(loss)
         if len(self.network.loss_history) > 500:
             self.network.loss_history = self.network.loss_history[-500:]
@@ -55,13 +85,11 @@ class TrainingSession:
         }
 
     def predict(self, x: list[float]) -> list[float]:
-        import numpy as np
         if self.network is None:
             raise RuntimeError("No network built.")
         return self.network.predict(np.array(x)).tolist()
 
     def activation_snapshot(self, x: list[float]) -> list[list[float]]:
-        import numpy as np
         if self.network is None:
             raise RuntimeError("No network built.")
         return self.network.activation_snapshot(np.array(x))

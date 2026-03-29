@@ -165,7 +165,6 @@ class UIController {
   // ════════════════════════════════════════════════════════
   _initFuncSelect() {
     const sel  = document.getElementById("funcSel");
-    const desc = document.getElementById("funcDesc");
     if (!sel) return;
 
     sel.innerHTML = "";
@@ -174,6 +173,7 @@ class UIController {
       o.value = f.key; o.textContent = f.label;
       sel.appendChild(o);
     });
+  }
 
     const update = () => {
       const fn = (this._registry.functions || []).find(f => f.key === sel.value);
