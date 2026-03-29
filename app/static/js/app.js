@@ -85,6 +85,27 @@ class App {
         alert("Failed to delete preset: " + e.message);
       }
     });
+
+    // Zoom controls
+    document.getElementById("zoomInBtn")?.addEventListener("click", () => {
+      const zoom = this._netRend.zoomIn();
+      this._updateZoomLevel();
+    });
+    document.getElementById("zoomOutBtn")?.addEventListener("click", () => {
+      const zoom = this._netRend.zoomOut();
+      this._updateZoomLevel();
+    });
+    document.getElementById("zoomResetBtn")?.addEventListener("click", () => {
+      const zoom = this._netRend.zoomReset();
+      this._updateZoomLevel();
+    });
+  }
+
+  _updateZoomLevel() {
+    const zoomEl = document.getElementById("zoomLevel");
+    if (zoomEl) {
+      zoomEl.textContent = Math.round(this._netRend.getZoom() * 100) + "%";
+    }
   }
 
   // ════════════════════════════════════════════════════════
@@ -127,16 +148,38 @@ class App {
     this._trainer.stop();
     this._ui.setStatus("Building…");
     try {
+      console.log("Building network with config:", config);
       const data = await API.buildNetwork(config);
+      console.log("buildNetwork returned:", data);
+      
       this._archKey = config.arch_key;
       this._fnMeta  = data.func;
 
       // Fetch full snapshot
+      console.log("Fetching snapshot...");
       this._snapshot = await API.getSnapshot();
+      console.log("Snapshot received:", this._snapshot);
+      
+      // Validate snapshot
+      if (!this._snapshot) {
+        throw new Error("Snapshot is null/undefined");
+      }
+      if (!this._snapshot.built) {
+        throw new Error("Snapshot not built");
+      }
+      if (!this._snapshot.topology || !Array.isArray(this._snapshot.topology)) {
+        throw new Error("Invalid topology: " + JSON.stringify(this._snapshot.topology));
+      }
+      if (this._snapshot.topology.length === 0) {
+        throw new Error("Empty topology");
+      }
+      if (this._snapshot.topology.some(n => typeof n !== 'number' || n <= 0)) {
+        throw new Error("Invalid topology values: " + JSON.stringify(this._snapshot.topology));
+      }
+      
       this._snapshot.activation = config.activation;
       this._snapshot.optimizer  = config.optimizer;
       this._snapshot.loss       = config.loss;
-      this._snapshot.dropout    = config.dropout;
       this._snapshot.weight_decay = config.weight_decay;
 
       this._ui.updateStats({
@@ -159,8 +202,8 @@ class App {
       this._ui.renderIOTable(evalData.samples, this._fnMeta);
 
     } catch (e) {
-      this._ui.setStatus("Error", "err");
-      console.error("Build failed:", e.message);
+      console.error("Build failed:", e);
+      this._ui.setStatus("Error: " + e.message, "err");
     }
   }
 
@@ -220,6 +263,7 @@ class App {
       this._netRend.setOptions(this._ui.getVizOptions());
       this._netRend.draw(this._snapshot);
     }
+    this._updateZoomLevel();
   }
 
   _drawEmpty() {
@@ -283,7 +327,35 @@ class App {
     const arch = this._registry.architectures?.find(a => a.key === this._archKey);
     if (!arch?.trainable || !this._snapshot?.topology) return;
 
-    const node = this._netRend.nodeAt(x, y, this._snapshot.topology);
+    const node = this._netRend.nodeAt(x, y, this._snapshot.topology, this._snapshot.layers);
+    
+    // Check if clicking on a grouped layer's expand/collapse indicator
+    if (node?.isGrouped && node.layerInfo) {
+      // Check if click is near the expand/collapse area (above the node)
+      const pts = this._netRend._nodePositions(this._snapshot.topology, this._snapshot.layers);
+      if (pts[node.layer] && pts[node.layer][0]) {
+        const nodeY = pts[node.layer][0].y;
+        const baseNodeR = this._netRend._nodeRadius(this._snapshot.topology);
+        const actualNodeR = this._netRend._getNodeRadiusForLayer(
+          node.layerInfo, 
+          baseNodeR, 
+          this._netRend.isLayerExpanded(node.layer)
+        );
+        // Expand/collapse indicator is about 45px above node center
+        const expandY = nodeY - actualNodeR - 32;
+        const clickDist = Math.abs(y - expandY);
+        
+        if (clickDist < 25) {
+          // Clicked on expand/collapse
+          const expanded = this._netRend.toggleLayerExpanded(node.layer);
+          console.log(`Layer ${node.layer} (${node.layerInfo?.type}): ${expanded ? 'expanded' : 'collapsed'}`);
+          this._drawCanvas();
+          return;
+        }
+      }
+    }
+    
+    // Normal node selection
     this._netRend.selectNode(node);
     if (node) this._ui.renderNodeInfo(node, this._snapshot);
     this._drawCanvas();

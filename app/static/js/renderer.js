@@ -25,6 +25,27 @@ function activationColor(v, alpha) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Layer type label helper
+// ═══════════════════════════════════════════════════════════════════════
+function _getLayerTypeLabel(type) {
+  const labels = {
+    dense: "Dense",
+    dropout: "Dropout",
+    batchnorm: "BatchNorm",
+    conv2d: "Conv2D",
+    maxpool2d: "MaxPool",
+    flatten: "Flatten",
+    lstm: "LSTM",
+    simple_rnn: "RNN",
+    embedding: "Embed",
+    layernorm: "LayerNorm",
+    multihead_attention: "Attention",
+    positional_encoding: "PosEnc",
+  };
+  return labels[type] || type;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // NetworkRenderer
 // ═══════════════════════════════════════════════════════════════════════
 class NetworkRenderer {
@@ -39,24 +60,99 @@ class NetworkRenderer {
     };
     this._selectedNode = null;
     this._onNodeClick  = null;
+    this._zoom = 1.0;
+    // Track expanded/collapsed state for layer groups
+    // Key: layer index, Value: boolean (true = expanded)
+    this._expandedLayers = new Map();
   }
 
   setOptions(opts) { Object.assign(this.opts, opts); }
   onNodeClick(fn)  { this._onNodeClick = fn; }
+  
+  getZoom() { return this._zoom; }
+  
+  setZoom(zoom) {
+    this._zoom = Math.max(0.25, Math.min(3.0, zoom));
+    this.draw(this._lastSnapshot);
+    return this._zoom;
+  }
+  
+  zoomIn() { return this.setZoom(this._zoom + 0.25); }
+  zoomOut() { return this.setZoom(this._zoom - 0.25); }
+  zoomReset() { return this.setZoom(1.0); }
+  
+  // Toggle layer group expansion
+  toggleLayerExpanded(layerIndex) {
+    const current = this._expandedLayers.get(layerIndex) || false;
+    this._expandedLayers.set(layerIndex, !current);
+    if (this._lastSnapshot) {
+      this.draw(this._lastSnapshot);
+    }
+    return !current;
+  }
+  
+  isLayerExpanded(layerIndex) {
+    return this._expandedLayers.get(layerIndex) || false;
+  }
 
   // ── resize canvas to its CSS size ──
   resize() {
-    this.canvas.width  = this.canvas.clientWidth  || 800;
-    this.canvas.height = this.canvas.clientHeight || 400;
+    const container = this.canvas.parentElement;
+    this.canvas.width  = Math.max(800, container.clientWidth * this._zoom);
+    this.canvas.height = Math.max(400, container.clientHeight * this._zoom);
+  }
+
+  // ── Check if layer should be shown as grouped ──
+  _isGroupedLayer(layerInfo) {
+    if (!layerInfo) return false;
+    const type = layerInfo.type || 'dense';
+    // Group Conv2D when they have many channels
+    if (type === 'conv2d') {
+      const outCh = layerInfo.out_channels || 16;
+      return outCh > 4;  // Group if more than 4 output channels
+    }
+    // Group MaxPool layers
+    if (type === 'maxpool2d') {
+      return true;
+    }
+    return false;
+  }
+
+  // ── Get display size for a layer (respects grouping) ──
+  _getLayerDisplaySize(layerInfo, topologyValue, expanded) {
+    if (!layerInfo || !this._isGroupedLayer(layerInfo)) {
+      return topologyValue;
+    }
+    if (expanded) {
+      const outCh = layerInfo.out_channels || topologyValue;
+      return Math.min(outCh, 16);  // Show max 16 channels when expanded
+    } else {
+      return 1;  // Collapsed - show as single block
+    }
+  }
+
+  // ── Get node radius (larger for collapsed grouped layers) ──
+  _getNodeRadiusForLayer(layerInfo, baseRadius, expanded) {
+    if (!layerInfo || !this._isGroupedLayer(layerInfo)) {
+      return baseRadius;
+    }
+    if (expanded) {
+      return baseRadius;
+    } else {
+      // Collapsed grouped layer - make it larger
+      const outCh = layerInfo.out_channels || 16;
+      return Math.max(baseRadius * 2, Math.min(40, baseRadius * Math.sqrt(outCh)));
+    }
   }
 
   // ── main draw entry ──
   draw(snapshot) {
+    this._lastSnapshot = snapshot;
     this.resize();
     const { ctx } = this;
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    if (!snapshot || !snapshot.built) {
+    if (!snapshot || !snapshot.built || !snapshot.topology || snapshot.topology.length === 0) {
       ctx.fillStyle = "#6e7681";
       ctx.font = "14px system-ui";
       ctx.textAlign = "center";
@@ -65,10 +161,10 @@ class NetworkRenderer {
       return;
     }
 
-    const pts     = this._nodePositions(snapshot.topology);
+    const layers  = snapshot.layers || [];
+    const pts     = this._nodePositions(snapshot.topology, layers);
     const nodeR   = this._nodeRadius(snapshot.topology);
     const acts    = snapshot.activations || [];
-    const layers  = snapshot.layers || [];
     const fn      = snapshot.func || {};
 
     this._drawEdges(pts, layers, nodeR);
@@ -78,29 +174,78 @@ class NetworkRenderer {
   }
 
   // ── node x/y positions ──
-  _nodePositions(topology) {
+  _nodePositions(topology, layers) {
+    if (!topology || topology.length === 0) return [];
     const W = this.canvas.width, H = this.canvas.height;
     const padX = 80, padY = 48;
-    return topology.map((n, l) =>
-      Array.from({ length: n }, (_, i) => ({
-        x: padX + (l / Math.max(1, topology.length - 1)) * (W - 2 * padX),
-        y: n === 1 ? H / 2 : padY + (i / (n - 1)) * (H - 2 * padY),
-        layer: l, idx: i,
-      }))
-    );
+    
+    // Map topology indices to actual layer info
+    let layerIndex = 0;
+    const positions = [];
+    
+    for (let topoIdx = 0; topoIdx < topology.length; topoIdx++) {
+      // Find corresponding layer info
+      let layerInfo = null;
+      while (layerIndex < layers.length) {
+        const li = layers[layerIndex];
+        if (!li.W || !Array.isArray(li.W) || li.W.length === 0) {
+          if (li.type !== 'dropout' && li.type !== 'batchnorm' && 
+              li.type !== 'flatten' && li.type !== 'maxpool2d') {
+            layerIndex++;
+            continue;
+          }
+        }
+        layerInfo = li;
+        break;
+      }
+      
+      const expanded = this.isLayerExpanded(layerIndex);
+      const n = this._getLayerDisplaySize(layerInfo, topology[topoIdx], expanded);
+      
+      positions.push(
+        Array.from({ length: n }, (_, i) => ({
+          x: padX + (topoIdx / Math.max(1, topology.length - 1)) * (W - 2 * padX),
+          y: n === 1 ? H / 2 : padY + (i / (n - 1)) * (H - 2 * padY),
+          layer: topoIdx, 
+          idx: i,
+          isGrouped: this._isGroupedLayer(layerInfo),
+          isExpanded: expanded,
+          layerInfo: layerInfo,
+        }))
+      );
+      
+      if (layerInfo && (layerInfo.W || layerInfo.type === 'maxpool2d')) {
+        layerIndex++;
+      }
+    }
+    
+    return positions;
   }
 
   _nodeRadius(topology) {
+    if (!topology || topology.length === 0) return 10;
     const maxN = Math.max(...topology);
     return Math.max(10, Math.min(24, (this.canvas.height - 92) / maxN * 0.38));
   }
 
   _drawEdges(pts, layers, nodeR) {
     const { ctx } = this;
+    // Only draw edges for layers that have visual nodes (skip Conv2D, MaxPool, Flatten, etc.)
+    // pts array corresponds to topology, not layers array
+    let ptsIndex = 0;
     layers.forEach((layer, l) => {
+      // Skip layers without weights (Dropout, BatchNorm, Flatten, MaxPool, etc.)
+      if (!layer.W || !Array.isArray(layer.W) || layer.W.length === 0) {
+        return;
+      }
+      // Check if we have corresponding points
+      if (!pts[ptsIndex] || !pts[ptsIndex + 1]) {
+        ptsIndex++;
+        return;
+      }
       (layer.W || []).forEach((row, i) => {
         row.forEach((w, j) => {
-          const fr = pts[l][j], to = pts[l + 1][i];
+          const fr = pts[ptsIndex][j], to = pts[ptsIndex + 1][i];
           if (!fr || !to) return;
           const dx = to.x - fr.x, dy = to.y - fr.y;
           const dist = Math.sqrt(dx*dx + dy*dy) || 1;
@@ -115,26 +260,38 @@ class NetworkRenderer {
           ctx.globalAlpha = 1;
         });
       });
+      ptsIndex++;
     });
   }
 
   _drawBias(pts, layers, nodeR) {
     const { ctx } = this;
+    let ptsIndex = 0;
     layers.forEach((layer, l) => {
-      (layer.b || []).forEach((b, i) => {
-        const to = pts[l + 1]?.[i];
-        if (!to) return;
-        ctx.beginPath();
-        ctx.moveTo(to.x - nodeR * 3, to.y - nodeR * 2.5);
-        ctx.lineTo(to.x - nodeR,     to.y);
-        ctx.strokeStyle = weightColor(b);
-        ctx.lineWidth   = Math.min(2.5, 0.3 + Math.abs(b) * 0.7);
-        ctx.globalAlpha = 0.3;
-        ctx.setLineDash([2, 3]);
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 1;
-      });
+      // Skip layers without bias or visual nodes
+      if (!layer.b || !Array.isArray(layer.b) || layer.b.length === 0) {
+        if (layer.type !== 'dropout' && layer.type !== 'batchnorm' && 
+            layer.type !== 'flatten' && layer.type !== 'maxpool2d') {
+          ptsIndex++;
+        }
+        return;
+      }
+      const to = pts[ptsIndex + 1]?.[0];
+      if (!to) {
+        ptsIndex++;
+        return;
+      }
+      ctx.beginPath();
+      ctx.moveTo(to.x - nodeR * 3, to.y - nodeR * 2.5);
+      ctx.lineTo(to.x - nodeR,     to.y);
+      ctx.strokeStyle = weightColor(layer.b[0]);
+      ctx.lineWidth   = Math.min(2.5, 0.3 + Math.abs(layer.b[0]) * 0.7);
+      ctx.globalAlpha = 0.3;
+      ctx.setLineDash([2, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      ptsIndex++;
     });
   }
 
@@ -161,66 +318,187 @@ class NetworkRenderer {
 
   _drawNodes(pts, acts, layers, nodeR, fn) {
     const { ctx } = this;
+    // Map topology index to layer index (skip non-visual layers)
+    let layerIndex = 0;
+
     pts.forEach((layerPts, l) => {
+      // Find the corresponding layer info
+      let layerInfo = null;
+      while (layerIndex < layers.length) {
+        const li = layers[layerIndex];
+        // Skip layers without visual representation
+        if (!li.W || !Array.isArray(li.W) || li.W.length === 0) {
+          if (li.type !== 'dropout' && li.type !== 'batchnorm' &&
+              li.type !== 'flatten' && li.type !== 'maxpool2d') {
+            layerIndex++;
+          }
+        }
+        layerInfo = li;
+        break;
+      }
+      const layerType = layerInfo?.type || "dense";
+      const isGrouped = this._isGroupedLayer(layerInfo);
+      const isExpanded = this.isLayerExpanded(layerIndex);
+      
+      // Use larger radius for collapsed grouped layers
+      const actualNodeR = this._getNodeRadiusForLayer(layerInfo, nodeR, isExpanded);
+
       layerPts.forEach(({ x, y, layer, idx }) => {
-        const av  = acts[l]?.[idx] ?? 0;
+        // Get activation safely
+        const actIndex = acts.length > l ? l : (acts.length > 0 ? acts.length - 1 : 0);
+        const av  = acts[actIndex]?.[idx] ?? 0;
         const sel = this._selectedNode;
         const isSel = sel && sel.layer === l && sel.idx === idx;
 
         // glow
-        if (this.opts.showActivations && acts[l]) {
-          const grd = ctx.createRadialGradient(x, y, 0, x, y, nodeR * 2.8);
+        if (this.opts.showActivations && acts[actIndex]) {
+          const grd = ctx.createRadialGradient(x, y, 0, x, y, actualNodeR * 2.8);
           grd.addColorStop(0, activationColor(av, 0.3));
           grd.addColorStop(1, "rgba(0,0,0,0)");
-          ctx.beginPath(); ctx.arc(x, y, nodeR * 2.8, 0, Math.PI * 2);
+          ctx.beginPath(); ctx.arc(x, y, actualNodeR * 2.8, 0, Math.PI * 2);
           ctx.fillStyle = grd; ctx.fill();
         }
 
-        // circle
-        ctx.beginPath(); ctx.arc(x, y, nodeR, 0, Math.PI * 2);
-        ctx.fillStyle   = (this.opts.showActivations && acts[l]) ? activationColor(av) : "#2d333b";
+        // circle - draw larger circle for collapsed grouped layers
+        ctx.beginPath(); 
+        ctx.arc(x, y, actualNodeR, 0, Math.PI * 2);
+        ctx.fillStyle   = (this.opts.showActivations && acts[actIndex]) ? activationColor(av) : "#2d333b";
         ctx.fill();
         ctx.strokeStyle = isSel ? "#fff" : "#58a6ff";
         ctx.lineWidth   = isSel ? 2.5 : 1.5;
         ctx.stroke();
+        
+        // For collapsed grouped layers, draw a distinctive pattern
+        if (isGrouped && !isExpanded) {
+          // Draw grid pattern to indicate multiple channels
+          ctx.strokeStyle = "#58a6ff44";
+          ctx.lineWidth = 1;
+          const gridSize = Math.min(4, Math.ceil(Math.sqrt(layerInfo?.out_channels || 4)));
+          const gridStep = (actualNodeR * 2) / gridSize;
+          for (let gi = 0; gi <= gridSize; gi++) {
+            // Vertical lines
+            ctx.beginPath();
+            ctx.moveTo(x - actualNodeR + gi * gridStep, y - actualNodeR);
+            ctx.lineTo(x - actualNodeR + gi * gridStep, y + actualNodeR);
+            ctx.stroke();
+            // Horizontal lines
+            ctx.beginPath();
+            ctx.moveTo(x - actualNodeR, y - actualNodeR + gi * gridStep);
+            ctx.lineTo(x + actualNodeR, y - actualNodeR + gi * gridStep);
+            ctx.stroke();
+          }
+        }
 
         // label
         if (this.opts.showLabels) {
           ctx.fillStyle    = "#e6edf3";
-          ctx.font         = `bold ${Math.max(7, nodeR * 0.52)}px monospace`;
+          ctx.font         = `bold ${Math.max(7, actualNodeR * 0.52)}px monospace`;
           ctx.textAlign    = "center";
           ctx.textBaseline = "middle";
           const isIn  = l === 0;
           const isOut = l === pts.length - 1;
           const lbl   = isIn  && fn.input_labels?.[idx]  ? fn.input_labels[idx]
                       : isOut && fn.output_labels?.[idx] ? fn.output_labels[idx]
+                      : isGrouped && !isExpanded ? `${layerInfo?.out_channels || pts[l].length}ch`
                       : av.toFixed(1);
           ctx.fillText(lbl, x, y);
         }
 
-        // layer header
+        // layer header with type badge and expand/collapse
         if (idx === 0) {
-          ctx.fillStyle    = "#6e7681";
-          ctx.font         = "10px system-ui";
+          ctx.font         = "bold 10px system-ui";
           ctx.textAlign    = "center";
           ctx.textBaseline = "bottom";
-          const lname = l === 0 ? "Input" : l === pts.length - 1 ? "Output" : `Hidden ${l}`;
-          ctx.fillText(lname,          x, y - nodeR - 4);
-          ctx.fillText(`×${pts[l].length}`, x, y - nodeR - 16);
+
+          // Type badge colors
+          const typeColors = {
+            dense: "#58a6ff",
+            dropout: "#d29922",
+            batchnorm: "#3fb950",
+            conv2d: "#f0883e",
+            maxpool2d: "#f0883e",
+            flatten: "#bc8cff",
+            lstm: "#39d353",
+            simple_rnn: "#39d353",
+            embedding: "#a371f7",
+            layernorm: "#3fb950",
+            multihead_attention: "#ff7b72",
+            positional_encoding: "#a371f7",
+          };
+          const typeColor = typeColors[layerType] || "#58a6ff";
+
+          // Type badge
+          const badgeText = _getLayerTypeLabel(layerType);
+          const badgeWidth = ctx.measureText(badgeText).width + 12;
+          const badgeX = x - badgeWidth / 2;
+          const badgeY = y - actualNodeR - 20;
+
+          ctx.fillStyle = typeColor + "33";
+          ctx.strokeStyle = typeColor;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(badgeX, badgeY, badgeWidth, 16, 3);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = typeColor;
+          ctx.font = "bold 9px system-ui";
+          ctx.textBaseline = "middle";
+          ctx.fillText(badgeText, x, badgeY + 8);
+
+          // Expand/collapse indicator for grouped layers
+          if (isGrouped) {
+            const expandY = y - actualNodeR - 32;
+            ctx.fillStyle = "#6e7681";
+            ctx.font = "16px system-ui";
+            ctx.textBaseline = "middle";
+            ctx.fillText(isExpanded ? "▼" : "▶", x, expandY);
+            
+            // Show layer details
+            let layerDetails = '';
+            if (layerType === 'conv2d') {
+              const k = layerInfo?.kernel_size || 3;
+              const ch = layerInfo?.out_channels || pts[l].length;
+              layerDetails = `${k}×${k}, ${ch}ch`;
+            } else if (layerType === 'maxpool2d') {
+              const p = layerInfo?.pool_size || 2;
+              layerDetails = `${p}×${p} pool`;
+            }
+            if (layerDetails) {
+              ctx.font = "9px system-ui";
+              ctx.fillStyle = "#8b949e";
+              ctx.fillText(layerDetails, x, expandY - 12);
+            }
+          } else {
+            // Size label for non-grouped layers
+            ctx.fillStyle    = "#6e7681";
+            ctx.font         = "10px system-ui";
+            ctx.textBaseline = "bottom";
+            const sizeLabel = `×${pts[l].length}`;
+            ctx.fillText(sizeLabel, x, y - actualNodeR - 4);
+          }
         }
       });
+      layerIndex++;
     });
   }
 
   // ── hit-test for clicks/hover ──
-  nodeAt(mx, my, topology) {
+  nodeAt(mx, my, topology, layers) {
     if (!topology) return null;
-    const pts   = this._nodePositions(topology);
-    const nodeR = this._nodeRadius(topology);
-    for (const layerPts of pts) {
+    const pts   = this._nodePositions(topology, layers || []);
+    const baseNodeR = this._nodeRadius(topology);
+    
+    for (let l = 0; l < pts.length; l++) {
+      const layerPts = pts[l];
+      const layerInfo = layers?.[l];
+      const isGrouped = this._isGroupedLayer(layerInfo);
+      const isExpanded = this.isLayerExpanded(l);
+      const nodeR = this._getNodeRadiusForLayer(layerInfo, baseNodeR, isExpanded);
+      
       for (const p of layerPts) {
         if ((mx - p.x) ** 2 + (my - p.y) ** 2 < (nodeR * 1.9) ** 2)
-          return { layer: p.layer, idx: p.idx };
+          return { layer: p.layer, idx: p.idx, isGrouped: p.isGrouped, layerInfo: p.layerInfo };
       }
     }
     return null;

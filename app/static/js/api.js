@@ -23,16 +23,28 @@ const API = (() => {
     getDataset:      (key)   => request("GET",  `/api/modules/functions/${key}/dataset`),
 
     // ── session ──
-    buildNetwork:    (cfg)   => request("POST", "/api/session/build",   cfg),
+    buildNetwork:    async (cfg) => {
+      const result = await request("POST", "/api/session/build", cfg);
+      console.log("buildNetwork result:", result);
+      return result;
+    },
     resetWeights:    ()      => request("POST", "/api/session/reset",   {}),
     predict:         (x)     => request("POST", "/api/session/predict", { x }),
-    getSnapshot:     ()      => request("GET",  "/api/session/snapshot"),
+    getSnapshot:     async () => {
+      const result = await request("GET", "/api/session/snapshot");
+      console.log("getSnapshot result:", result);
+      return result;
+    },
     exportModel:     ()      => request("POST", "/api/session/export",  {}),
     importModel:     (data)  => request("POST", "/api/session/import",  data),
 
     // ── training ──
     trainStep:       (steps, lr) => request("POST", "/api/train/step",     { steps, lr }),
-    evaluate:        ()          => request("POST", "/api/train/evaluate", {}),
+    evaluate:        async () => {
+      const result = await request("POST", "/api/train/evaluate", {});
+      console.log("evaluate result:", result);
+      return result;
+    },
 
     // ── presets ──
     savePreset:      (cfg)   => request("POST", "/api/presets/save",    cfg),

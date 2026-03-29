@@ -208,153 +208,184 @@ class UIController {
   // LAYER EDITOR
   // ════════════════════════════════════════════════════════
   _initLayerEditor() {
-    this._layers = []; // Local state for layer configs: [{ type: 'dense', neurons: 4, activation: 'tanh' }]
+    this._inputNeurons = 2;
+    this._outputNeurons = 1;
+    this._hiddenLayers = []; // [{ type: 'dense', neurons: 4, activation: 'tanh' }]
+    
     const container = document.getElementById("layersContainer");
     const addBtn = document.getElementById("addLayerBtn");
-    const inputNeuronsEl = document.getElementById("inputNeurons");
-    const outputNeuronsEl = document.getElementById("outputNeurons");
 
     // Set defaults from function metadata
     const updateIODefaults = (fnMeta) => {
       if (fnMeta) {
-        if (inputNeuronsEl) inputNeuronsEl.value = fnMeta.inputs ?? 2;
-        if (outputNeuronsEl) outputNeuronsEl.value = fnMeta.outputs ?? 1;
+        this._inputNeurons = fnMeta.inputs ?? 2;
+        this._outputNeurons = fnMeta.outputs ?? 1;
+        this._renderAllLayers();
       }
     };
     this.on("funcChanged", updateIODefaults);
 
-    // Listen for IO changes
-    inputNeuronsEl?.addEventListener("input", () => {
-      this._emit("controlChanged", this.getConfig());
-    });
-    outputNeuronsEl?.addEventListener("input", () => {
-      this._emit("controlChanged", this.getConfig());
-    });
-
     // Add Dense layer button
     addBtn?.addEventListener("click", () => {
-      this.addLayer({ type: "dense", neurons: 4, activation: _val("actSel") || "tanh" });
-      this._emit("controlChanged", this.getConfig());
+      this.addHiddenLayer({ type: "dense", neurons: 4, activation: "tanh" });
     });
 
-    // Seed with one layer by default
-    if (this._layers.length === 0) {
-      this.addLayer({ type: "dense", neurons: 4, activation: "tanh" });
+    // Seed with one hidden layer by default
+    if (this._hiddenLayers.length === 0) {
+      this.addHiddenLayer({ type: "dense", neurons: 4, activation: "tanh" });
     }
   }
 
-  addLayer(config) {
+  addHiddenLayer(config) {
     const id = Math.random().toString(36).substr(2, 9);
     const layer = { ...config, id };
-    this._layers.push(layer);
-    this._renderLayer(layer, this._layers.length);
+    this._hiddenLayers.push(layer);
+    this._renderAllLayers();
+    this._emit("controlChanged", this.getConfig());
   }
 
-  _renderLayer(layer, index) {
+  removeHiddenLayer(id) {
+    this._hiddenLayers = this._hiddenLayers.filter(l => l.id !== id);
+    this._renderAllLayers();
+    this._emit("controlChanged", this.getConfig());
+  }
+
+  _renderAllLayers() {
     const container = document.getElementById("layersContainer");
+    if (!container) return;
+    container.innerHTML = "";
+    
+    // Render Input Layer
+    this._renderInputLayer(container);
+    
+    // Render Hidden Layers
+    this._hiddenLayers.forEach((layer, index) => {
+      this._renderHiddenLayer(container, layer, index + 1);
+    });
+    
+    // Render Output Layer
+    this._renderOutputLayer(container);
+  }
+
+  _renderInputLayer(container) {
+    const div = document.createElement("div");
+    div.className = "layer-row";
+    div.style = "display: flex; gap: 4px; align-items: center; margin-bottom: 4px; background: var(--surf2); padding: 4px; border-radius: 4px; border: 1px solid var(--border);";
+
+    // Badge
+    const badge = document.createElement("span");
+    badge.textContent = "IN";
+    badge.style = "font-size: 9px; color: #fff; font-weight: bold; width: 28px; text-align: center; background: #3fb950; border-radius: 3px; padding: 2px 0;";
+
+    // Label
+    const lbl = document.createElement("span");
+    lbl.textContent = "Input";
+    lbl.style = "font-size: 10px; color: var(--text2); width: 50px;";
+
+    // Neuron count
+    const nInput = document.createElement("input");
+    nInput.type = "number";
+    nInput.value = this._inputNeurons;
+    nInput.min = 1;
+    nInput.max = 256;
+    nInput.style = "width: 50px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+    nInput.addEventListener("input", () => {
+      this._inputNeurons = parseInt(nInput.value) || 1;
+      this._emit("controlChanged", this.getConfig());
+    });
+
+    const nLbl = document.createElement("span");
+    nLbl.textContent = "neurons";
+    nLbl.style = "font-size: 10px; color: var(--text2); flex: 1;";
+
+    div.appendChild(badge);
+    div.appendChild(lbl);
+    div.appendChild(nInput);
+    div.appendChild(nLbl);
+    container.appendChild(div);
+  }
+
+  _renderOutputLayer(container) {
+    const div = document.createElement("div");
+    div.className = "layer-row";
+    div.style = "display: flex; gap: 4px; align-items: center; margin-bottom: 4px; background: var(--surf2); padding: 4px; border-radius: 4px; border: 1px solid var(--border);";
+
+    // Badge
+    const badge = document.createElement("span");
+    badge.textContent = "OUT";
+    badge.style = "font-size: 9px; color: #fff; font-weight: bold; width: 28px; text-align: center; background: #f85149; border-radius: 3px; padding: 2px 0;";
+
+    // Label
+    const lbl = document.createElement("span");
+    lbl.textContent = "Output";
+    lbl.style = "font-size: 10px; color: var(--text2); width: 50px;";
+
+    // Neuron count
+    const nInput = document.createElement("input");
+    nInput.type = "number";
+    nInput.value = this._outputNeurons;
+    nInput.min = 1;
+    nInput.max = 256;
+    nInput.style = "width: 50px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+    nInput.addEventListener("input", () => {
+      this._outputNeurons = parseInt(nInput.value) || 1;
+      this._emit("controlChanged", this.getConfig());
+    });
+
+    const nLbl = document.createElement("span");
+    nLbl.textContent = "neurons";
+    nLbl.style = "font-size: 10px; color: var(--text2); flex: 1;";
+
+    // Activation (always sigmoid for output)
+    const actLbl = document.createElement("span");
+    actLbl.textContent = "sigmoid";
+    actLbl.style = "font-size: 10px; color: var(--text3); width: 60px; text-align: right;";
+
+    div.appendChild(badge);
+    div.appendChild(lbl);
+    div.appendChild(nInput);
+    div.appendChild(nLbl);
+    div.appendChild(actLbl);
+    container.appendChild(div);
+  }
+
+  _renderHiddenLayer(container, layer, index) {
     const div = document.createElement("div");
     div.className = "layer-row";
     div.id = `layer-${layer.id}`;
     div.style = "display: flex; gap: 4px; align-items: center; margin-bottom: 4px; background: var(--surf2); padding: 4px; border-radius: 4px; border: 1px solid var(--border);";
 
-    // Layer type badge
-    const typeBadge = document.createElement("span");
     const layerType = layer.type || "dense";
-    typeBadge.textContent = layerType === "dense" ? "D" : layerType === "dropout" ? "DO" : "BN";
-    typeBadge.title = layerType === "dense" ? "Dense" : layerType === "dropout" ? "Dropout" : "BatchNorm";
-    typeBadge.style = "font-size: 9px; color: #fff; font-weight: bold; width: 24px; text-align: center; border-radius: 3px; padding: 2px 0; background: " + 
-      (layerType === "dense" ? "var(--accent)" : layerType === "dropout" ? "var(--yellow)" : "var(--green)");
 
-    // Layer index label
+    // Type badge
+    const typeBadge = document.createElement("span");
+    const badgeChar = layerType === "dense" ? "D" : layerType === "dropout" ? "DO" : layerType === "conv2d" ? "CV" : layerType === "maxpool2d" ? "MP" : layerType === "lstm" ? "LSTM" : "L";
+    const badgeColor = layerType === "dense" ? "var(--accent)" : layerType === "dropout" ? "var(--yellow)" : layerType === "conv2d" ? "#f0883e" : layerType === "maxpool2d" ? "#f0883e" : "#39d353";
+    typeBadge.textContent = badgeChar;
+    typeBadge.title = layerType;
+    typeBadge.style = "font-size: 9px; color: #fff; font-weight: bold; width: 24px; text-align: center; border-radius: 3px; padding: 2px 0; background: " + badgeColor;
+
+    // Index label
     const idxLbl = document.createElement("span");
-    idxLbl.textContent = `${index}`;
-    idxLbl.style = "font-size: 10px; color: var(--text2); font-weight: bold; width: 20px;";
+    idxLbl.textContent = `H${index}`;
+    idxLbl.style = "font-size: 10px; color: var(--text2); font-weight: bold; width: 28px;";
 
     // Type selector
     const typeSelect = document.createElement("select");
-    typeSelect.innerHTML = '<option value="dense">Dense</option><option value="dropout">Dropout</option><option value="batchnorm">BatchNorm</option><option value="conv2d">Conv2D</option><option value="maxpool2d">MaxPool</option><option value="flatten">Flatten</option><option value="lstm">LSTM</option><option value="embedding">Embedding</option><option value="layernorm">LayerNorm</option><option value="multihead_attention">Attention</option>';
+    typeSelect.innerHTML = '<option value="dense">Dense</option><option value="dropout">Dropout</option><option value="batchnorm">BatchNorm</option><option value="conv2d">Conv2D</option><option value="maxpool2d">MaxPool</option><option value="flatten">Flatten</option><option value="lstm">LSTM</option>';
     typeSelect.value = layerType;
-    typeSelect.style = "font-size: 10px; padding: 2px; height: auto; width: 100px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px;";
+    typeSelect.style = "font-size: 10px; padding: 2px; height: auto; width: 80px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px;";
     typeSelect.addEventListener("change", () => {
-      const newType = typeSelect.value;
-      if (newType === "dropout") {
-        layer.type = "dropout";
-        layer.rate = 0.5;
-        delete layer.neurons;
-        delete layer.activation;
-        delete layer.out_channels;
-        delete layer.kernel_size;
-        delete layer.hidden_size;
-        delete layer.vocab_size;
-        delete layer.embed_dim;
-      } else if (newType === "batchnorm") {
-        layer.type = "batchnorm";
-        delete layer.neurons;
-        delete layer.activation;
-        delete layer.rate;
-        delete layer.out_channels;
-        delete layer.hidden_size;
-      } else if (newType === "conv2d") {
-        layer.type = "conv2d";
-        layer.out_channels = layer.out_channels || 32;
-        layer.kernel_size = layer.kernel_size || 3;
-        layer.activation = layer.activation || "relu";
-        delete layer.neurons;
-        delete layer.rate;
-      } else if (newType === "maxpool2d") {
-        layer.type = "maxpool2d";
-        layer.pool_size = layer.pool_size || 2;
-        delete layer.neurons;
-        delete layer.activation;
-        delete layer.rate;
-      } else if (newType === "flatten") {
-        layer.type = "flatten";
-        delete layer.neurons;
-        delete layer.activation;
-        delete layer.rate;
-      } else if (newType === "lstm") {
-        layer.type = "lstm";
-        layer.hidden_size = layer.hidden_size || 64;
-        delete layer.neurons;
-        delete layer.activation;
-        delete layer.rate;
-      } else if (newType === "embedding") {
-        layer.type = "embedding";
-        layer.vocab_size = layer.vocab_size || 1000;
-        layer.embed_dim = layer.embed_dim || 128;
-        delete layer.neurons;
-        delete layer.activation;
-        delete layer.rate;
-      } else if (newType === "layernorm") {
-        layer.type = "layernorm";
-        delete layer.neurons;
-        delete layer.activation;
-        delete layer.rate;
-      } else if (newType === "multihead_attention") {
-        layer.type = "multihead_attention";
-        layer.embed_dim = layer.embed_dim || 128;
-        layer.num_heads = layer.num_heads || 4;
-        delete layer.neurons;
-        delete layer.activation;
-        delete layer.rate;
-      } else {
-        layer.type = "dense";
-        layer.neurons = layer.neurons || 4;
-        layer.activation = layer.activation || "tanh";
-        delete layer.rate;
-        delete layer.out_channels;
-        delete layer.hidden_size;
-      }
-      this._rerenderLayerIndices();
+      this._updateLayerType(layer, typeSelect.value);
+      this._renderAllLayers();
       this._emit("controlChanged", this.getConfig());
     });
 
-    // Type-specific controls container
+    // Type-specific controls
     const controlsDiv = document.createElement("div");
     controlsDiv.style = "display: flex; gap: 4px; align-items: center; flex: 1;";
 
     if (layerType === "dense") {
-      // Neuron count
       const nInput = document.createElement("input");
       nInput.type = "number";
       nInput.value = layer.neurons || 4;
@@ -366,35 +397,30 @@ class UIController {
         this._emit("controlChanged", this.getConfig());
       });
 
-      // Label
-      const lbl = document.createElement("span");
-      lbl.textContent = "neurons";
-      lbl.style = "font-size: 10px; color: var(--text2);";
+      const nLbl = document.createElement("span");
+      nLbl.textContent = "neurons";
+      nLbl.style = "font-size: 10px; color: var(--text2);";
 
-      // Activation
-      const actSel = document.getElementById("actSel")?.cloneNode(true);
-      if (actSel) {
-        actSel.id = "";
-        actSel.value = layer.activation || "tanh";
-        actSel.style = "font-size: 10px; padding: 2px; height: auto; width: auto;";
-        actSel.addEventListener("change", () => {
-          layer.activation = actSel.value;
-          this._emit("controlChanged", this.getConfig());
-        });
-      }
+      const actSel = document.createElement("select");
+      actSel.innerHTML = '<option value="relu">ReLU</option><option value="tanh" selected>Tanh</option><option value="sigmoid">Sigmoid</option><option value="leakyrelu">Leaky</option><option value="gelu">GELU</option><option value="swish">Swish</option>';
+      actSel.value = layer.activation || "tanh";
+      actSel.style = "font-size: 10px; padding: 2px; height: auto; width: auto;";
+      actSel.addEventListener("change", () => {
+        layer.activation = actSel.value;
+        this._emit("controlChanged", this.getConfig());
+      });
 
       controlsDiv.appendChild(nInput);
-      controlsDiv.appendChild(lbl);
-      if (actSel) controlsDiv.appendChild(actSel);
+      controlsDiv.appendChild(nLbl);
+      controlsDiv.appendChild(actSel);
     } else if (layerType === "dropout") {
-      // Dropout rate
       const rateInput = document.createElement("input");
       rateInput.type = "range";
       rateInput.min = 0;
       rateInput.max = 0.9;
       rateInput.step = 0.05;
       rateInput.value = layer.rate ?? 0.5;
-      rateInput.style = "width: 80px;";
+      rateInput.style = "width: 60px;";
       rateInput.addEventListener("input", () => {
         layer.rate = parseFloat(rateInput.value);
         rateVal.textContent = layer.rate.toFixed(2);
@@ -403,7 +429,7 @@ class UIController {
 
       const rateVal = document.createElement("span");
       rateVal.textContent = (layer.rate ?? 0.5).toFixed(2);
-      rateVal.style = "font-size: 10px; color: var(--text2); width: 35px;";
+      rateVal.style = "font-size: 10px; color: var(--text2); width: 30px;";
 
       const rateLbl = document.createElement("span");
       rateLbl.textContent = "rate";
@@ -412,87 +438,48 @@ class UIController {
       controlsDiv.appendChild(rateInput);
       controlsDiv.appendChild(rateLbl);
       controlsDiv.appendChild(rateVal);
-    } else if (layerType === "batchnorm") {
-      const bnLbl = document.createElement("span");
-      bnLbl.textContent = "Normalize features";
-      bnLbl.style = "font-size: 10px; color: var(--text2);";
-      controlsDiv.appendChild(bnLbl);
     } else if (layerType === "conv2d") {
-      // Out channels
       const ocInput = document.createElement("input");
       ocInput.type = "number";
-      ocInput.value = layer.out_channels ?? 32;
+      ocInput.value = layer.out_channels ?? 16;
       ocInput.min = 1;
-      ocInput.max = 512;
-      ocInput.style = "width: 45px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      ocInput.max = 256;
+      ocInput.style = "width: 40px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
       ocInput.addEventListener("input", () => {
-        layer.out_channels = parseInt(ocInput.value) || 32;
+        layer.out_channels = parseInt(ocInput.value) || 16;
         this._emit("controlChanged", this.getConfig());
       });
 
-      const ocLbl = document.createElement("span");
-      ocLbl.textContent = "filters";
-      ocLbl.style = "font-size: 10px; color: var(--text2);";
-
-      // Kernel size
       const ksInput = document.createElement("input");
       ksInput.type = "number";
       ksInput.value = layer.kernel_size ?? 3;
       ksInput.min = 1;
       ksInput.max = 7;
-      ksInput.style = "width: 35px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      ksInput.style = "width: 30px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
       ksInput.addEventListener("input", () => {
         layer.kernel_size = parseInt(ksInput.value) || 3;
         this._emit("controlChanged", this.getConfig());
       });
 
-      const ksLbl = document.createElement("span");
-      ksLbl.textContent = "k";
-      ksLbl.style = "font-size: 10px; color: var(--text2);";
-
-      // Activation
-      const actSel = document.getElementById("actSel")?.cloneNode(true);
-      if (actSel) {
-        actSel.id = "";
-        actSel.value = layer.activation || "relu";
-        actSel.style = "font-size: 10px; padding: 2px; height: auto; width: auto;";
-        actSel.addEventListener("change", () => {
-          layer.activation = actSel.value;
-          this._emit("controlChanged", this.getConfig());
-        });
-      }
-
       controlsDiv.appendChild(ocInput);
-      controlsDiv.appendChild(ocLbl);
+      controlsDiv.appendChild(document.createTextNode("ch"));
       controlsDiv.appendChild(ksInput);
-      controlsDiv.appendChild(ksLbl);
-      if (actSel) controlsDiv.appendChild(actSel);
+      controlsDiv.appendChild(document.createTextNode("k"));
     } else if (layerType === "maxpool2d") {
-      // Pool size
       const psInput = document.createElement("input");
       psInput.type = "number";
       psInput.value = layer.pool_size ?? 2;
       psInput.min = 2;
       psInput.max = 4;
-      psInput.style = "width: 35px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      psInput.style = "width: 30px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
       psInput.addEventListener("input", () => {
         layer.pool_size = parseInt(psInput.value) || 2;
         this._emit("controlChanged", this.getConfig());
       });
 
-      const psLbl = document.createElement("span");
-      psLbl.textContent = "pool";
-      psLbl.style = "font-size: 10px; color: var(--text2);";
-
       controlsDiv.appendChild(psInput);
-      controlsDiv.appendChild(psLbl);
-    } else if (layerType === "flatten") {
-      const flLbl = document.createElement("span");
-      flLbl.textContent = "Flatten to 1D";
-      flLbl.style = "font-size: 10px; color: var(--text2);";
-      controlsDiv.appendChild(flLbl);
+      controlsDiv.appendChild(document.createTextNode("pool"));
     } else if (layerType === "lstm") {
-      // Hidden size
       const hsInput = document.createElement("input");
       hsInput.type = "number";
       hsInput.value = layer.hidden_size ?? 64;
@@ -504,102 +491,21 @@ class UIController {
         this._emit("controlChanged", this.getConfig());
       });
 
-      const hsLbl = document.createElement("span");
-      hsLbl.textContent = "units";
-      hsLbl.style = "font-size: 10px; color: var(--text2);";
-
       controlsDiv.appendChild(hsInput);
-      controlsDiv.appendChild(hsLbl);
-    } else if (layerType === "embedding") {
-      // Vocab size
-      const vsInput = document.createElement("input");
-      vsInput.type = "number";
-      vsInput.value = layer.vocab_size ?? 1000;
-      vsInput.min = 10;
-      vsInput.max = 50000;
-      vsInput.style = "width: 50px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
-      vsInput.addEventListener("input", () => {
-        layer.vocab_size = parseInt(vsInput.value) || 1000;
-        this._emit("controlChanged", this.getConfig());
-      });
-
-      const vsLbl = document.createElement("span");
-      vsLbl.textContent = "vocab";
-      vsLbl.style = "font-size: 10px; color: var(--text2);";
-
-      // Embed dim
-      const edInput = document.createElement("input");
-      edInput.type = "number";
-      edInput.value = layer.embed_dim ?? 128;
-      edInput.min = 4;
-      edInput.max = 512;
-      edInput.style = "width: 45px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
-      edInput.addEventListener("input", () => {
-        layer.embed_dim = parseInt(edInput.value) || 128;
-        this._emit("controlChanged", this.getConfig());
-      });
-
-      const edLbl = document.createElement("span");
-      edLbl.textContent = "dim";
-      edLbl.style = "font-size: 10px; color: var(--text2);";
-
-      controlsDiv.appendChild(vsInput);
-      controlsDiv.appendChild(vsLbl);
-      controlsDiv.appendChild(edInput);
-      controlsDiv.appendChild(edLbl);
-    } else if (layerType === "layernorm") {
-      const lnLbl = document.createElement("span");
-      lnLbl.textContent = "Normalize";
-      lnLbl.style = "font-size: 10px; color: var(--text2);";
-      controlsDiv.appendChild(lnLbl);
-    } else if (layerType === "multihead_attention") {
-      // Embed dim
-      const edInput = document.createElement("input");
-      edInput.type = "number";
-      edInput.value = layer.embed_dim ?? 128;
-      edInput.min = 16;
-      edInput.max = 512;
-      edInput.style = "width: 45px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
-      edInput.addEventListener("input", () => {
-        layer.embed_dim = parseInt(edInput.value) || 128;
-        this._emit("controlChanged", this.getConfig());
-      });
-
-      const edLbl = document.createElement("span");
-      edLbl.textContent = "dim";
-      edLbl.style = "font-size: 10px; color: var(--text2);";
-
-      // Num heads
-      const nhInput = document.createElement("input");
-      nhInput.type = "number";
-      nhInput.value = layer.num_heads ?? 4;
-      nhInput.min = 1;
-      nhInput.max = 16;
-      nhInput.style = "width: 35px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
-      nhInput.addEventListener("input", () => {
-        layer.num_heads = parseInt(nhInput.value) || 4;
-        this._emit("controlChanged", this.getConfig());
-      });
-
-      const nhLbl = document.createElement("span");
-      nhLbl.textContent = "heads";
-      nhLbl.style = "font-size: 10px; color: var(--text2);";
-
-      controlsDiv.appendChild(edInput);
-      controlsDiv.appendChild(edLbl);
-      controlsDiv.appendChild(nhInput);
-      controlsDiv.appendChild(nhLbl);
+      controlsDiv.appendChild(document.createTextNode("units"));
+    } else {
+      const otherLbl = document.createElement("span");
+      otherLbl.textContent = layerType;
+      otherLbl.style = "font-size: 10px; color: var(--text2);";
+      controlsDiv.appendChild(otherLbl);
     }
 
-    // Delete
+    // Delete button
     const delBtn = document.createElement("button");
     delBtn.innerHTML = "×";
     delBtn.style = "background: none; border: none; color: var(--red); cursor: pointer; font-weight: bold; font-size: 14px; padding: 0 4px;";
     delBtn.addEventListener("click", () => {
-      this._layers = this._layers.filter(l => l.id !== layer.id);
-      div.remove();
-      this._rerenderLayerIndices();
-      this._emit("controlChanged", this.getConfig());
+      this.removeHiddenLayer(layer.id);
     });
 
     div.appendChild(typeBadge);
@@ -610,19 +516,38 @@ class UIController {
     container.appendChild(div);
   }
 
-  _rerenderLayerIndices() {
-    const container = document.getElementById("layersContainer");
-    if (!container) return;
-    container.innerHTML = "";
-    this._layers.forEach((layer, i) => {
-      this._renderLayer(layer, i + 1);
-    });
-  }
-
-  clearLayers() {
-    this._layers = [];
-    const container = document.getElementById("layersContainer");
-    if (container) container.innerHTML = "";
+  _updateLayerType(layer, newType) {
+    layer.type = newType;
+    // Reset properties based on type
+    if (newType === "dense") {
+      layer.neurons = layer.neurons || 4;
+      layer.activation = layer.activation || "tanh";
+      delete layer.rate;
+      delete layer.out_channels;
+      delete layer.kernel_size;
+      delete layer.hidden_size;
+    } else if (newType === "dropout") {
+      layer.rate = 0.5;
+      delete layer.neurons;
+      delete layer.activation;
+      delete layer.out_channels;
+    } else if (newType === "conv2d") {
+      layer.out_channels = layer.out_channels || 16;
+      layer.kernel_size = layer.kernel_size || 3;
+      layer.activation = "relu";
+      delete layer.neurons;
+      delete layer.rate;
+    } else if (newType === "maxpool2d") {
+      layer.pool_size = 2;
+      delete layer.neurons;
+      delete layer.activation;
+      delete layer.rate;
+    } else if (newType === "lstm") {
+      layer.hidden_size = layer.hidden_size || 64;
+      delete layer.neurons;
+      delete layer.activation;
+      delete layer.rate;
+    }
   }
 
   // ════════════════════════════════════════════════════════
@@ -1012,9 +937,9 @@ class UIController {
     return {
       arch_key:      _val("archSel"),
       func_key:      _val("funcSel"),
-      inputs:        parseInt(_val("inputNeurons")) || 2,
-      outputs:       parseInt(_val("outputNeurons")) || 1,
-      layers:        this._layers.map(l => {
+      inputs:        this._inputNeurons || 2,
+      outputs:       this._outputNeurons || 1,
+      layers:        this._hiddenLayers.map(l => {
         switch (l.type) {
           case "dropout":
             return { type: "dropout", rate: l.rate ?? 0.5 };
@@ -1033,25 +958,11 @@ class UIController {
             return { type: "flatten" };
           case "lstm":
             return { type: "lstm", hidden_size: l.hidden_size ?? 64 };
-          case "embedding":
-            return {
-              type: "embedding",
-              vocab_size: l.vocab_size ?? 1000,
-              embed_dim: l.embed_dim ?? 128
-            };
-          case "layernorm":
-            return { type: "layernorm" };
-          case "multihead_attention":
-            return {
-              type: "multihead_attention",
-              embed_dim: l.embed_dim ?? 128,
-              num_heads: l.num_heads ?? 4
-            };
           default:
             return { type: "dense", neurons: l.neurons || 4, activation: l.activation || "tanh" };
         }
       }),
-      activation:    _val("actSel"),
+      activation:    "tanh",
       optimizer:     _val("optSel"),
       loss:          _val("lossSel"),
       lr:            Math.pow(10, +_val("lrSl")),
@@ -1073,13 +984,13 @@ class UIController {
     _setVal("archSel",   p.arch_key);
     _setVal("funcSel",   p.func_key);
 
-    // Clear and rebuild layers from preset
-    this.clearLayers();
+    // Clear and rebuild hidden layers from preset
+    this._hiddenLayers = [];
     if (p.layers && Array.isArray(p.layers)) {
-      p.layers.forEach(l => this.addLayer(l));
+      p.layers.forEach(l => this.addHiddenLayer(l));
     }
+    this._renderAllLayers();
 
-    _setVal("actSel",    p.activation);
     _setVal("optSel",    p.optimizer);
     _setVal("lossSel",   p.loss);
     _setVal("lrSl",      Math.log10(p.lr).toFixed(2));
@@ -1089,7 +1000,7 @@ class UIController {
     ["lrSl","wdSl"].forEach(id => {
       document.getElementById(id)?.dispatchEvent(new Event("input"));
     });
-    ["archSel","funcSel","actSel","optSel","lossSel"].forEach(id => {
+    ["archSel","funcSel","optSel","lossSel"].forEach(id => {
       document.getElementById(id)?.dispatchEvent(new Event("change"));
     });
 

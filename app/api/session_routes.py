@@ -65,11 +65,13 @@ def reset_weights():
     ts.network._build_layers() if hasattr(ts.network, "_build_layers") else None
     # Rebuild layers in-place
     from app.core.network import NetworkBuilder
-    from app.core.layers import DropoutLayer, BatchNormLayer
+    from app.core.layers import DropoutLayer, BatchNormLayer, Conv2DLayer, MaxPool2DLayer, FlattenLayer
 
     # Build layers config from existing network
     layers_config = []
     for i, layer in enumerate(ts.network.layers[:-1]):  # Exclude output layer
+        layer_type = layer.__class__.__name__
+        
         if isinstance(layer, DropoutLayer):
             layers_config.append({
                 "type": "dropout",
@@ -79,7 +81,25 @@ def reset_weights():
             layers_config.append({
                 "type": "batchnorm",
             })
-        else:
+        elif isinstance(layer, Conv2DLayer):
+            layers_config.append({
+                "type": "conv2d",
+                "out_channels": layer.out_channels,
+                "kernel_size": layer.kernel_size,
+                "padding": layer.padding,
+                "activation": layer.activation.name,
+            })
+        elif isinstance(layer, MaxPool2DLayer):
+            layers_config.append({
+                "type": "maxpool2d",
+                "pool_size": layer.pool_size,
+                "stride": layer.stride,
+            })
+        elif isinstance(layer, FlattenLayer):
+            layers_config.append({
+                "type": "flatten",
+            })
+        elif hasattr(layer, 'activation'):
             layers_config.append({
                 "type": "dense",
                 "neurons": layer.n_out,
@@ -144,16 +164,52 @@ def snapshot():
     layer_data = []
     for i, layer in enumerate(net.layers):
         snap = layer.weight_snapshot()
-        layer_data.append({
+        
+        # Get proper dimensions for each layer type
+        layer_type = layer.__class__.__name__
+        if layer_type == 'Conv2DLayer':
+            n_in = layer.in_channels * 64  # Assume 8x8 input
+            n_out = layer.out_channels * 16  # Assume 4x4 output
+        elif layer_type == 'MaxPool2DLayer':
+            n_in = 0  # Will be inferred from previous layer
+            n_out = 0
+        elif layer_type == 'FlattenLayer':
+            n_in = 0
+            n_out = 0
+        elif hasattr(layer, 'n_in') and hasattr(layer, 'n_out'):
+            n_in = layer.n_in
+            n_out = layer.n_out
+        else:
+            n_in = 0
+            n_out = 0
+        
+        layer_info = {
             "index":      i,
-            "n_in":       layer.n_in,
-            "n_out":      layer.n_out,
+            "n_in":       n_in,
+            "n_out":      n_out,
             "is_output":  layer.is_output,
             "W":          snap["W"],
             "b":          snap["b"],
             "dW":         snap["dW"],
             "activation": snap["activation"],
-        })
+            "type":       layer_type.replace("Layer", "").lower(),
+        }
+        # Add type-specific info
+        if hasattr(layer, "rate"):  # Dropout
+            layer_info["rate"] = layer.rate
+        if hasattr(layer, "kernel_size"):  # Conv2D
+            layer_info["kernel_size"] = layer.kernel_size
+            layer_info["out_channels"] = layer.out_channels
+        if hasattr(layer, "pool_size"):  # MaxPool
+            layer_info["pool_size"] = layer.pool_size
+        if hasattr(layer, "hidden_size"):  # LSTM/RNN
+            layer_info["hidden_size"] = layer.hidden_size
+        if hasattr(layer, "vocab_size"):  # Embedding
+            layer_info["vocab_size"] = layer.vocab_size
+            layer_info["embed_dim"] = layer.embed_dim
+        if hasattr(layer, "num_heads"):  # Attention
+            layer_info["num_heads"] = layer.num_heads
+        layer_data.append(layer_info)
 
     return ok({
         "built":        True,

@@ -57,17 +57,8 @@
     <hr class="dv">
     <div class="shd">Layer Editor</div>
 
-    <div class="row" style="margin-bottom: 8px;">
-      <label style="flex: 1; font-size: 11px;">Input Neurons
-        <input type="number" id="inputNeurons" value="2" min="1" max="64" style="width: 100%; background: var(--surf2); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 4px; font-size: 12px;">
-      </label>
-      <label style="flex: 1; font-size: 11px;">Output Neurons
-        <input type="number" id="outputNeurons" value="1" min="1" max="64" style="width: 100%; background: var(--surf2); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 4px; font-size: 12px;">
-      </label>
-    </div>
-
     <div id="layersContainer" style="margin-bottom: 8px;">
-      <!-- Dynamic layers will be injected here -->
+      <!-- Dynamic layers will be injected here (Input, Hidden, Output) -->
     </div>
 
     <button class="btn secondary" id="addLayerBtn" style="width: 100%; margin-bottom: 12px; font-size: 11px;">+ Add Hidden Layer</button>
@@ -87,18 +78,6 @@
       <input type="range" id="lrSl" min="-4" max="-1" step="0.05" value="-2">
       <span class="val" id="lrV">0.01</span>
     </div>
-
-    <label>Activation
-      <span class="ti" data-tip="<b>Activation Function</b><br>Non-linearity applied after each neuron's weighted sum.<br><br><b>ReLU:</b> Fast, sparse. Dead neuron risk.<br><b>Tanh:</b> Zero-centred. Good default.<br><b>Sigmoid:</b> Saturates. Use with BCE.<br><b>Leaky ReLU:</b> Fixes dead neurons.<br><b>GELU:</b> Used in GPT, BERT.<br><b>Swish:</b> Self-gated, modern nets.<br><span class='tr'>Default: Tanh or ReLU</span>">?</span>
-    </label>
-    <select id="actSel">
-      <option value="relu">ReLU</option>
-      <option value="tanh" selected>Tanh</option>
-      <option value="sigmoid">Sigmoid</option>
-      <option value="leakyrelu">Leaky ReLU</option>
-      <option value="gelu">GELU</option>
-      <option value="swish">Swish</option>
-    </select>
 
     <label>Optimizer
       <span class="ti" data-tip="<b>Optimizer</b><br>Algorithm that turns gradients into weight updates.<br><br><b>SGD:</b> Simple, sensitive to LR.<br><b>Momentum:</b> Smooths oscillations.<br><b>RMSProp:</b> Adaptive per-param LR.<br><b>Adam:</b> Best all-round default.<br><b>AdamW:</b> Adam + weight decay. Best generalisation.<br><span class='tr'>Recommended: Adam or AdamW</span>">?</span>
@@ -161,7 +140,17 @@
 
   <!-- CENTER -->
   <div class="center">
-    <canvas id="netCanvas"></canvas>
+    <div class="canvas-wrapper">
+      <div class="canvas-controls">
+        <button class="canvas-btn" id="zoomOutBtn" title="Zoom Out">−</button>
+        <span class="zoom-level" id="zoomLevel">100%</span>
+        <button class="canvas-btn" id="zoomInBtn" title="Zoom In">+</button>
+        <button class="canvas-btn" id="zoomResetBtn" title="Reset Zoom">⟲</button>
+      </div>
+      <div class="canvas-scroll-container">
+        <canvas id="netCanvas"></canvas>
+      </div>
+    </div>
     <div class="bottom">
       <div style="flex-shrink:0">
         <div class="shd" style="margin-bottom:3px">Loss Curve</div>

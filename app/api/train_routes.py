@@ -27,13 +27,30 @@ def train_step():
     layer_data = []
     for i, layer in enumerate(net.layers):
         snap = layer.weight_snapshot()
-        layer_data.append({
+        layer_info = {
             "index":      i,
             "W":          snap["W"],
             "b":          snap["b"],
             "dW":         snap["dW"],
             "activation": snap["activation"],
-        })
+            "type":       layer.__class__.__name__.replace("Layer", "").lower(),
+        }
+        # Add type-specific info
+        if hasattr(layer, "rate"):  # Dropout
+            layer_info["rate"] = layer.rate
+        if hasattr(layer, "kernel_size"):  # Conv2D
+            layer_info["kernel_size"] = layer.kernel_size
+            layer_info["out_channels"] = layer.out_channels
+        if hasattr(layer, "pool_size"):  # MaxPool
+            layer_info["pool_size"] = layer.pool_size
+        if hasattr(layer, "hidden_size"):  # LSTM/RNN
+            layer_info["hidden_size"] = layer.hidden_size
+        if hasattr(layer, "vocab_size"):  # Embedding
+            layer_info["vocab_size"] = layer.vocab_size
+            layer_info["embed_dim"] = layer.embed_dim
+        if hasattr(layer, "num_heads"):  # Attention
+            layer_info["num_heads"] = layer.num_heads
+        layer_data.append(layer_info)
 
     # Activations on first training sample
     if ts.dataset:

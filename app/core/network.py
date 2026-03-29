@@ -87,10 +87,59 @@ class NeuralNetwork:
     # ── topology helpers ──
     @property
     def topology(self) -> list[int]:
+        """
+        Returns the network topology as a list of feature counts per layer.
+        Only includes layers with meaningful dimensions for visualization.
+        Skips: Dropout, BatchNorm, Flatten, LayerNorm, PositionalEncoding, MaxPool
+        """
         if not self.layers:
             return []
-        topo = [self.layers[0].n_in]
-        topo += [layer.n_out for layer in self.layers]
+        
+        # Start with input size - get from first layer's appropriate attribute
+        first_layer = self.layers[0]
+        if hasattr(first_layer, 'n_in') and first_layer.n_in > 0 and first_layer.__class__.__name__ != 'Conv2DLayer':
+            input_size = first_layer.n_in
+        elif hasattr(first_layer, 'embed_dim'):
+            input_size = first_layer.embed_dim
+        elif hasattr(first_layer, 'in_channels') and hasattr(first_layer, 'W'):
+            # Conv2D: input_size = in_channels * spatial^2 (assume 8x8)
+            input_size = first_layer.in_channels * 64
+        else:
+            input_size = 64  # Default
+        
+        topo = [input_size]
+        
+        # Add output sizes for layers that have meaningful dimensions
+        for layer in self.layers:
+            layer_type = layer.__class__.__name__
+            
+            # Skip non-visualizable layers
+            if layer_type in ['DropoutLayer', 'BatchNormLayer', 'FlattenLayer',
+                              'LayerNorm', 'PositionalEncoding', 'MaxPool2DLayer']:
+                continue
+            
+            # Conv2D: use total feature count (channels * spatial^2)
+            if layer_type == 'Conv2DLayer':
+                # Estimate from weight shape: (out_ch, in_ch, k, k)
+                if hasattr(layer, 'W') and layer.W is not None:
+                    out_ch = layer.W.shape[0]
+                    # Assume 4x4 spatial for visualization
+                    topo.append(out_ch * 16)
+                else:
+                    topo.append(layer.out_channels * 16)
+            # Embedding: use embed_dim
+            elif layer_type == 'EmbeddingLayer':
+                topo.append(layer.embed_dim)
+            # LSTM/RNN: use hidden_size
+            elif layer_type in ['LSTMLayer', 'SimpleRNNLayer']:
+                topo.append(layer.hidden_size)
+            # Attention: use embed_dim
+            elif layer_type == 'MultiHeadAttention':
+                topo.append(layer.embed_dim)
+            # Default: use n_out
+            elif hasattr(layer, 'n_out'):
+                topo.append(layer.n_out)
+        
         return topo
 
     @property
@@ -99,10 +148,19 @@ class NeuralNetwork:
 
     # ── activation snapshot (for visualisation) ──
     def activation_snapshot(self, x: np.ndarray) -> list[list[float]]:
-        """Returns activations at every layer including input."""
+        """Returns activations at every layer including input.
+        Only includes layers with meaningful activations (skips Dropout, BatchNorm, etc.)
+        """
         self.predict(x)
         snaps = [x.tolist()]
-        snaps += [l._a.tolist() for l in self.layers if l._a is not None]
+        for l in self.layers:
+            # Only include activations from layers that have them
+            layer_type = l.__class__.__name__
+            if layer_type in ['DropoutLayer', 'BatchNormLayer', 'LayerNorm', 
+                              'FlattenLayer', 'PositionalEncoding']:
+                continue
+            if hasattr(l, '_a') and l._a is not None:
+                snaps.append(l._a.flatten().tolist())
         return snaps
 
     # ── serialisation ──
@@ -152,6 +210,10 @@ class NetworkBuilder:
 
         layers: list[Layer] = []
         curr_in = n_in
+        
+        # Track spatial dimensions for Conv2D
+        spatial_size = int(np.sqrt(n_in))  # Assume square input
+        in_channels = 1  # Assume single channel for first conv
 
         for i, lc in enumerate(layers_config):
             l_type = lc.get("type", "dense")
@@ -172,23 +234,33 @@ class NetworkBuilder:
                 padding = int(lc.get("padding", 1))
                 act_name = lc.get("activation", "relu")
                 act = ACTIVATIONS.get(act_name, ACTIVATIONS["relu"])
+                
                 layers.append(l_cls(
-                    in_channels=curr_in,
+                    in_channels=in_channels,
                     out_channels=out_channels,
                     kernel_size=kernel_size,
                     stride=stride,
                     padding=padding,
                     activation=act
                 ))
-                curr_in = out_channels
+                
+                # Update spatial size: out = (in + 2*pad - kernel) / stride + 1
+                spatial_size = (spatial_size + 2 * padding - kernel_size) // stride + 1
+                in_channels = out_channels
+                curr_in = out_channels * spatial_size * spatial_size  # Total features
             elif l_type == "maxpool2d":
                 # MaxPool2D layer
                 pool_size = int(lc.get("pool_size", 2))
-                stride = int(lc.get("stride", 2))
+                stride = int(lc.get("stride", pool_size))
                 layers.append(l_cls(pool_size=pool_size, stride=stride))
+                
+                # Update spatial size
+                spatial_size = (spatial_size - pool_size) // stride + 1
+                curr_in = in_channels * spatial_size * spatial_size
             elif l_type == "flatten":
                 # Flatten layer
                 layers.append(l_cls())
+                # curr_in stays the same (just reshaping)
             elif l_type == "simple_rnn":
                 # Simple RNN layer
                 hidden_size = int(lc.get("hidden_size", 64))
@@ -217,18 +289,21 @@ class NetworkBuilder:
                 layers.append(l_cls(vocab_size=vocab_size, embed_dim=embed_dim))
                 curr_in = embed_dim
             elif l_type == "layernorm":
-                # LayerNorm layer
+                # LayerNorm layer: doesn't change dimensions
                 layers.append(l_cls(normalized_shape=curr_in))
+                # curr_in stays the same
             elif l_type == "multihead_attention":
                 # Multi-Head Attention layer
                 embed_dim = int(lc.get("embed_dim", curr_in))
                 num_heads = int(lc.get("num_heads", 4))
                 layers.append(l_cls(embed_dim=embed_dim, num_heads=num_heads))
+                curr_in = embed_dim
             elif l_type == "positional_encoding":
-                # Positional Encoding layer
+                # Positional Encoding layer: doesn't change dimensions
                 max_seq_len = int(lc.get("max_seq_len", 512))
                 embed_dim = int(lc.get("embed_dim", curr_in))
                 layers.append(l_cls(max_seq_len=max_seq_len, embed_dim=embed_dim))
+                # curr_in stays the same
             else:
                 # Dense layer (default)
                 n_neurons = int(lc.get("neurons", 4))
