@@ -21,8 +21,14 @@ import importlib
 import pkgutil
 from pathlib import Path
 from typing import Type
+from flask import current_app
 
 from .base import BaseModule
+
+
+def get_registry() -> ModuleRegistry:
+    """Helper to retrieve the global registry from the current app."""
+    return current_app.extensions.get("module_registry")
 
 
 class ModuleRegistry:

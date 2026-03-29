@@ -39,7 +39,8 @@ def get_session_manager():
 
 
 def get_registry():
-    return current_app.extensions["module_registry"]
+    from ..modules.registry import get_registry as _get_reg
+    return _get_reg()
 
 
 def ok(data: dict | list | None = None, **kwargs) -> tuple:

@@ -13,6 +13,7 @@ class App {
 
     // ── sub-systems ──
     this._ui       = new UIController(registry);
+    window.datasetUI = new DatasetUIController(this);
     this._trainer  = new TrainingController();
     this._netRend  = new NetworkRenderer(document.getElementById("netCanvas"));
     this._archRend = new ArchDiagramRenderer(document.getElementById("netCanvas"));
@@ -24,6 +25,7 @@ class App {
   // ════════════════════════════════════════════════════════
   async init() {
     this._ui.init();
+    window.datasetUI.init();
     this._bindUIEvents();
     this._bindTrainerEvents();
     this._bindResize();
@@ -67,6 +69,16 @@ class App {
     ui.on("exportModel",  ()  => this._exportModel());
     ui.on("importModel",  data => this._importModel(data));
     ui.on("requestSummary", () => ui.renderModelSummary(this._snapshot));
+
+    ui.on("datasetSelectedForTrain", async dsId => {
+      try {
+        const cfg = ui.getConfig();
+        cfg.dataset_id = dsId;
+        await this._build(cfg);
+      } catch (e) {
+        console.error("Failed to load dataset for training", e);
+      }
+    });
 
     ui.on("savePreset",   async cfg => {
       try {

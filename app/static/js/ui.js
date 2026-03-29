@@ -33,6 +33,8 @@ class UIController {
   // ════════════════════════════════════════════════════════
   init() {
     this._initTabs();
+    this._initDatasetSelect();
+    this._initTaskLibrary();
     this._initTooltips();
     this._initPresets();
     this._initSavePresetBtn();
@@ -63,6 +65,7 @@ class UIController {
         document.getElementById(pg)?.classList.add("active");
         if (btn.dataset.pg === "test")     this._renderTestInputs(this._fnMeta);
         if (btn.dataset.pg === "saveload") this._renderModelSummary();
+        if (btn.dataset.pg === "datasets") window.datasetUI.refreshDatasets();
       });
     });
   }
@@ -160,22 +163,97 @@ class UIController {
   // ════════════════════════════════════════════════════════
   _initFuncSelect() {
     const sel  = document.getElementById("funcSel");
-    const desc = document.getElementById("funcDesc");
     if (!sel) return;
 
+    sel.innerHTML = "";
     (this._registry.functions || []).forEach(f => {
       const o = document.createElement("option");
       o.value = f.key; o.textContent = f.label;
       sel.appendChild(o);
     });
+  }
 
-    const update = () => {
-      const fn = (this._registry.functions || []).find(f => f.key === sel.value);
-      if (desc && fn) desc.innerHTML = fn.description || "";
-      this._emit("funcChanged", fn);
-    };
-    sel.addEventListener("change", update);
-    update();
+  _initTaskLibrary() {
+    const btn = document.getElementById("taskLibBtn");
+    const modal = document.getElementById("taskLibModal");
+    const close = document.getElementById("taskLibCloseBtn");
+    if (!btn) return;
+
+    btn.addEventListener("click", () => {
+      modal.style.display = "flex";
+      this._renderTaskGrid("all");
+    });
+    close.addEventListener("click", () => modal.style.display = "none");
+
+    // Category switching
+    modal.querySelectorAll("[data-task-cat]").forEach(b => {
+      b.addEventListener("click", () => {
+        modal.querySelectorAll("[data-task-cat]").forEach(x => x.classList.remove("active"));
+        b.classList.add("active");
+        this._renderTaskGrid(b.dataset.taskCat);
+      });
+    });
+  }
+
+  _renderTaskGrid(category) {
+    const grid = document.getElementById("taskGrid");
+    grid.innerHTML = "";
+
+    let tasks = (this._registry.functions || []).concat(this._registry.custom_functions || []);
+    if (category !== "all") {
+      tasks = tasks.filter(t => t.category === category || (category === "custom" && t.key.startsWith("custom_")));
+    }
+
+    tasks.forEach(t => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.style = "cursor:pointer; transition: transform 0.1s; padding:10px; margin-bottom:0;";
+      card.innerHTML = `
+        <div style="font-weight:bold; color:var(--accent); margin-bottom:5px;">${t.label}</div>
+        <div style="font-size:10px; color:var(--text2); line-height:1.4;">${t.description}</div>
+        <div style="margin-top:8px; font-size:9px; color:var(--text3); font-family:monospace;">${t.inputs} in → ${t.outputs} out</div>
+      `;
+      card.onmouseover = () => card.style.transform = "scale(1.02)";
+      card.onmouseout = () => card.style.transform = "scale(1)";
+      card.onclick = () => {
+        this._selectTask(t);
+        document.getElementById("taskLibModal").style.display = "none";
+      };
+      grid.appendChild(card);
+    });
+  }
+
+  _selectTask(task) {
+    _setVal("funcSel", task.key);
+    document.getElementById("taskLibBtn").textContent = task.label;
+    document.getElementById("funcDesc").innerHTML = task.description;
+    this._emit("funcChanged", task);
+    _setVal("dsSel", "");
+  }
+
+  _initDatasetSelect() {
+    const sel = document.getElementById("dsSel");
+    if (!sel) return;
+
+    sel.addEventListener("change", () => {
+      const dsId = sel.value;
+      if (dsId) {
+        this._emit("datasetSelectedForTrain", dsId);
+      }
+    });
+  }
+
+  renderDatasetSelect(datasets) {
+    const sel = document.getElementById("dsSel");
+    if (!sel) return;
+    const val = sel.value;
+    sel.innerHTML = '<option value="">(No Dataset Selected)</option>';
+    datasets.forEach(d => {
+      const o = document.createElement("option");
+      o.value = d.id; o.textContent = d.name;
+      sel.appendChild(o);
+    });
+    sel.value = val;
   }
 
   // ════════════════════════════════════════════════════════

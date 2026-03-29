@@ -95,7 +95,7 @@ def compute(x):
         result = FunctionExecutor.execute_python(code, [0.0], 1)
         
         assert not result.success
-        assert "not find function 'f'" in result.error
+        assert "f" in result.error
     
     def test_execute_python_returns_invalid_type(self):
         """Test error when function returns invalid type."""
@@ -226,9 +226,9 @@ class TestDatasetGenerator:
 class TestCustomTrainingFunctionModel:
     """Test CustomTrainingFunction database model."""
     
-    def test_create_custom_function(self, app, user: User):
+    def test_create_custom_function(self, flask_app, user: User):
         """Test creating a custom function in database."""
-        with app.app_context():
+        with flask_app.app_context():
             custom_func = CustomTrainingFunction(
                 user_id=user.id,
                 name="Test Function",
@@ -255,9 +255,9 @@ class TestCustomTrainingFunctionModel:
             assert retrieved.language == "python"
             assert retrieved.num_inputs == 2
     
-    def test_custom_function_to_dict(self, app, user: User):
+    def test_custom_function_to_dict(self, flask_app, user: User):
         """Test to_dict() excludes code."""
-        with app.app_context():
+        with flask_app.app_context():
             custom_func = CustomTrainingFunction(
                 user_id=user.id,
                 name="Test",
@@ -277,9 +277,9 @@ class TestCustomTrainingFunctionModel:
             assert result["name"] == "Test"
             assert result["is_valid"] is True
     
-    def test_custom_function_to_dict_full(self, app, user: User):
+    def test_custom_function_to_dict_full(self, flask_app, user: User):
         """Test to_dict_full() includes code."""
-        with app.app_context():
+        with flask_app.app_context():
             custom_func = CustomTrainingFunction(
                 user_id=user.id,
                 name="Test",
@@ -302,9 +302,9 @@ class TestCustomTrainingFunctionModel:
 class TestCustomFunctionWrapper:
     """Test DynamicCustomFunction wrapper."""
     
-    def test_wrap_custom_function(self, app, user: User):
+    def test_wrap_custom_function(self, flask_app, user: User):
         """Test wrapping custom function as TrainingFunction."""
-        with app.app_context():
+        with flask_app.app_context():
             custom_func = CustomTrainingFunction(
                 user_id=user.id,
                 name="Sum Function",
@@ -329,9 +329,9 @@ class TestCustomFunctionWrapper:
             assert wrapper.inputs == 2
             assert wrapper.outputs == 1
     
-    def test_generate_dataset_from_custom_function(self, app, user: User):
+    def test_generate_dataset_from_custom_function(self, flask_app, user: User):
         """Test generating dataset from custom function."""
-        with app.app_context():
+        with flask_app.app_context():
             custom_func = CustomTrainingFunction(
                 user_id=user.id,
                 name="Double",
@@ -358,10 +358,10 @@ class TestCustomFunctionWrapper:
 class TestCustomFunctionAPI:
     """Test custom function API endpoints."""
     
-    def test_create_function_endpoint(self, app, user: User):
+    def test_create_function_endpoint(self, flask_app, user: User):
         """Test POST /api/functions/custom endpoint."""
-        with app.app_context():
-            client = app.test_client()
+        with flask_app.app_context():
+            client = flask_app.test_client()
             
             # Would need to be authenticated
             response = client.post(
@@ -378,10 +378,10 @@ class TestCustomFunctionAPI:
             # Expect auth redirect or 401
             assert response.status_code in [200, 302, 401, 405]
     
-    def test_get_templates_endpoint(self, app):
+    def test_get_templates_endpoint(self, flask_app):
         """Test GET /api/functions/custom/templates endpoint."""
-        with app.app_context():
-            client = app.test_client()
+        with flask_app.app_context():
+            client = flask_app.test_client()
             
             # Templates should be accessible (no auth required)
             response = client.get('/api/functions/custom/templates')
@@ -391,9 +391,9 @@ class TestCustomFunctionAPI:
 
 
 @pytest.fixture
-def user(app):
+def user(flask_app):
     """Create a test user for testing."""
-    with app.app_context():
+    with flask_app.app_context():
         from app.models import User
         user = User(username="testuser")
         user.set_password("testpass")

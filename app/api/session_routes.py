@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import numpy as np
 from flask import Blueprint, request
+from flask_login import current_user
 
 from .helpers import ok, err, api_route, get_training_session, get_registry
 from app.core.network import NeuralNetwork
