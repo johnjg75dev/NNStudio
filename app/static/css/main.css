@@ -276,7 +276,7 @@ select:focus { border-color: var(--accent); }
 .pbtn:hover { border-color: var(--accent); color: var(--accent); }
 .pbtn .pa   { font-size: 9px; color: var(--text3); }
 
-.pdel {
+.pdel { 
   position: absolute;
   top: -4px;
   right: -4px;
@@ -298,6 +298,94 @@ select:focus { border-color: var(--accent); }
 }
 .pbtn-wrap:hover .pdel { opacity: 1; }
 .pdel:hover { transform: scale(1.2); }
+
+/* ── preset modal ── */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal-content {
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.preset-modal {
+  padding: 16px;
+  width: 90%;
+  max-width: 500px;
+}
+
+.preset-grid-modal {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.preset-grid-modal .pbtn {
+  padding: 8px 6px;
+  font-size: 11px;
+  min-height: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.preset-grid-modal .pa {
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text2);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background: var(--surf2);
+  color: var(--red);
+}
 
 /* ── stat boxes ── */
 .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
@@ -426,6 +514,37 @@ select:focus { border-color: var(--accent); }
 }
 #lossChart { height: 55px; display: block; min-width: 140px; }
 
+/* ── 2D plot canvas ── */
+#plot2dCanvas {
+  display: block;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  width: 100%;
+  height: 200px;
+  cursor: crosshair;
+}
+
+.plot2d-controls {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 11px;
+}
+
+.plot2d-controls label {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text2);
+}
+
+.plot2d-controls input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
 /* ══════════════════════════════════════════════════
    RIGHT PANEL TABS
 ══════════════════════════════════════════════════ */
@@ -458,6 +577,15 @@ select:focus { border-color: var(--accent); }
   border-bottom: 1px solid var(--border);
 }
 .io-table td { padding: 2px 3px; font-family: monospace; }
+
+.io-row {
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.io-row:hover {
+  background-color: var(--surf2);
+  border-radius: 2px;
+}
 
 .badge {
   display: inline-block;
@@ -564,6 +692,28 @@ table.summary td:first-child { color: var(--text2); width: 45%; }
 }
 .concept-card h4 { color: var(--accent); font-size: 11px; margin-bottom: 3px; }
 .concept-card p  { font-size: 11px; color: var(--text2); line-height: 1.65; }
+
+/* ── activation functions ── */
+.activation-card {
+  background: var(--surf2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 8px;
+  margin-bottom: 7px;
+}
+.activation-card h4 { color: var(--accent); font-size: 11px; margin-bottom: 5px; }
+.activation-card p  { font-size: 10px; color: var(--text2); line-height: 1.6; margin-bottom: 3px; }
+
+.activation-canvas {
+  display: block;
+  width: 100%;
+  height: 140px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  margin-bottom: 6px;
+  cursor: default;
+}
 
 /* ══════════════════════════════════════════════════
    TOOLTIP

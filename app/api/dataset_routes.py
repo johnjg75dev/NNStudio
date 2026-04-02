@@ -17,7 +17,7 @@ def list_datasets():
     """List datasets for the current user including predefined ones."""
     # User's custom datasets
     custom = Dataset.query.filter_by(user_id=current_user.id).all()
-a    
+    
     # Predefined datasets (global or specific user)
     # For now, let's just show user's ones and some placeholder predefined
     return jsonify({

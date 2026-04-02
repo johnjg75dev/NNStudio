@@ -1,0 +1,23 @@
+<!-- ══════════════════════════════════════════════════════════
+     HEADER
+══════════════════════════════════════════════════════════ -->
+<header>
+  <h1>⬡ Neural Network Trainer</h1>
+
+  <div class="tab-bar" id="mainTabs">
+    <button class="tab active" data-pg="train">Train</button>
+    <button class="tab"        data-pg="datasets">Datasets</button>
+    <button class="tab"        data-pg="test">Test Inputs</button>
+    <button class="tab"        data-pg="saveload">Save / Load</button>
+    <button class="tab"        data-pg="custom">Custom Functions</button>
+    <button class="tab"        data-pg="learn">Learn</button>
+  </div>
+
+  <div class="hdr-spacer"></div>
+  <span class="pill user-pill">👤 {{ current_user.username }}</span>
+  <a href="{{ url_for('auth.logout') }}" class="pill logout-btn">Logout</a>
+  <span class="pill"  id="hStatus">Idle</span>
+  <span class="pill"  id="hEpoch">Epoch 0</span>
+  <span class="pill"  id="hLoss">Loss —</span>
+  <span class="pill"  id="hAcc">Acc —</span>
+</header>

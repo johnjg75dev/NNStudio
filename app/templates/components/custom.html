@@ -1,0 +1,75 @@
+<!-- ══════════════════════════════════════════════════════════
+     PAGE: CUSTOM FUNCTIONS
+══════════════════════════════════════════════════════════ -->
+<div class="page" id="pgCustom">
+  <div class="scroll-center">
+    <div class="content-col" style="max-width: 900px;">
+      <div class="card">
+        <h3>🛠️ Custom Training Functions</h3>
+        <p>Write your own Python or JavaScript functions to define what the network should learn. Your function should be named <code>f</code>, accept an input array <code>x</code>, and return an output array or value.</p>
+      </div>
+
+      <div style="display: flex; gap: 12px; height: 500px;">
+        <!-- Left: Function List -->
+        <div class="card" style="width: 250px; display: flex; flex-direction: column; padding: 10px;">
+          <div class="shd" style="margin-bottom: 8px;">My Functions</div>
+          <div id="customFuncList" style="flex: 1; overflow-y: auto; margin-bottom: 10px;">
+            <div class="info-box">Loading...</div>
+          </div>
+          <button class="btn success" id="newFuncBtn" style="width: 100%;">+ New Function</button>
+        </div>
+
+        <!-- Right: Editor -->
+        <div class="card" style="flex: 1; display: flex; flex-direction: column; padding: 10px;">
+          <div id="funcEditorEmpty" class="info-box" style="height: 100%; display: flex; align-items: center; justify-content: center;">
+            Select a function or create a new one to start editing.
+          </div>
+          
+          <div id="funcEditor" style="display: none; flex-direction: column; height: 100%; gap: 10px;">
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="cfName" placeholder="Function Name" style="flex: 1;">
+              <select id="cfLang" style="width: 120px;">
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+              </select>
+            </div>
+            
+            <div style="display: flex; gap: 8px;">
+              <div style="flex: 1;">
+                <label style="font-size: 10px;">Inputs</label>
+                <input type="number" id="cfInputs" value="2" min="1" max="256">
+              </div>
+              <div style="flex: 1;">
+                <label style="font-size: 10px;">Outputs</label>
+                <input type="number" id="cfOutputs" value="1" min="1" max="256">
+              </div>
+              <div style="display: flex; align-items: flex-end; padding-bottom: 5px;">
+                <label style="font-size: 11px;"><input type="checkbox" id="cfClassify"> Classify</label>
+              </div>
+            </div>
+
+            <div style="flex: 1; position: relative;">
+              <textarea id="cfCode" style="width: 100%; height: 100%; font-family: monospace; font-size: 12px; background: #010409; color: #e6edf3; border: 1px solid var(--border); border-radius: 4px; padding: 10px; resize: none; outline: none;"></textarea>
+              
+              <!-- Examples Overlay -->
+              <div id="cfExamples" style="position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 5px;">
+                <button class="btn secondary" id="cfExampleBtn" style="font-size: 10px; padding: 2px 6px;">Examples ▾</button>
+                <div id="cfExampleMenu" style="display: none; background: var(--surf3); border: 1px solid var(--border); border-radius: 4px; padding: 5px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10;">
+                  <!-- Examples injected here -->
+                </div>
+              </div>
+            </div>
+
+            <div id="cfTestResult" class="info-box" style="display: none; font-family: monospace; font-size: 10px; background: #0d1117;"></div>
+
+            <div class="btn-row">
+              <button class="btn success" id="cfSaveBtn">💾 Save Function</button>
+              <button class="btn" id="cfTestBtn">🧪 Test Run</button>
+              <button class="btn danger" id="cfDeleteBtn">🗑️ Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

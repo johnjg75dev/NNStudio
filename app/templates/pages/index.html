@@ -20,7 +20,6 @@
     <button class="tab"        data-pg="test">Test Inputs</button>
     <button class="tab"        data-pg="saveload">Save / Load</button>
     <button class="tab"        data-pg="custom">Custom Functions</button>
-    <button class="tab"        data-pg="datasets">Datasets</button>
     <button class="tab"        data-pg="learn">Learn</button>
   </div>
 
@@ -49,8 +48,8 @@
 
     <hr class="dv">
     <div class="shd">Presets</div>
-    <div class="preset-grid" id="presetGrid"></div>
-    <button class="btn secondary" id="savePresetBtn" style="margin-top: 8px; width: 100%; font-size: 11px;">+ Save Current as Preset</button>
+    <button class="btn" id="openPresetsBtn" style="width: 100%; margin-bottom: 8px; font-size: 11px;">⚙ Browse Presets</button>
+    <button class="btn secondary" id="savePresetBtn" style="width: 100%; font-size: 11px;">+ Save Current as Preset</button>
 
     <hr class="dv">
     <div class="shd">Training Task / Dataset</div>
@@ -130,10 +129,21 @@
 
     <hr class="dv">
     <div class="shd">Visualisation</div>
-    <label><input type="checkbox" id="cbLabels" checked> Node labels</label>
-    <label><input type="checkbox" id="cbActs"   checked> Activation colours</label>
-    <label><input type="checkbox" id="cbBias">           Bias arrows</label>
-    <label><input type="checkbox" id="cbGrad">           Gradient overlay</label>
+    <label><input type="checkbox" id="cbLabels" checked> Node labels
+      <span class="ti" data-tip="<b>Node Labels</b><br>Show neuron indices in each layer.">?</span>
+    </label>
+    <label><input type="checkbox" id="cbActs"   checked> Activation colours
+      <span class="ti" data-tip="<b>Activation Colours</b><br>Colour nodes by their activation magnitude.<br>Bright = high activation · Dark = low/negative.">?</span>
+    </label>
+    <label><input type="checkbox" id="cbBias"> Bias arrows
+      <span class="ti" data-tip="<b>Bias Arrows</b><br>Show bias arrows pointing into each neuron.<br>Thick green/red arrows indicate strong bias.">?</span>
+    </label>
+    <label><input type="checkbox" id="cbGrad"> Gradient overlay
+      <span class="ti" data-tip="<b>Gradient Overlay</b><br>Show gradient magnitude as edge brightness.<br>Bright edges have large gradients (active learning).">?</span>
+    </label>
+    <label><input type="checkbox" id="cbDeadWeights"> Dead weights
+      <span class="ti" data-tip="<b>Dead Weights</b><br>Highlight weights near zero (contributing little).<br>Dotted/faint edges indicate dead connections.<br>Often caused by ReLU with high learning rate.">?</span>
+    </label>
 
     <hr class="dv">
     <div class="shd">Live Stats</div>
@@ -186,6 +196,7 @@
       <button class="rptab active" data-rp="io">I/O</button>
       <button class="rptab"        data-rp="node">Node</button>
       <button class="rptab"        data-rp="wmat">Weights</button>
+      <button class="rptab"        data-rp="plot2d">2D Plot</button>
     </div>
     <div class="rppane active" id="rp-io">
       <div id="ioContainer"><div class="info-box">Build a network to see predictions.</div></div>
@@ -195,6 +206,14 @@
     </div>
     <div class="rppane" id="rp-wmat">
       <div id="wmatContainer"><div class="info-box">Build a network to see weight matrices.</div></div>
+    </div>
+    <div class="rppane" id="rp-plot2d">
+      <div class="plot2d-controls">
+        <label><input type="checkbox" id="cbPredBoundary" checked> Predictions</label>
+        <label><input type="checkbox" id="cbDataPoints"> Data points</label>
+      </div>
+      <canvas id="plot2dCanvas"></canvas>
+      <div id="plot2dInfo" style="font-size:10px;color:var(--text3);margin-top:6px;"></div>
     </div>
   </div>
 
@@ -566,6 +585,63 @@
     </div>
 
     <div class="learn-col">
+      <h2>🔢 Activation Functions</h2>
+      <div class="activation-card">
+        <h4>ReLU (Rectified Linear Unit)</h4>
+        <canvas id="canvas-relu" class="activation-canvas"></canvas>
+        <p><b>Formula:</b> f(x) = max(0, x)</p>
+        <p><b>Use when:</b> Hidden layers in deep networks. Very fast and efficient.</p>
+        <p><b>Pros:</b> Sparse activations, computationally cheap, mitigates vanishing gradient.</p>
+        <p><b>Cons:</b> "Dead neuron" problem (neurons stuck at 0 if LR too high). No negative outputs.</p>
+      </div>
+      
+      <div class="activation-card">
+        <h4>Leaky ReLU</h4>
+        <canvas id="canvas-leakyrelu" class="activation-canvas"></canvas>
+        <p><b>Formula:</b> f(x) = x if x > 0, else 0.01·x</p>
+        <p><b>Use when:</b> You want ReLU benefits but need to avoid dead neurons.</p>
+        <p><b>Pros:</b> No dead neurons, still sparse and fast.</p>
+        <p><b>Cons:</b> Small negative slope adds slight computational overhead.</p>
+      </div>
+      
+      <div class="activation-card">
+        <h4>Tanh (Hyperbolic Tangent)</h4>
+        <canvas id="canvas-tanh" class="activation-canvas"></canvas>
+        <p><b>Formula:</b> f(x) = (e^(2x) - 1) / (e^(2x) + 1)</p>
+        <p><b>Use when:</b> Shallow networks, RNNs, or when you need zero-centered outputs [-1, 1].</p>
+        <p><b>Pros:</b> Zero-centered (helps optimisation), outputs in [-1, 1], smooth gradient.</p>
+        <p><b>Cons:</b> Can saturate at extremes (vanishing gradients). Slower than ReLU.</p>
+      </div>
+      
+      <div class="activation-card">
+        <h4>Sigmoid</h4>
+        <canvas id="canvas-sigmoid" class="activation-canvas"></canvas>
+        <p><b>Formula:</b> f(x) = 1 / (1 + e^(-x))</p>
+        <p><b>Use when:</b> Binary classification output layer with BCE loss. Interpretable as probabilities.</p>
+        <p><b>Pros:</b> Outputs in (0, 1), smooth, differentiable, probabilistic interpretation.</p>
+        <p><b>Cons:</b> Saturates easily (vanishing gradients). Not suitable for hidden layers in deep nets.</p>
+      </div>
+      
+      <div class="activation-card">
+        <h4>GELU (Gaussian Error Linear Unit)</h4>
+        <canvas id="canvas-gelu" class="activation-canvas"></canvas>
+        <p><b>Formula:</b> f(x) ≈ 0.5·x·(1 + tanh(√(2/π)·(x + 0.044715·x³)))</p>
+        <p><b>Use when:</b> Modern Transformers, BERT, GPT, vision models. State-of-the-art in 2020s.</p>
+        <p><b>Pros:</b> Smooth, better than ReLU in deep nets, helps with gradients.</p>
+        <p><b>Cons:</b> Slightly more expensive than ReLU. Overkill for toy problems.</p>
+      </div>
+      
+      <div class="activation-card">
+        <h4>Swish (Self-Gated)</h4>
+        <canvas id="canvas-swish" class="activation-canvas"></canvas>
+        <p><b>Formula:</b> f(x) = x·sigmoid(x)</p>
+        <p><b>Use when:</b> Deep networks where ReLU has plateaued in performance.</p>
+        <p><b>Pros:</b> Self-gating mechanism, smooth, outperforms ReLU in deep nets.</p>
+        <p><b>Cons:</b> More computationally expensive. Benefits diminish on shallow networks.</p>
+      </div>
+    </div>
+
+    <div class="learn-col">
       <h2>⚙️ Hyperparameter Guide</h2>
       <div class="concept-card"><h4>Learning Rate — The Most Critical Hyperparameter</h4><p>Too high → loss diverges or oscillates wildly. Too low → extremely slow convergence. Adam is much less sensitive to LR than SGD. Rule of thumb: start at 1e-3 with Adam. Use learning rate finders or cosine annealing schedules in production.</p></div>
       <div class="concept-card"><h4>Batch Size and Gradient Quality</h4><p>Large batch: smoother gradients, faster GPU use, but often worse generalisation ("sharp minima"). Small batch: noisy gradients act as implicit regularisation. Linear scaling rule: if you double batch size, also double LR. Full-batch (all data at once) is used here.</p></div>
@@ -588,9 +664,24 @@
   window.REGISTRY = {{ registry | tojson }};
 </script>
 
+<!-- ══════════════════════════════════════════════════════════
+     PRESET SELECTION MODAL
+══════════════════════════════════════════════════════════ -->
+<div id="presetModal" class="modal-overlay" style="display: none;">
+  <div class="modal-content preset-modal">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <div class="shd">Select a Preset</div>
+      <button class="modal-close" id="closePresetModal">✕</button>
+    </div>
+    <div id="presetGrid" class="preset-grid-modal"></div>
+  </div>
+</div>
+
 <!-- ── SCRIPTS (load order matters — no bundler) ── -->
 <script src="{{ url_for('static', filename='js/api.js') }}"></script>
 <script src="{{ url_for('static', filename='js/renderer.js') }}"></script>
+<script src="{{ url_for('static', filename='js/plot2d.js') }}"></script>
+<script src="{{ url_for('static', filename='js/activation_visualizer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/trainer.js') }}"></script>
 <script src="{{ url_for('static', filename='js/dataset_ui.js') }}"></script>
 <script src="{{ url_for('static', filename='js/ui.js') }}"></script>

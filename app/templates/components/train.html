@@ -1,0 +1,186 @@
+<!-- ══════════════════════════════════════════════════════════
+     PAGE: TRAIN
+══════════════════════════════════════════════════════════ -->
+<div class="page active" id="pgTrain">
+
+  <!-- LEFT PANEL -->
+  <div class="panel left">
+
+    <div class="shd">Architecture Type
+      <span class="ti" data-tip="<b>Architecture</b><br>MLP and Autoencoder support live training.<br>Others show educational diagrams.">?</span>
+    </div>
+    <select id="archSel"></select>
+    <div class="info-box" id="archInfo"></div>
+
+    <hr class="dv">
+    <div class="shd">Presets</div>
+    <button class="btn" id="openPresetsBtn" style="width: 100%; margin-bottom: 8px; font-size: 11px;">⚙ Browse Presets</button>
+    <button class="btn secondary" id="savePresetBtn" style="width: 100%; font-size: 11px;">+ Save Current as Preset</button>
+
+    <hr class="dv">
+    <div class="shd">Training Task / Dataset</div>
+    <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+      <select id="funcSel" style="flex: 1;"></select>
+      <select id="dsSel" style="flex: 1;">
+        <option value="">(No Dataset Selected)</option>
+      </select>
+    </div>
+    <div class="info-box" id="funcDesc">Select a task or a custom dataset.</div>
+
+    <hr class="dv">
+    <div class="shd">Layer Editor</div>
+
+    <div id="layersContainer" style="margin-bottom: 8px;">
+      <!-- Dynamic layers will be injected here (Input, Hidden, Output) -->
+    </div>
+
+    <button class="btn secondary" id="addLayerBtn" style="width: 100%; margin-bottom: 12px; font-size: 11px;">+ Add Hidden Layer</button>
+
+    <div class="btn-row">
+      <button class="btn"       id="buildBtn">Build</button>
+      <button class="btn secondary" id="resetBtn">Reset Weights</button>
+    </div>
+
+    <hr class="dv">
+    <div class="shd">Hyperparameters</div>
+
+    <label>Learning Rate
+      <span class="ti" data-tip="<b>Learning Rate (η)</b><br>Step size for each weight update.<br><br><span class='tp'>Higher:</span> Trains faster initially<br><span class='tc'>Too high:</span> Loss explodes or oscillates<br><span class='tc'>Too low:</span> Very slow convergence<br><span class='tr'>Adam: 1e-4 to 1e-2 · SGD: 0.01–0.1</span>">?</span>
+    </label>
+    <div class="row">
+      <input type="range" id="lrSl" min="-4" max="-1" step="0.05" value="-2">
+      <span class="val" id="lrV">0.01</span>
+    </div>
+
+    <label>Optimizer
+      <span class="ti" data-tip="<b>Optimizer</b><br>Algorithm that turns gradients into weight updates.<br><br><b>SGD:</b> Simple, sensitive to LR.<br><b>Momentum:</b> Smooths oscillations.<br><b>RMSProp:</b> Adaptive per-param LR.<br><b>Adam:</b> Best all-round default.<br><b>AdamW:</b> Adam + weight decay. Best generalisation.<br><span class='tr'>Recommended: Adam or AdamW</span>">?</span>
+    </label>
+    <select id="optSel">
+      <option value="sgd">SGD</option>
+      <option value="momentum">SGD + Momentum</option>
+      <option value="rmsprop">RMSProp</option>
+      <option value="adam" selected>Adam</option>
+      <option value="adamw">AdamW</option>
+    </select>
+
+    <label>Loss Function
+      <span class="ti" data-tip="<b>Loss Function</b><br>What the network minimises.<br><br><b>MSE:</b> (ŷ−y)². Regression. Penalises large errors.<br><b>BCE:</b> Binary cross-entropy. Best for 0/1 classification.<br><b>MAE:</b> |ŷ−y|. Robust to outliers.<br><span class='tr'>Classification → BCE · Regression → MSE or MAE</span>">?</span>
+    </label>
+    <select id="lossSel">
+      <option value="mse" selected>MSE</option>
+      <option value="bce">Binary Cross-Entropy</option>
+      <option value="mae">MAE</option>
+    </select>
+
+    <label>Weight Decay
+      <span class="ti" data-tip="<b>Weight Decay (L2 Regularisation)</b><br>Penalises large weights to keep the model simple.<br><br><span class='tp'>Higher:</span> Better generalisation<br><span class='tc'>Too high:</span> Underfitting — weights shrink to zero<br><span class='tr'>Typical: 0 (off) to 0.01. AdamW default: 0.01</span>">?</span>
+    </label>
+    <div class="row">
+      <input type="range" id="wdSl" min="0" max="0.05" step="0.001" value="0">
+      <span class="val" id="wdV">0</span>
+    </div>
+
+    <label>Steps / Frame
+      <span class="ti" data-tip="<b>Steps per Animation Frame</b><br>Training iterations between each screen redraw.<br><br><span class='tp'>Higher:</span> Much faster training<br><span class='tc'>Higher:</span> Less smooth visualisation<br><span class='tr'>1 = watch weights live · 50–200 = fast convergence</span>">?</span>
+    </label>
+    <div class="row">
+      <input type="range" id="stepsSl" min="1" max="200" value="10">
+      <span class="val" id="stepsV">10</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn"       id="trainBtn" style="flex:1">▶ Train</button>
+      <button class="btn danger" id="stopBtn" disabled>■ Stop</button>
+    </div>
+
+    <hr class="dv">
+    <div class="shd">Visualisation</div>
+    <label><input type="checkbox" id="cbLabels" checked> Node labels
+      <span class="ti" data-tip="<b>Node Labels</b><br>Show neuron indices in each layer.">?</span>
+    </label>
+    <label><input type="checkbox" id="cbActs"   checked> Activation colours
+      <span class="ti" data-tip="<b>Activation Colours</b><br>Colour nodes by their activation magnitude.<br>Bright = high activation · Dark = low/negative.">?</span>
+    </label>
+    <label><input type="checkbox" id="cbBias"> Bias arrows
+      <span class="ti" data-tip="<b>Bias Arrows</b><br>Show bias arrows pointing into each neuron.<br>Thick green/red arrows indicate strong bias.">?</span>
+    </label>
+    <label><input type="checkbox" id="cbGrad"> Gradient overlay
+      <span class="ti" data-tip="<b>Gradient Overlay</b><br>Show gradient magnitude as edge brightness.<br>Bright edges have large gradients (active learning).">?</span>
+    </label>
+    <label><input type="checkbox" id="cbDeadWeights"> Dead weights
+      <span class="ti" data-tip="<b>Dead Weights</b><br>Highlight weights near zero (contributing little).<br>Dotted/faint edges indicate dead connections.<br>Often caused by ReLU with high learning rate.">?</span>
+    </label>
+
+    <hr class="dv">
+    <div class="shd">Live Stats</div>
+    <div class="stats-grid">
+      <div class="stat-box"><div class="sv" id="sEpoch">0</div><div class="sk">Epoch</div></div>
+      <div class="stat-box"><div class="sv" id="sLoss">—</div><div class="sk">Loss</div></div>
+      <div class="stat-box"><div class="sv" id="sAcc">—</div><div class="sk">Accuracy</div></div>
+      <div class="stat-box"><div class="sv" id="sParams">0</div><div class="sk">Params</div></div>
+    </div>
+
+  </div><!-- /left panel -->
+
+  <!-- CENTER -->
+  <div class="center">
+    <div class="canvas-wrapper">
+      <div class="canvas-controls">
+        <button class="canvas-btn" id="zoomOutBtn" title="Zoom Out">−</button>
+        <span class="zoom-level" id="zoomLevel">100%</span>
+        <button class="canvas-btn" id="zoomInBtn" title="Zoom In">+</button>
+        <button class="canvas-btn" id="zoomResetBtn" title="Reset Zoom">⟲</button>
+      </div>
+      <div class="canvas-scroll-container">
+        <canvas id="netCanvas"></canvas>
+      </div>
+    </div>
+    <div class="bottom">
+      <div style="flex-shrink:0">
+        <div class="shd" style="margin-bottom:3px">Loss Curve</div>
+        <canvas id="lossChart"></canvas>
+      </div>
+      <div style="flex:1;min-width:140px">
+        <div class="shd" style="margin-bottom:4px">Legend</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--text2)">
+          <span><span style="color:var(--green)">━</span> Positive weight</span>
+          <span><span style="color:var(--red)">━</span> Negative weight</span>
+          <span>Thickness ∝ |weight|</span>
+          <span><span style="color:var(--accent)">●</span> Activation</span>
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text3);line-height:1.9;flex-shrink:0">
+        <b style="color:var(--text2)">Keys:</b> Space = train/pause<br>
+        R = reset weights · B = rebuild
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel right">
+    <div class="rptabs">
+      <button class="rptab active" data-rp="io">I/O</button>
+      <button class="rptab"        data-rp="node">Node</button>
+      <button class="rptab"        data-rp="wmat">Weights</button>
+      <button class="rptab"        data-rp="plot2d">2D Plot</button>
+    </div>
+    <div class="rppane active" id="rp-io">
+      <div id="ioContainer"><div class="info-box">Build a network to see predictions.</div></div>
+    </div>
+    <div class="rppane" id="rp-node">
+      <div class="info-box" id="nodeInfo">Click a node to inspect it.</div>
+    </div>
+    <div class="rppane" id="rp-wmat">
+      <div id="wmatContainer"><div class="info-box">Build a network to see weight matrices.</div></div>
+    </div>
+    <div class="rppane" id="rp-plot2d">
+      <div class="plot2d-controls">
+        <label><input type="checkbox" id="cbPredBoundary" checked> Predictions</label>
+        <label><input type="checkbox" id="cbDataPoints"> Data points</label>
+      </div>
+      <canvas id="plot2dCanvas"></canvas>
+      <div id="plot2dInfo" style="font-size:10px;color:var(--text3);margin-top:6px;"></div>
+    </div>
+  </div>
+
+</div><!-- /pgTrain -->

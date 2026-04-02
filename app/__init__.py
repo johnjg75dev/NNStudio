@@ -35,6 +35,10 @@ def create_app(config: dict | None = None) -> Flask:
     registry = ModuleRegistry()
     registry.discover()                # scans all module sub-folders
     app.extensions["module_registry"] = registry
+    
+    # Load built-in architectures from database (after db is initialized)
+    with app.app_context():
+        registry.load_architectures_from_database()
 
     # ── blueprints ──
     from .api.page_routes import page_bp
@@ -46,6 +50,7 @@ def create_app(config: dict | None = None) -> Flask:
     from .api.model_routes import model_bp
     from .api.custom_function_routes import custom_function_bp
     from .api.dataset_routes import dataset_bp
+    from .api.admin_routes import admin_bp
 
     app.register_blueprint(page_bp)
     app.register_blueprint(session_bp, url_prefix="/api/session")
@@ -56,6 +61,7 @@ def create_app(config: dict | None = None) -> Flask:
     app.register_blueprint(model_bp,   url_prefix="/api/models")
     app.register_blueprint(custom_function_bp, url_prefix="/api/functions/custom")
     app.register_blueprint(dataset_bp, url_prefix="/api/datasets")
+    app.register_blueprint(admin_bp)
 
     # User loader
     from .models import User, Preset

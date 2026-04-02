@@ -364,7 +364,6 @@ async function saveModel() {
 async function listModels() {
     const response = await fetch('/api/models?limit=20');
     const data = await response.json();
-    console.log(data.models);
 }
 
 // Export and download
@@ -391,7 +390,6 @@ async function loadModel(modelId) {
     });
     
     const data = await response.json();
-    console.log('Model loaded:', data.model_loaded);
 }
 ```
 

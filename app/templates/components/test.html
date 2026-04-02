@@ -1,0 +1,32 @@
+<!-- ══════════════════════════════════════════════════════════
+     PAGE: TEST
+══════════════════════════════════════════════════════════ -->
+<div class="page" id="pgTest">
+  <div class="scroll-center">
+    <div class="content-col">
+      <div class="card">
+        <h3>🔬 Manual Input Tester</h3>
+        <p>Enter values for each input neuron and run a forward pass through the trained model to see live predictions.</p>
+      </div>
+      <div class="card">
+        <div class="shd" style="margin-bottom:8px">Input Values</div>
+        <div id="testInpContainer">
+          <div class="info-box">Build a network in the Train tab first.</div>
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn"           id="runTestBtn">▶ Run Forward Pass</button>
+          <button class="btn secondary" id="randTestBtn">🎲 Random</button>
+          <button class="btn secondary" id="sweepBtn">📊 Sweep All</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="shd" style="margin-bottom:6px">Model Output</div>
+        <div id="testOutContainer"><div class="info-box">Run a forward pass above.</div></div>
+      </div>
+      <div class="card">
+        <div class="shd" style="margin-bottom:6px">Sweep Results</div>
+        <div id="sweepContainer"><div class="info-box">Click "Sweep All" to evaluate samples across the defined ranges.</div></div>
+      </div>
+    </div>
+  </div>
+</div>

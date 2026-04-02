@@ -1,0 +1,33 @@
+<!-- ══════════════════════════════════════════════════════════
+     PAGE: SAVE / LOAD
+══════════════════════════════════════════════════════════ -->
+<div class="page" id="pgSaveload">
+  <div class="scroll-center">
+    <div class="content-col">
+      <div class="card">
+        <h3>💾 Model Manager</h3>
+        <p>Export the current model (all weights, biases, architecture and hyperparameters) as a JSON file. Import it later to resume training or run inference — no rebuilding required.</p>
+      </div>
+      <div class="card">
+        <div class="shd" style="margin-bottom:8px">Export Model</div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <input type="text" id="modelName" value="my-model" style="flex:1">
+          <button class="btn success" id="saveBtn">⬇ Export JSON</button>
+        </div>
+        <div class="info-box" id="saveInfo">Build and train a model first.</div>
+      </div>
+      <div class="card">
+        <div class="shd" style="margin-bottom:8px">Import Model</div>
+        <div class="btn-row" style="margin-bottom:8px">
+          <button class="btn warn" id="loadBtn">⬆ Import JSON</button>
+          <input type="file" id="fileInp" accept=".json" style="display:none">
+        </div>
+        <div class="info-box" id="loadInfo">Select a previously exported .json file.</div>
+      </div>
+      <div class="card">
+        <div class="shd" style="margin-bottom:8px">Current Model Summary</div>
+        <div id="modelSummary"><div class="info-box">No model built yet.</div></div>
+      </div>
+    </div>
+  </div>
+</div>

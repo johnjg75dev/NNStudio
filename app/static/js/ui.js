@@ -42,6 +42,7 @@ class UIController {
     this._initLayerEditor();
     this._initSliders();
     this._initVizCheckboxes();
+    this._init2DPlotControls();
     this._initBuildBtn();
     this._initTrainBtns();
     this._initCanvasInteraction();
@@ -92,11 +93,38 @@ class UIController {
   }
 
   // ════════════════════════════════════════════════════════
-  // PRESETS — populated from registry
+  // PRESETS — collapsed by default, opens modal on click
   // ════════════════════════════════════════════════════════
   _initPresets() {
+    const openBtn = document.getElementById("openPresetsBtn");
+    const modal = document.getElementById("presetModal");
+    const closeBtn = document.getElementById("closePresetModal");
     const grid = document.getElementById("presetGrid");
-    if (!grid) return;
+    
+    if (!openBtn || !modal || !grid) return;
+
+    // Populate preset grid in modal
+    this._populatePresetGrid(grid);
+
+    // Open modal when button clicked
+    openBtn.addEventListener("click", () => {
+      modal.style.display = "flex";
+    });
+
+    // Close modal
+    closeBtn.addEventListener("click", () => {
+      modal.style.display = "none";
+    });
+
+    // Close modal when clicking overlay
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) {
+        modal.style.display = "none";
+      }
+    });
+  }
+
+  _populatePresetGrid(grid) {
     grid.innerHTML = "";
     const presets = this._registry.presets || [];
     presets.forEach(p => {
@@ -106,7 +134,10 @@ class UIController {
       const btn = document.createElement("button");
       btn.className = "pbtn";
       btn.innerHTML = `${p.label}<div class="pa">${p.func_key}</div>`;
-      btn.addEventListener("click", () => this._emit("applyPreset", p));
+      btn.addEventListener("click", () => {
+        this._emit("applyPreset", p);
+        document.getElementById("presetModal").style.display = "none";
+      });
       container.appendChild(btn);
 
       if (p.custom) {
@@ -165,6 +196,7 @@ class UIController {
   // ════════════════════════════════════════════════════════
   _initFuncSelect() {
     const sel  = document.getElementById("funcSel");
+    const info = document.getElementById("funcInfo");
     if (!sel) return;
 
     sel.innerHTML = "";
@@ -173,11 +205,10 @@ class UIController {
       o.value = f.key; o.textContent = f.label;
       sel.appendChild(o);
     });
-  }
 
     const update = () => {
       const fn = (this._registry.functions || []).find(f => f.key === sel.value);
-      if (desc && fn) desc.innerHTML = fn.description || "";
+      if (info && fn) info.innerHTML = fn.description || "";
       this._emit("funcChanged", fn);
       // Reset dataset select when function changes
       _setVal("dsSel", "");
@@ -394,8 +425,36 @@ class UIController {
 
     // Type badge
     const typeBadge = document.createElement("span");
-    const badgeChar = layerType === "dense" ? "D" : layerType === "dropout" ? "DO" : layerType === "conv2d" ? "CV" : layerType === "maxpool2d" ? "MP" : layerType === "lstm" ? "LSTM" : "L";
-    const badgeColor = layerType === "dense" ? "var(--accent)" : layerType === "dropout" ? "var(--yellow)" : layerType === "conv2d" ? "#f0883e" : layerType === "maxpool2d" ? "#f0883e" : "#39d353";
+    const badgeChars = {
+      dense: "D",
+      dropout: "DO",
+      batchnorm: "BN",
+      conv2d: "CV",
+      maxpool2d: "MP",
+      flatten: "▭",
+      lstm: "LSTM",
+      simple_rnn: "RNN",
+      embedding: "E",
+      layernorm: "LN",
+      multihead_attention: "Attn",
+      positional_encoding: "PE"
+    };
+    const badgeColors = {
+      dense: "var(--accent)",
+      dropout: "var(--yellow)",
+      batchnorm: "#3fb950",
+      conv2d: "#f0883e",
+      maxpool2d: "#f0883e",
+      flatten: "#bc8cff",
+      lstm: "#39d353",
+      simple_rnn: "#39d353",
+      embedding: "#a371f7",
+      layernorm: "#3fb950",
+      multihead_attention: "#ff7b72",
+      positional_encoding: "#a371f7"
+    };
+    const badgeChar = badgeChars[layerType] || "?";
+    const badgeColor = badgeColors[layerType] || "var(--text2)";
     typeBadge.textContent = badgeChar;
     typeBadge.title = layerType;
     typeBadge.style = "font-size: 9px; color: #fff; font-weight: bold; width: 24px; text-align: center; border-radius: 3px; padding: 2px 0; background: " + badgeColor;
@@ -407,7 +466,20 @@ class UIController {
 
     // Type selector
     const typeSelect = document.createElement("select");
-    typeSelect.innerHTML = '<option value="dense">Dense</option><option value="dropout">Dropout</option><option value="batchnorm">BatchNorm</option><option value="conv2d">Conv2D</option><option value="maxpool2d">MaxPool</option><option value="flatten">Flatten</option><option value="lstm">LSTM</option>';
+    typeSelect.innerHTML = `
+      <option value="dense">Dense</option>
+      <option value="dropout">Dropout</option>
+      <option value="batchnorm">BatchNorm</option>
+      <option value="conv2d">Conv2D</option>
+      <option value="maxpool2d">MaxPool</option>
+      <option value="flatten">Flatten</option>
+      <option value="lstm">LSTM</option>
+      <option value="simple_rnn">RNN</option>
+      <option value="embedding">Embedding</option>
+      <option value="layernorm">LayerNorm</option>
+      <option value="multihead_attention">MultiHeadAttn</option>
+      <option value="positional_encoding">PositionalEnc</option>
+    `;
     typeSelect.value = layerType;
     typeSelect.style = "font-size: 10px; padding: 2px; height: auto; width: 80px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px;";
     typeSelect.addEventListener("change", () => {
@@ -528,6 +600,117 @@ class UIController {
 
       controlsDiv.appendChild(hsInput);
       controlsDiv.appendChild(document.createTextNode("units"));
+    } else if (layerType === "simple_rnn") {
+      const hsInput = document.createElement("input");
+      hsInput.type = "number";
+      hsInput.value = layer.hidden_size ?? 32;
+      hsInput.min = 8;
+      hsInput.max = 256;
+      hsInput.style = "width: 45px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      hsInput.addEventListener("input", () => {
+        layer.hidden_size = parseInt(hsInput.value) || 32;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      controlsDiv.appendChild(hsInput);
+      controlsDiv.appendChild(document.createTextNode("units"));
+    } else if (layerType === "embedding") {
+      const vocabInput = document.createElement("input");
+      vocabInput.type = "number";
+      vocabInput.value = layer.vocab_size ?? 1000;
+      vocabInput.min = 10;
+      vocabInput.max = 100000;
+      vocabInput.style = "width: 50px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      vocabInput.addEventListener("input", () => {
+        layer.vocab_size = parseInt(vocabInput.value) || 1000;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      const dimInput = document.createElement("input");
+      dimInput.type = "number";
+      dimInput.value = layer.embed_dim ?? 64;
+      dimInput.min = 8;
+      dimInput.max = 512;
+      dimInput.style = "width: 40px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      dimInput.addEventListener("input", () => {
+        layer.embed_dim = parseInt(dimInput.value) || 64;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      controlsDiv.appendChild(vocabInput);
+      controlsDiv.appendChild(document.createTextNode("vocab"));
+      controlsDiv.appendChild(dimInput);
+      controlsDiv.appendChild(document.createTextNode("dim"));
+    } else if (layerType === "layernorm") {
+      const epsInput = document.createElement("input");
+      epsInput.type = "number";
+      epsInput.value = layer.eps ?? 1e-5;
+      epsInput.step = 1e-6;
+      epsInput.style = "width: 50px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      epsInput.addEventListener("input", () => {
+        layer.eps = parseFloat(epsInput.value) || 1e-5;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      controlsDiv.appendChild(epsInput);
+      controlsDiv.appendChild(document.createTextNode("eps"));
+    } else if (layerType === "multihead_attention") {
+      const headsInput = document.createElement("input");
+      headsInput.type = "number";
+      headsInput.value = layer.num_heads ?? 8;
+      headsInput.min = 1;
+      headsInput.max = 32;
+      headsInput.style = "width: 40px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      headsInput.addEventListener("input", () => {
+        layer.num_heads = parseInt(headsInput.value) || 8;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      const dimInput = document.createElement("input");
+      dimInput.type = "number";
+      dimInput.value = layer.d_model ?? 512;
+      dimInput.min = 8;
+      dimInput.max = 2048;
+      dimInput.step = 8;
+      dimInput.style = "width: 50px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      dimInput.addEventListener("input", () => {
+        layer.d_model = parseInt(dimInput.value) || 512;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      controlsDiv.appendChild(headsInput);
+      controlsDiv.appendChild(document.createTextNode("heads"));
+      controlsDiv.appendChild(dimInput);
+      controlsDiv.appendChild(document.createTextNode("d_model"));
+    } else if (layerType === "positional_encoding") {
+      const dimInput = document.createElement("input");
+      dimInput.type = "number";
+      dimInput.value = layer.d_model ?? 512;
+      dimInput.min = 8;
+      dimInput.max = 2048;
+      dimInput.step = 8;
+      dimInput.style = "width: 50px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      dimInput.addEventListener("input", () => {
+        layer.d_model = parseInt(dimInput.value) || 512;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      const maxlenInput = document.createElement("input");
+      maxlenInput.type = "number";
+      maxlenInput.value = layer.max_len ?? 2048;
+      maxlenInput.min = 100;
+      maxlenInput.max = 10000;
+      maxlenInput.step = 100;
+      maxlenInput.style = "width: 50px; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 2px; font-size: 11px;";
+      maxlenInput.addEventListener("input", () => {
+        layer.max_len = parseInt(maxlenInput.value) || 2048;
+        this._emit("controlChanged", this.getConfig());
+      });
+
+      controlsDiv.appendChild(dimInput);
+      controlsDiv.appendChild(document.createTextNode("d_model"));
+      controlsDiv.appendChild(maxlenInput);
+      controlsDiv.appendChild(document.createTextNode("max_len"));
     } else {
       const otherLbl = document.createElement("span");
       otherLbl.textContent = layerType;
@@ -561,27 +744,167 @@ class UIController {
       delete layer.out_channels;
       delete layer.kernel_size;
       delete layer.hidden_size;
+      delete layer.pool_size;
+      delete layer.vocab_size;
+      delete layer.embed_dim;
+      delete layer.eps;
+      delete layer.num_heads;
+      delete layer.d_model;
+      delete layer.max_len;
     } else if (newType === "dropout") {
       layer.rate = 0.5;
       delete layer.neurons;
       delete layer.activation;
       delete layer.out_channels;
+      delete layer.kernel_size;
+      delete layer.hidden_size;
+      delete layer.pool_size;
+      delete layer.vocab_size;
+      delete layer.embed_dim;
+      delete layer.eps;
+      delete layer.num_heads;
+      delete layer.d_model;
+      delete layer.max_len;
+    } else if (newType === "batchnorm") {
+      delete layer.neurons;
+      delete layer.activation;
+      delete layer.rate;
+      delete layer.out_channels;
+      delete layer.kernel_size;
+      delete layer.hidden_size;
+      delete layer.pool_size;
+      delete layer.vocab_size;
+      delete layer.embed_dim;
+      delete layer.eps;
+      delete layer.num_heads;
+      delete layer.d_model;
+      delete layer.max_len;
     } else if (newType === "conv2d") {
       layer.out_channels = layer.out_channels || 16;
       layer.kernel_size = layer.kernel_size || 3;
       layer.activation = "relu";
       delete layer.neurons;
       delete layer.rate;
+      delete layer.hidden_size;
+      delete layer.pool_size;
+      delete layer.vocab_size;
+      delete layer.embed_dim;
+      delete layer.eps;
+      delete layer.num_heads;
+      delete layer.d_model;
+      delete layer.max_len;
     } else if (newType === "maxpool2d") {
       layer.pool_size = 2;
       delete layer.neurons;
       delete layer.activation;
       delete layer.rate;
+      delete layer.out_channels;
+      delete layer.kernel_size;
+      delete layer.hidden_size;
+      delete layer.vocab_size;
+      delete layer.embed_dim;
+      delete layer.eps;
+      delete layer.num_heads;
+      delete layer.d_model;
+      delete layer.max_len;
+    } else if (newType === "flatten") {
+      delete layer.neurons;
+      delete layer.activation;
+      delete layer.rate;
+      delete layer.out_channels;
+      delete layer.kernel_size;
+      delete layer.hidden_size;
+      delete layer.pool_size;
+      delete layer.vocab_size;
+      delete layer.embed_dim;
+      delete layer.eps;
+      delete layer.num_heads;
+      delete layer.d_model;
+      delete layer.max_len;
     } else if (newType === "lstm") {
       layer.hidden_size = layer.hidden_size || 64;
       delete layer.neurons;
       delete layer.activation;
       delete layer.rate;
+      delete layer.out_channels;
+      delete layer.kernel_size;
+      delete layer.pool_size;
+      delete layer.vocab_size;
+      delete layer.embed_dim;
+      delete layer.eps;
+      delete layer.num_heads;
+      delete layer.d_model;
+      delete layer.max_len;
+    } else if (newType === "simple_rnn") {
+      layer.hidden_size = layer.hidden_size || 32;
+      delete layer.neurons;
+      delete layer.activation;
+      delete layer.rate;
+      delete layer.out_channels;
+      delete layer.kernel_size;
+      delete layer.pool_size;
+      delete layer.vocab_size;
+      delete layer.embed_dim;
+      delete layer.eps;
+      delete layer.num_heads;
+      delete layer.d_model;
+      delete layer.max_len;
+    } else if (newType === "embedding") {
+      layer.vocab_size = layer.vocab_size || 1000;
+      layer.embed_dim = layer.embed_dim || 64;
+      delete layer.neurons;
+      delete layer.activation;
+      delete layer.rate;
+      delete layer.out_channels;
+      delete layer.kernel_size;
+      delete layer.hidden_size;
+      delete layer.pool_size;
+      delete layer.eps;
+      delete layer.num_heads;
+      delete layer.d_model;
+      delete layer.max_len;
+    } else if (newType === "layernorm") {
+      layer.eps = layer.eps || 1e-5;
+      delete layer.neurons;
+      delete layer.activation;
+      delete layer.rate;
+      delete layer.out_channels;
+      delete layer.kernel_size;
+      delete layer.hidden_size;
+      delete layer.pool_size;
+      delete layer.vocab_size;
+      delete layer.embed_dim;
+      delete layer.num_heads;
+      delete layer.d_model;
+      delete layer.max_len;
+    } else if (newType === "multihead_attention") {
+      layer.num_heads = layer.num_heads || 8;
+      layer.d_model = layer.d_model || 512;
+      delete layer.neurons;
+      delete layer.activation;
+      delete layer.rate;
+      delete layer.out_channels;
+      delete layer.kernel_size;
+      delete layer.hidden_size;
+      delete layer.pool_size;
+      delete layer.vocab_size;
+      delete layer.embed_dim;
+      delete layer.eps;
+      delete layer.max_len;
+    } else if (newType === "positional_encoding") {
+      layer.d_model = layer.d_model || 512;
+      layer.max_len = layer.max_len || 2048;
+      delete layer.neurons;
+      delete layer.activation;
+      delete layer.rate;
+      delete layer.out_channels;
+      delete layer.kernel_size;
+      delete layer.hidden_size;
+      delete layer.pool_size;
+      delete layer.vocab_size;
+      delete layer.embed_dim;
+      delete layer.eps;
+      delete layer.num_heads;
     }
   }
 
@@ -589,10 +912,24 @@ class UIController {
   // VIZ CHECKBOXES
   // ════════════════════════════════════════════════════════
   _initVizCheckboxes() {
-    ["cbLabels","cbActs","cbBias","cbGrad"].forEach(id => {
+    ["cbLabels","cbActs","cbBias","cbGrad","cbDeadWeights"].forEach(id => {
       document.getElementById(id)?.addEventListener("change",
         () => this._emit("vizChanged", this.getVizOptions()));
     });
+  }
+
+  _init2DPlotControls() {
+    ["cbPredBoundary", "cbDataPoints"].forEach(id => {
+      document.getElementById(id)?.addEventListener("change",
+        () => this._emit("plot2dChanged", this.get2DPlotOptions()));
+    });
+  }
+
+  get2DPlotOptions() {
+    return {
+      showBoundary: document.getElementById("cbPredBoundary")?.checked ?? true,
+      showPoints: document.getElementById("cbDataPoints")?.checked ?? false,
+    };
   }
 
   // ════════════════════════════════════════════════════════
@@ -869,8 +1206,22 @@ class UIController {
 
     if (fnMeta.key === "seg7") {
       c.innerHTML = '<div class="seg-display">' +
-        samples.map(r => `<div class="seg-digit">${segSVG(r.pred)}</div>`).join("") +
+        samples.map((r, idx) => `<div class="seg-digit" data-sample-idx="${idx}">${segSVG(r.pred)}</div>`).join("") +
         "</div>";
+      
+      // Attach click handlers to 7-segment display digits
+      const self = this;
+      document.querySelectorAll(".seg-digit").forEach((digit) => {
+        const sampleIdx = parseInt(digit.dataset.sampleIdx, 10);
+        digit.addEventListener("click", () => {
+          if (sampleIdx >= 0 && sampleIdx < samples.length) {
+            const sample = samples[sampleIdx];
+            if (sample && Array.isArray(sample.x) && sample.x.length > 0) {
+              self._emit("ioRowClicked", sample.x);
+            }
+          }
+        });
+      });
       return;
     }
 
@@ -881,10 +1232,10 @@ class UIController {
     oL.forEach(l => html += `<th>${l}✓</th><th>${l}̂</th>`);
     html += "<th></th></tr></thead><tbody>";
 
-    samples.forEach(r => {
+    samples.forEach((r, sampleIdx) => {
       const ok = r.y.every((yi, i) =>
         Math.abs((r.pred[i] > 0.5 ? 1 : 0) - Math.round(yi)) < 0.5);
-      html += "<tr>";
+      html += `<tr class="io-row" data-sample-idx="${sampleIdx}">`;
       r.x.forEach(v => html += `<td>${(+v).toFixed(2)}</td>`);
       r.y.forEach((yi, i) => {
         const e = Math.abs(yi - r.pred[i]);
@@ -894,12 +1245,26 @@ class UIController {
       html += `<td><span class="badge ${ok?"ok":"err"}">${ok?"✓":"✗"}</span></td></tr>`;
     });
     c.innerHTML = html + "</tbody></table>";
+
+    // Attach click handlers to rows
+    const self = this;
+    document.querySelectorAll(".io-row").forEach((row) => {
+      const sampleIdx = parseInt(row.dataset.sampleIdx, 10);
+      row.addEventListener("click", () => {
+        if (sampleIdx >= 0 && sampleIdx < samples.length) {
+          const sample = samples[sampleIdx];
+          if (sample && Array.isArray(sample.x) && sample.x.length > 0) {
+            self._emit("ioRowClicked", sample.x);
+          }
+        }
+      });
+    });
   }
 
   // ════════════════════════════════════════════════════════
   // NODE INSPECTOR
   // ════════════════════════════════════════════════════════
-  renderNodeInfo(node, snapshot) {
+  renderNodeInfo(node, snapshot, showingInfluences = false) {
     const el = document.getElementById("nodeInfo");
     if (!el || !node || !snapshot) return;
     const { layer, idx } = node;
@@ -918,15 +1283,81 @@ class UIController {
     const bias  = layerData?.b?.[idx];
     const wRow  = layerData?.W?.[idx] ?? [];
 
-    el.innerHTML = `
-      <b>${lbl}</b><br>
-      Type: ${isIn ? "Input" : isOut ? "Output" : "Hidden"}<br>
-      Activation: <b>${av.toFixed(5)}</b>
-      ${bias !== undefined ? `<br>Bias: <b>${bias.toFixed(5)}</b>` : ""}
-      ${wRow.length ? `<br>Fan-in: ${wRow.length}
+    let html = `<b>${lbl}</b>`;
+    
+    if (isIn) {
+      html += `<br>Type: Input<br>Activation: <b>${av.toFixed(5)}</b>`;
+    } else {
+      html += `<br>Type: ${isOut ? "Output" : "Hidden"}<br>Activation: <b>${av.toFixed(5)}</b>`;
+      if (bias !== undefined) {
+        html += `<br>Bias: <b>${bias.toFixed(5)}</b>`;
+      }
+    }
+
+    // Show influences breakdown when enabled
+    if (showingInfluences && !isIn) {
+      html += `<hr class="dv" style="margin: 8px 0;">
+        <div style="font-size:11px;">
+          <b style="color:var(--accent)">🔍 Input Influences</b><br>`;
+      
+      if (wRow.length > 0) {
+        const prevActs = acts[layer - 1] || [];
+        const contributions = wRow.map((w, i) => ({
+          idx: i,
+          weight: w,
+          activation: prevActs[i] ?? 0,
+          contribution: w * (prevActs[i] ?? 0)
+        })).sort((a, b) => Math.abs(b.contribution) - Math.abs(a.contribution));
+        
+        html += `<table style="font-size:10px; width:100%; border-collapse:collapse;">
+          <tr style="color:var(--text2); border-bottom:1px solid var(--border);">
+            <td style="padding:2px 0;">Input</td>
+            <td style="text-align:right; padding-right:4px;">Weight</td>
+            <td style="text-align:right;">Contrib</td>
+          </tr>`;
+        
+        // Show top 8 contributors
+        contributions.slice(0, 8).forEach(c => {
+          const sign = c.weight > 0 ? "+" : "";
+          const color = c.weight > 0 ? "var(--green)" : "var(--red)";
+          html += `<tr style="border-bottom:1px solid var(--border); height:18px;">
+            <td style="padding:2px 0; color:var(--text3);">N${c.idx}</td>
+            <td style="text-align:right; padding-right:4px; color:${color};">${sign}${c.weight.toFixed(3)}</td>
+            <td style="text-align:right; font-weight:bold; color:${c.contribution > 0 ? 'var(--green)' : 'var(--red)'};">${c.contribution.toFixed(3)}</td>
+          </tr>`;
+        });
+        
+        if (contributions.length > 8) {
+          html += `<tr style="color:var(--text3); font-size:9px;">
+            <td colspan="3" style="padding:2px 0;">+${contributions.length - 8} more inputs</td>
+          </tr>`;
+        }
+        
+        html += `</table>`;
+      } else {
+        html += `<div style="color:var(--text3); font-size:10px;">No weighted inputs</div>`;
+      }
+      
+      html += `</div>`;
+    } else if (!isIn) {
+      // Show normal fan-in info when not showing influences
+      html += `${wRow.length ? `<br>Fan-in: ${wRow.length}
         <br><span style="font-size:10px;color:var(--text3)">
           ${wRow.slice(0, 10).map(w => w.toFixed(3)).join(", ")}${wRow.length > 10 ? "…" : ""}
         </span>` : ""}`;
+    }
+
+    html += `<br><br>
+      <button class="btn ${showingInfluences ? 'success' : 'secondary'}" id="btnShowInfluences" style="width:100%;font-size:11px;">
+        ${showingInfluences ? '✓ Insights Shown' : '✨ Show Influences'}
+      </button>`;
+
+    el.innerHTML = html;
+
+    // Wire the button event
+    document.getElementById("btnShowInfluences")?.addEventListener("click", () => {
+      this._emit("showInfluences", { node });
+    });
 
     // Switch right panel to node tab
     document.querySelectorAll(".rptab").forEach(b =>
@@ -1049,6 +1480,7 @@ class UIController {
       showActivations: _checked("cbActs"),
       showBias:        _checked("cbBias"),
       showGradients:   _checked("cbGrad"),
+      showDeadWeights: _checked("cbDeadWeights"),
     };
   }
 
@@ -1319,7 +1751,6 @@ class UIController {
     if (this._selectedFuncId && confirm("Are you sure you want to delete this function?")) {
       this._emit("deleteCustomFunc", this._selectedFuncId);
       this._selectedFuncId = null;
-      document.getElementById("funcEditor").style.display = "none";
       document.getElementById("funcEditor").style.display = "none";
       document.getElementById("funcEditorEmpty").style.display = "flex";
     }

@@ -25,14 +25,12 @@ const API = (() => {
     // ── session ──
     buildNetwork:    async (cfg) => {
       const result = await request("POST", "/api/session/build", cfg);
-      console.log("buildNetwork result:", result);
       return result;
     },
     resetWeights:    ()      => request("POST", "/api/session/reset",   {}),
     predict:         (x)     => request("POST", "/api/session/predict", { x }),
     getSnapshot:     async () => {
       const result = await request("GET", "/api/session/snapshot");
-      console.log("getSnapshot result:", result);
       return result;
     },
     exportModel:     ()      => request("POST", "/api/session/export",  {}),
@@ -42,7 +40,6 @@ const API = (() => {
     trainStep:       (steps, lr) => request("POST", "/api/train/step",     { steps, lr }),
     evaluate:        async (ranges) => {
       const result = await request("POST", "/api/train/evaluate", ranges ? { ranges } : {});
-      console.log("evaluate result:", result);
       return result;
     },
 

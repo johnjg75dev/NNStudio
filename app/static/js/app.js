@@ -10,6 +10,8 @@ class App {
     this._snapshot   = null;           // last server snapshot
     this._fnMeta     = null;           // current function metadata
     this._archKey    = "mlp";
+    this._selectedNode = null;         // track selected node for influence viz
+    this._showNodeInfluences = false;  // whether to show only influences for selected node
 
     // ── sub-systems ──
     this._ui       = new UIController(registry);
@@ -18,6 +20,8 @@ class App {
     this._netRend  = new NetworkRenderer(document.getElementById("netCanvas"));
     this._archRend = new ArchDiagramRenderer(document.getElementById("netCanvas"));
     this._lossRend = new LossChartRenderer(document.getElementById("lossChart"));
+    this._plot2d   = new Plot2DRenderer("plot2dCanvas");
+    this._samples  = [];  // Store current training samples for plot
   }
 
   // ════════════════════════════════════════════════════════
@@ -29,6 +33,7 @@ class App {
     this._bindUIEvents();
     this._bindTrainerEvents();
     this._bindResize();
+    this._initActivationViz();
 
     // Pre-fetch templates and examples
     API.getCustomTemplates().then(res => {
@@ -58,13 +63,16 @@ class App {
     ui.on("trainToggle",  ()        => this._toggleTraining());
     ui.on("archChanged",  key       => { this._archKey = key; this._drawCanvas(); });
     ui.on("vizChanged",   opts      => { this._netRend.setOptions(opts); this._drawCanvas(); });
+    ui.on("plot2dChanged", opts     => { this._draw2DPlot(); });
     ui.on("controlChanged",()       => { /* live config preview — no-op for now */ });
 
     ui.on("canvasHover",  pt  => this._handleCanvasHover(pt));
     ui.on("canvasClick",  pt  => this._handleCanvasClick(pt));
+    ui.on("showInfluences", data => this._toggleInfluenceViz(data.node));
     ui.on("showWeights",  ()  => ui.renderWeightMatrix(this._snapshot?.layers));
 
     ui.on("runTest",      x   => this._runTest(x));
+    ui.on("ioRowClicked", x   => this._runTest(x));
     ui.on("randomTest",   ()  => {
       const n = this._fnMeta?.inputs ?? 2;
       const x = ui.randomiseTestInputs(n);
@@ -196,6 +204,7 @@ class App {
       this._snapshot = { ...this._snapshot, ...data };
       this._ui.updateStats(data);
       this._drawCanvas();
+      this._draw2DPlot();
       this._lossRend.draw(data.loss_history);
       this._refreshIOTable(data);
     });
@@ -218,6 +227,23 @@ class App {
   _bindResize() {
     new ResizeObserver(() => this._drawCanvas())
       .observe(document.getElementById("netCanvas"));
+    new ResizeObserver(() => this._draw2DPlot())
+      .observe(document.getElementById("plot2dCanvas"));
+  }
+
+  /**
+   * Initialize activation function visualizations in Learn tab
+   */
+  _initActivationViz() {
+    // Defer rendering until page is laid out
+    requestAnimationFrame(() => {
+      ActivationVisualizer.draw("canvas-relu", "relu");
+      ActivationVisualizer.draw("canvas-leakyrelu", "leakyrelu");
+      ActivationVisualizer.draw("canvas-tanh", "tanh");
+      ActivationVisualizer.draw("canvas-sigmoid", "sigmoid");
+      ActivationVisualizer.draw("canvas-gelu", "gelu");
+      ActivationVisualizer.draw("canvas-swish", "swish");
+    });
   }
 
   // ════════════════════════════════════════════════════════
@@ -227,17 +253,14 @@ class App {
     this._trainer.stop();
     this._ui.setStatus("Building…");
     try {
-      console.log("Building network with config:", config);
+      //console.log("Building network with config:", config);
       const data = await API.buildNetwork(config);
-      console.log("buildNetwork returned:", data);
       
       this._archKey = config.arch_key;
       this._fnMeta  = data.func;
 
       // Fetch full snapshot
-      console.log("Fetching snapshot...");
       this._snapshot = await API.getSnapshot();
-      console.log("Snapshot received:", this._snapshot);
       
       // Validate snapshot
       if (!this._snapshot) {
@@ -278,7 +301,9 @@ class App {
 
       // Initial IO table
       const evalData = await API.evaluate();
+      this._samples = evalData.samples;
       this._ui.renderIOTable(evalData.samples, this._fnMeta);
+      this._draw2DPlot();
 
     } catch (e) {
       console.error("Build failed:", e);
@@ -349,6 +374,12 @@ class App {
     this._netRend.draw(null);
   }
 
+  _draw2DPlot() {
+    if (!this._plot2d || !this._snapshot?.built) return;
+    const opts = this._ui.get2DPlotOptions();
+    this._plot2d.draw(this._snapshot, this._samples, opts);
+  }
+
   async _refreshRegistry() {
     try {
       const data = await API.getAllModules();
@@ -388,7 +419,7 @@ class App {
       return;
     }
 
-    const node = this._netRend.nodeAt(x, y, this._snapshot.topology);
+    const node = this._netRend.nodeAt(x, y, this._snapshot.topology, this._snapshot.layers);
     if (node) {
       const { layer, idx } = node;
       const acts  = this._snapshot.activations || [];
@@ -443,7 +474,6 @@ class App {
         if (clickDist < 25) {
           // Clicked on expand/collapse
           const expanded = this._netRend.toggleLayerExpanded(node.layer);
-          console.log(`Layer ${node.layer} (${node.layerInfo?.type}): ${expanded ? 'expanded' : 'collapsed'}`);
           this._drawCanvas();
           return;
         }
@@ -451,8 +481,20 @@ class App {
     }
     
     // Normal node selection
+    this._selectedNode = node;
+    this._showNodeInfluences = false;  // Reset influence viz when selecting a new node
     this._netRend.selectNode(node);
-    if (node) this._ui.renderNodeInfo(node, this._snapshot);
+    this._netRend.setInfluenceNode(null);  // Clear influence visualization
+    if (node) this._ui.renderNodeInfo(node, this._snapshot, this._showNodeInfluences);
+    this._drawCanvas();
+  }
+
+  _toggleInfluenceViz(node) {
+    this._selectedNode = node;
+    this._showNodeInfluences = !this._showNodeInfluences;
+    this._netRend.selectNode(node);
+    this._netRend.setInfluenceNode(this._showNodeInfluences ? node : null);
+    this._ui.renderNodeInfo(node, this._snapshot, this._showNodeInfluences);
     this._drawCanvas();
   }
 
@@ -495,7 +537,9 @@ class App {
     if (stepData.epoch % 5 !== 0) return;
     try {
       const data = await API.evaluate();
+      this._samples = data.samples;
       this._ui.renderIOTable(data.samples, this._fnMeta);
+      this._draw2DPlot();
     } catch (_) { /* non-critical */ }
   }
 

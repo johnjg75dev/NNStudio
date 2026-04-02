@@ -83,6 +83,34 @@ class ModuleRegistry:
                             and attr.key):
                         self._register_class(attr)
 
+    def load_architectures_from_database(self):
+        """Load built-in architectures from the database."""
+        try:
+            from flask import current_app
+            from ..models import BuiltinArchitecture
+            from .architectures.database_architecture import DatabaseArchitecture
+            
+            # Only attempt if we're in app context and database is set up
+            if not current_app:
+                return
+            
+            architectures = BuiltinArchitecture.query.all()
+            for arch_record in architectures:
+                # Skip if already registered (Python file version takes precedence)
+                if arch_record.key in self._modules:
+                    continue
+                
+                # Wrap database record and register it
+                arch_module = DatabaseArchitecture(arch_record)
+                self._modules[arch_record.key] = arch_module
+                cat = "architectures"
+                self._by_category.setdefault(cat, [])
+                if arch_record.key not in self._by_category[cat]:
+                    self._by_category[cat].append(arch_record.key)
+        except Exception as exc:
+            # Database might not be initialized yet, silently continue
+            pass
+
     def _register_class(self, cls: Type[BaseModule]):
         """Instantiate and register a discovered module class."""
         if cls.key in self._modules:

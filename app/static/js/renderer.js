@@ -57,8 +57,10 @@ class NetworkRenderer {
       showActivations: true,
       showBias:        false,
       showGradients:   false,
+      showDeadWeights: false,
     };
     this._selectedNode = null;
+    this._influenceNode = null;  // Node to show influences for
     this._onNodeClick  = null;
     this._zoom = 1.0;
     // Track expanded/collapsed state for layer groups
@@ -67,6 +69,7 @@ class NetworkRenderer {
   }
 
   setOptions(opts) { Object.assign(this.opts, opts); }
+  setInfluenceNode(node) { this._influenceNode = node; }
   onNodeClick(fn)  { this._onNodeClick = fn; }
   
   getZoom() { return this._zoom; }
@@ -234,6 +237,7 @@ class NetworkRenderer {
 
   _drawEdges(pts, layers, nodeR) {
     const { ctx } = this;
+    const DEAD_THRESHOLD = 0.05; // weights below this are considered "dead"
     
     // pts corresponds to [Input, L1, L2, ..., Output]
     // layers corresponds to [L1, L2, ..., Output]
@@ -249,17 +253,44 @@ class NetworkRenderer {
       // If it's a weighted layer, draw edges for each weight
       if (layer.W && Array.isArray(layer.W) && layer.W.length > 0) {
         layer.W.forEach((row, i) => {
-          row.forEach((w, j) => {
-            const fr = frPts[j], to = toPts[i];
-            if (!fr || !to) return;
-            this._drawSingleEdge(ctx, fr, to, weightColor(w), Math.min(6, 0.4 + Math.abs(w) * 1.3), nodeR);
-          });
+          if (Array.isArray(row)) {
+            row.forEach((w, j) => {
+              const fr = frPts[j], to = toPts[i];
+              if (!fr || !to) return;
+              
+              // If showing influences, only draw edges TO the influence node
+              if (this._influenceNode) {
+                const isRelevant = this._influenceNode.layer === l + 1 && this._influenceNode.idx === i;
+                if (!isRelevant) return; // Skip irrelevant edges
+              }
+              
+              // Check if weight is dead
+              const isDead = Math.abs(w) < DEAD_THRESHOLD;
+              
+              // If dead and not showing dead weights, skip
+              if (isDead && !this.opts.showDeadWeights) {
+                return;
+              }
+              
+              // If dead and showing dead weights, use faint/dotted style
+              if (isDead && this.opts.showDeadWeights) {
+                this._drawSingleEdge(ctx, fr, to, "#666666", 0.5, nodeR, true);
+              } else {
+                this._drawSingleEdge(ctx, fr, to, weightColor(w), Math.min(6, 0.4 + Math.abs(w) * 1.3), nodeR, false);
+              }
+            });
+          }
         });
       } else {
         // Non-weighted layer (Dropout, BatchNorm, etc.)
         // Draw symbolic connections (e.g., identity-like)
         const nFr = frPts.length;
         const nTo = toPts.length;
+        
+        // If showing influences, only draw edges TO the influence node
+        if (this._influenceNode && !(this._influenceNode.layer === l + 1)) {
+          return; // Skip if not relevant to influence node
+        }
         
         if (nFr === 1 && nTo === 1) {
           this._drawSingleEdge(ctx, frPts[0], toPts[0], "#58a6ff22", 1, nodeR);
@@ -276,7 +307,7 @@ class NetworkRenderer {
     }
   }
 
-  _drawSingleEdge(ctx, fr, to, color, width, nodeR) {
+  _drawSingleEdge(ctx, fr, to, color, width, nodeR, isDead = false) {
     const dx = to.x - fr.x, dy = to.y - fr.y;
     const dist = Math.sqrt(dx*dx + dy*dy) || 1;
     const ux = dx/dist, uy = dy/dist;
@@ -285,8 +316,15 @@ class NetworkRenderer {
     ctx.lineTo(to.x - ux * nodeR, to.y - uy * nodeR);
     ctx.strokeStyle = color;
     ctx.lineWidth   = width;
-    ctx.globalAlpha = 0.4;
+    ctx.globalAlpha = isDead ? 0.15 : 0.4; // Very faint for dead weights
+    
+    // Draw dotted line for dead weights
+    if (isDead) {
+      ctx.setLineDash([3, 3]);
+    }
+    
     ctx.stroke();
+    ctx.setLineDash([]); // Reset
     ctx.globalAlpha = 1;
   }
 
@@ -359,11 +397,18 @@ class NetworkRenderer {
         const av  = acts[l]?.[idx] ?? 0;
         const sel = this._selectedNode;
         const isSel = sel && sel.layer === l && sel.idx === idx;
+        
+        // When showing influences, check if this node is an influencer
+        let isInfluencer = false;
+        if (this._influenceNode) {
+          // A node influences the target if it's in the layer before and feeds into it
+          isInfluencer = this._influenceNode.layer === l + 1; // This node's layer feeds to influence node's layer
+        }
 
         // glow
         if (this.opts.showActivations && acts[l]) {
           const grd = ctx.createRadialGradient(x, y, 0, x, y, actualNodeR * 2.8);
-          grd.addColorStop(0, activationColor(av, 0.3));
+          grd.addColorStop(0, activationColor(av, 0.3 * (isInfluencer || isSel ? 1 : 0.2)));
           grd.addColorStop(1, "rgba(0,0,0,0)");
           ctx.beginPath(); ctx.arc(x, y, actualNodeR * 2.8, 0, Math.PI * 2);
           ctx.fillStyle = grd; ctx.fill();
@@ -382,8 +427,19 @@ class NetworkRenderer {
         }
         
         ctx.fill();
-        ctx.strokeStyle = isSel ? "#fff" : "#58a6ff";
-        ctx.lineWidth   = isSel ? 2.5 : 1.5;
+        
+        // Highlight selection and influencers
+        if (isSel) {
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth   = 2.5;
+        } else if (isInfluencer && this._influenceNode) {
+          ctx.strokeStyle = "#ffd700"; // Gold highlight for influencers
+          ctx.lineWidth   = 2;
+        } else {
+          ctx.strokeStyle = this._influenceNode ? "#58a6ff44" : "#58a6ff"; // Dim if showing influences
+          ctx.lineWidth   = this._influenceNode ? 1 : 1.5;
+        }
+        
         ctx.stroke();
         ctx.setLineDash([]);
         
