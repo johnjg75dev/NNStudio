@@ -41,6 +41,8 @@ class App {
       this._ui._customExamples = res.examples;
     }).catch(e => console.error("Failed to load templates:", e));
 
+    this._refreshDbModels();
+
     // Apply first preset automatically
     const firstPreset = this._registry.presets?.[0];
     if (firstPreset) {
@@ -71,18 +73,53 @@ class App {
     ui.on("showInfluences", data => this._toggleInfluenceViz(data.node));
     ui.on("showWeights",  ()  => ui.renderWeightMatrix(this._snapshot?.layers));
 
-    ui.on("runTest",      x   => this._runTest(x));
-    ui.on("ioRowClicked", x   => this._runTest(x));
+    ui.on("runTest",      req   => this._runTest(req));
+    ui.on("ioRowClicked", x     => this._runTest({ x, start_layer: 0, end_layer: null }));
     ui.on("randomTest",   ()  => {
       const n = this._fnMeta?.inputs ?? 2;
       const x = ui.randomiseTestInputs(n);
-      this._runTest(x);
+      const sl = document.getElementById("testStartLayer")?.value;
+      const el = document.getElementById("testEndLayer")?.value;
+      this._runTest({ x, start_layer: sl ? parseInt(sl) : 0, end_layer: el && el !== "" ? parseInt(el) : null });
     });
-    ui.on("sweep",        ()  => this._sweep());
+    ui.on("sweep",        req  => this._sweep(req));
 
     ui.on("exportModel",  ()  => this._exportModel());
     ui.on("importModel",  data => this._importModel(data));
     ui.on("requestSummary", () => ui.renderModelSummary(this._snapshot));
+
+    ui.on("saveDbModel", async name => {
+      try {
+        await API.saveDbModel(name);
+        this._refreshDbModels();
+        alert(`Model '${name}' saved successfully!`);
+      } catch (e) { alert("Error saving model: " + e.message); }
+    });
+    
+    ui.on("loadDbModel", async id => {
+      try {
+        await API.loadDbModel(id);
+        this._snapshot = await API.getSnapshot();
+        const arch = this._registry?.architectures?.find(a => a.name === this._snapshot.architecture) || 
+                     this._registry?.architectures?.[0];
+        if (arch) this._archKey = arch.key;
+        this._ui.setStatus("Loaded");
+        this._drawCanvas();
+        this._ui.updateStats({ epoch: this._snapshot.epoch, loss: 0, accuracy: 0, param_count: this._snapshot.param_count || 0 });
+        this._lossRend.draw([]);
+        this._ui.renderModelSummary(this._snapshot);
+        await this._refreshRegistry();
+        alert("Model loaded into training session!");
+      } catch (e) { alert("Error loading model: " + e.message); }
+    });
+    
+    ui.on("deleteDbModel", async id => {
+      if (!confirm("Are you sure you want to delete this model?")) return;
+      try {
+        await API.deleteDbModel(id);
+        this._refreshDbModels();
+      } catch (e) { alert("Error deleting model: " + e.message); }
+    });
 
     // Custom functions
     ui.on("createCustomFunc", async data => {
@@ -298,6 +335,7 @@ class App {
       this._drawCanvas();
       this._lossRend.draw([]);
       this._ui.renderTestInputsFor(this._fnMeta, this._snapshot?.layers?.[0] ? null : null);
+      this._ui.renderTestLayerBounds(this._snapshot);
 
       // Initial IO table
       const evalData = await API.evaluate();
@@ -407,6 +445,13 @@ class App {
     } catch (e) { console.error("Failed to load datasets:", e); }
   }
 
+  async _refreshDbModels() {
+    try {
+      const data = await API.listDbModels();
+      this._ui.renderDbModelList(data.models || []);
+    } catch (e) { console.error("Failed to load db models:", e); }
+  }
+
   // ════════════════════════════════════════════════════════
   // CANVAS HOVER / CLICK
   // ════════════════════════════════════════════════════════
@@ -501,10 +546,11 @@ class App {
   // ════════════════════════════════════════════════════════
   // TEST TAB
   // ════════════════════════════════════════════════════════
-  async _runTest(x) {
+  async _runTest(req) {
     if (!this._snapshot?.built) { alert("Build a network first."); return; }
     try {
-      const data = await API.predict(x);
+      const { x, start_layer, end_layer } = req;
+      const data = await API.predict(x, start_layer, end_layer);
       const isSeg7 = this._fnMeta?.key === "seg7";
       this._ui.renderTestOutput(data.output, this._fnMeta, isSeg7);
 
@@ -516,11 +562,12 @@ class App {
     }
   }
 
-  async _sweep() {
+  async _sweep(req) {
     if (!this._snapshot?.built) { alert("Build a network first."); return; }
     try {
       const ranges = this._ui.getSweepRanges();
-      const data   = await API.evaluate(ranges);
+      const { start_layer, end_layer } = req || { start_layer: 0, end_layer: null };
+      const data   = await API.evaluate(ranges, start_layer, end_layer);
       const isSeg7 = this._fnMeta?.key === "seg7";
       this._ui.renderSweepResults(data.samples, this._fnMeta, isSeg7);
     } catch (e) {

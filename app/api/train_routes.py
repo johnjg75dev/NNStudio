@@ -81,6 +81,10 @@ def evaluate():
 
     data = request.get_json() or {}
     ranges = data.get("ranges")
+    sl = data.get("start_layer", 0)
+    sl = int(sl) if sl is not None else 0
+    el = data.get("end_layer", None)
+    el = int(el) if el is not None else None
     
     results = []
     
@@ -106,7 +110,7 @@ def evaluate():
         # Generate all combinations
         for combo in itertools.product(*range_lists):
             x = list(combo)
-            pred = ts.predict(x)
+            pred = ts.predict(x, start_layer=sl, end_layer=el)
             results.append({
                 "x":    x,
                 "y":    [0] * len(pred),  # No ground truth for range sweep
@@ -115,15 +119,19 @@ def evaluate():
     else:
         # Standard: evaluate all training samples
         for sample in ts.dataset:
-            pred = ts.predict(sample["x"])
+            pred = ts.predict(sample["x"], start_layer=sl, end_layer=el)
             results.append({
                 "x":    sample["x"],
                 "y":    sample["y"],
                 "pred": pred,
             })
 
-    loss = ts.network.compute_loss(ts.dataset) if not ranges else 0.0
-    acc  = ts.network.compute_accuracy(ts.dataset) if not ranges else 0.0
+    if not ranges and sl == 0 and el is None:
+        loss = ts.network.compute_loss(ts.dataset)
+        acc  = ts.network.compute_accuracy(ts.dataset)
+    else:
+        loss = 0.0
+        acc  = 0.0
 
     return ok({
         "samples":  results,

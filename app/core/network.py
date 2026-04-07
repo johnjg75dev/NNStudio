@@ -34,10 +34,11 @@ class NeuralNetwork:
         self.loss_history: list[float] = []
 
     # ── forward pass ──
-    def predict(self, x: np.ndarray, training: bool = False) -> np.ndarray:
+    def predict(self, x: np.ndarray, training: bool = False, start_layer: int = 0, end_layer: int | None = None) -> np.ndarray:
         a = x.astype(np.float64)
-        for layer in self.layers:
-            a = layer.forward(a, training=training)
+        end_idx = end_layer if end_layer is not None else len(self.layers)
+        for i in range(start_layer, end_idx):
+            a = self.layers[i].forward(a, training=training)
         return a
 
     # ── single sample train step ──

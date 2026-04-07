@@ -232,14 +232,37 @@ class UIController {
   renderDatasetSelect(datasets) {
     const sel = document.getElementById("dsSel");
     if (!sel) return;
-    const val = sel.value;
+    const prevVal = sel.value;
     sel.innerHTML = '<option value="">(No Dataset Selected)</option>';
-    datasets.forEach(d => {
-      const o = document.createElement("option");
-      o.value = d.id; o.textContent = d.name;
-      sel.appendChild(o);
-    });
-    sel.value = val;
+
+    const global   = datasets.filter(d => d.is_predefined);
+    const personal = datasets.filter(d => !d.is_predefined);
+
+    if (global.length) {
+      const grp = document.createElement("optgroup");
+      grp.label = "🌐 Global Datasets";
+      global.forEach(d => {
+        const o = document.createElement("option");
+        o.value = d.id;
+        o.textContent = d.name + (d.downloaded === false ? " (not downloaded)" : "");
+        grp.appendChild(o);
+      });
+      sel.appendChild(grp);
+    }
+
+    if (personal.length) {
+      const grp = document.createElement("optgroup");
+      grp.label = "👤 My Datasets";
+      personal.forEach(d => {
+        const o = document.createElement("option");
+        o.value = d.id;
+        o.textContent = d.name;
+        grp.appendChild(o);
+      });
+      sel.appendChild(grp);
+    }
+
+    sel.value = prevVal;
   }
 
   // ════════════════════════════════════════════════════════
@@ -291,16 +314,189 @@ class UIController {
     };
     this.on("funcChanged", updateIODefaults);
 
-    // Add Dense layer button
+    // Add Layer via Modal
     addBtn?.addEventListener("click", () => {
-      this.addHiddenLayer({ type: "dense", neurons: 4, activation: "tanh" });
+      this._openLayerModal();
     });
+    this._initLayerModal();
 
     // Seed with one hidden layer by default
     if (this._hiddenLayers.length === 0) {
       this.addHiddenLayer({ type: "dense", neurons: 4, activation: "tanh" });
     }
   }
+
+  _initLayerModal() {
+    this._layerSelectedType = null;
+    this._layerCatalog = [
+      { type: "dense", icon: "🧠", name: "Dense", desc: "Standard fully connected layer." },
+      { type: "conv2d", icon: "🖼️", name: "Conv2D", desc: "Spatial convolution for images." },
+      { type: "maxpool2d", icon: "🔽", name: "MaxPool", desc: "Downsamples spatial dimensions." },
+      { type: "dropout", icon: "🗑️", name: "Dropout", desc: "Randomly zeroes elements to prevent overfitting." },
+      { type: "batchnorm", icon: "⚖️", name: "BatchNorm", desc: "Normalizes layer outputs." },
+      { type: "flatten", icon: "▭", name: "Flatten", desc: "Reshapes n-dimensional input to 1D." },
+      { type: "lstm", icon: "🔁", name: "LSTM", desc: "Process sequences with memory gates." },
+      { type: "simple_rnn", icon: "🔄", name: "Simple RNN", desc: "Basic recurrent layer." },
+      { type: "embedding", icon: "🔠", name: "Embedding", desc: "Maps indices to dense vectors." },
+      { type: "layernorm", icon: "📏", name: "LayerNorm", desc: "Normalizes across features." },
+      { type: "multihead_attention", icon: "🎯", name: "Attention", desc: "Multi-head self attention." },
+      { type: "positional_encoding", icon: "📍", name: "PosEnc", desc: "Adds position info to sequence." }
+    ];
+
+    const modal = document.getElementById("layerModal");
+    if (!modal) return;
+    document.getElementById("closeLayerModal")?.addEventListener("click", () => modal.style.display = "none");
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.style.display = "none"; });
+
+    const btn = document.getElementById("confirmAddLayerBtn");
+    btn?.addEventListener("click", () => {
+      if (!this._layerSelectedType) return;
+      const cfg = this._readLayerConfigForm(this._layerSelectedType);
+      this.addHiddenLayer(cfg);
+      modal.style.display = "none";
+    });
+  }
+
+  _openLayerModal() {
+    const modal = document.getElementById("layerModal");
+    if (!modal) return;
+    this._layerSelectedType = null;
+    
+    // Populate Grid
+    const grid = document.getElementById("layerCatalogGrid");
+    grid.innerHTML = "";
+    this._layerCatalog.forEach(l => {
+      const card = document.createElement("div");
+      card.className = "layer-card";
+      card.style = "background: var(--surf2); border: 1px solid var(--border); border-radius: 6px; padding: 10px; cursor: pointer; transition: all 0.2s;";
+      card.innerHTML = `<div style="font-size: 24px; margin-bottom: 5px; text-align: center;">${l.icon}</div>
+                        <div style="font-weight: bold; font-size: 12px; color: var(--accent); margin-bottom: 4px; text-align: center;">${l.name}</div>
+                        <div style="font-size: 10px; color: var(--text2); line-height: 1.4; text-align: center;">${l.desc}</div>`;
+      card.addEventListener("click", () => {
+        document.querySelectorAll(".layer-card").forEach(c => c.style.borderColor = "var(--border)");
+        card.style.borderColor = "var(--accent)";
+        this._selectLayerType(l.type);
+      });
+      grid.appendChild(card);
+    });
+
+    // Clear config
+    document.getElementById("layerConfigArea").innerHTML = '<div class="info-box">Select a layer type from the catalog.</div>';
+    document.getElementById("confirmAddLayerBtn").disabled = true;
+
+    modal.style.display = "flex";
+  }
+
+  _selectLayerType(type) {
+    this._layerSelectedType = type;
+    document.getElementById("confirmAddLayerBtn").disabled = false;
+    const area = document.getElementById("layerConfigArea");
+    area.innerHTML = "";
+    
+    const addField = (id, label, inputType, val, min, max, step) => {
+      const row = document.createElement("div");
+      row.style = "margin-bottom: 8px;";
+      row.innerHTML = `<label style="margin-bottom: 3px;">${label}</label>`;
+      const inp = document.createElement(inputType === "select" ? "select" : "input");
+      inp.id = `cfgM_${id}`;
+      if (inputType !== "select") {
+        inp.type = inputType;
+        if(inputType === "checkbox") {
+          inp.checked = val;
+        } else {
+          inp.value = val;
+        }
+        if(min !== undefined) inp.min = min;
+        if(max !== undefined) inp.max = max;
+        if(step !== undefined) inp.step = step;
+        inp.style = "width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 4px; font-size: 12px;";
+        if (inputType === "checkbox") inp.style.width = "auto";
+      } else {
+        inp.style = "width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 4px; font-size: 12px;";
+      }
+      row.appendChild(inp);
+      area.appendChild(row);
+      return inp;
+    };
+
+    if (type === "dense") {
+      addField("neurons", "Neurons", "number", 4, 1, 256);
+      const sel = addField("activation", "Activation", "select");
+      sel.innerHTML = '<option value="relu">ReLU</option><option value="tanh" selected>Tanh</option><option value="sigmoid">Sigmoid</option><option value="leakyrelu">Leaky</option><option value="gelu">GELU</option><option value="swish">Swish</option>';
+    } else if (type === "dropout") {
+      addField("rate", "Rate", "number", 0.5, 0, 0.9, 0.05);
+    } else if (type === "conv2d") {
+      addField("out_channels", "Out Channels", "number", 16, 1, 256);
+      addField("kernel_size", "Kernel Size", "number", 3, 1, 7);
+      addField("stride", "Stride", "number", 1, 1, 5);
+      addField("padding", "Padding", "number", 1, 0, 5);
+      const sel = addField("activation", "Activation", "select");
+      sel.innerHTML = '<option value="relu" selected>ReLU</option><option value="tanh">Tanh</option><option value="sigmoid">Sigmoid</option><option value="leakyrelu">Leaky</option>';
+    } else if (type === "maxpool2d") {
+      addField("pool_size", "Pool Size", "number", 2, 2, 4);
+      addField("stride", "Stride", "number", 2, 1, 4);
+      addField("padding", "Padding", "number", 0, 0, 4);
+    } else if (type === "lstm" || type === "simple_rnn") {
+      addField("hidden_size", "Hidden Size", "number", 64, 8, 512);
+      const cb = addField("return_sequences", "Return Sequences", "checkbox", true);
+    } else if (type === "embedding") {
+      addField("vocab_size", "Vocab Size", "number", 1000, 10, 100000);
+      addField("embed_dim", "Embed Dimension", "number", 64, 8, 512);
+    } else if (type === "layernorm") {
+      addField("eps", "Epsilon", "number", 1e-5, 0, 1, 1e-6);
+    } else if (type === "multihead_attention") {
+      addField("num_heads", "Num Heads", "number", 8, 1, 32);
+      addField("d_model", "Embed Dimension", "number", 512, 8, 2048);
+    } else if (type === "positional_encoding") {
+      addField("d_model", "Embed Dimension", "number", 512, 8, 2048);
+      addField("max_len", "Max Length", "number", 2048, 100, 10000);
+    } else {
+      area.innerHTML = `<div class="info-box">No configuration required for ${type}.</div>`;
+    }
+  }
+
+  _readLayerConfigForm(type) {
+    const cfg = { type };
+    const val = (id, isNum=true, isCb=false) => {
+      const el = document.getElementById(`cfgM_${id}`);
+      if (!el) return undefined;
+      if (isCb) return el.checked;
+      return isNum ? parseFloat(el.value) : el.value;
+    };
+
+    if (type === "dense") {
+      cfg.neurons = val("neurons");
+      cfg.activation = val("activation", false);
+    } else if (type === "dropout") {
+      cfg.rate = val("rate");
+    } else if (type === "conv2d") {
+      cfg.out_channels = val("out_channels");
+      cfg.kernel_size = val("kernel_size");
+      cfg.stride = val("stride");
+      cfg.padding = val("padding");
+      cfg.activation = val("activation", false);
+    } else if (type === "maxpool2d") {
+      cfg.pool_size = val("pool_size");
+      cfg.stride = val("stride");
+      cfg.padding = val("padding");
+    } else if (type === "lstm" || type === "simple_rnn") {
+      cfg.hidden_size = val("hidden_size");
+      cfg.return_sequences = val("return_sequences", false, true);
+    } else if (type === "embedding") {
+      cfg.vocab_size = val("vocab_size");
+      cfg.embed_dim = val("embed_dim");
+    } else if (type === "layernorm") {
+      cfg.eps = val("eps");
+    } else if (type === "multihead_attention") {
+      cfg.num_heads = val("num_heads");
+      cfg.d_model = val("d_model");
+    } else if (type === "positional_encoding") {
+      cfg.d_model = val("d_model");
+      cfg.max_len = val("max_len");
+    }
+    return cfg;
+  }
+
 
   addHiddenLayer(config) {
     const id = Math.random().toString(36).substr(2, 9);
@@ -995,12 +1191,25 @@ class UIController {
   // TEST TAB
   // ════════════════════════════════════════════════════════
   _initTestTab() {
-    document.getElementById("runTestBtn")?.addEventListener("click",
-      () => this._emit("runTest", this._getTestInputs()));
+    document.getElementById("runTestBtn")?.addEventListener("click", () => {
+      const sl = document.getElementById("testStartLayer")?.value;
+      const el = document.getElementById("testEndLayer")?.value;
+      this._emit("runTest", {
+        x: this._getTestInputs(),
+        start_layer: sl ? parseInt(sl) : 0,
+        end_layer: el && el !== "" ? parseInt(el) : null
+      });
+    });
     document.getElementById("randTestBtn")?.addEventListener("click",
       () => this._emit("randomTest"));
-    document.getElementById("sweepBtn")?.addEventListener("click",
-      () => this._emit("sweep"));
+    document.getElementById("sweepBtn")?.addEventListener("click", () => {
+      const sl = document.getElementById("testStartLayer")?.value;
+      const el = document.getElementById("testEndLayer")?.value;
+      this._emit("sweep", {
+        start_layer: sl ? parseInt(sl) : 0,
+        end_layer: el && el !== "" ? parseInt(el) : null
+      });
+    });
   }
 
   _renderTestInputs(fnMeta, firstSample) {
@@ -1010,7 +1219,61 @@ class UIController {
       c.innerHTML = '<div class="info-box">Build a network in the Train tab first.</div>';
       return;
     }
-    c.innerHTML = fnMeta.input_labels.map((lbl, i) => {
+    const numInputs = fnMeta.input_labels ? fnMeta.input_labels.length : (fnMeta.inputs || 0);
+    const side = Math.sqrt(numInputs);
+    // detect if it's an image
+    if (Number.isInteger(side) && side >= 8 && side <= 64) {
+      this._testCanvasParams = { side };
+      c.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:8px;">
+           <div class="info-box" style="margin:0; font-size:11px;">Draw on the canvas to test custom image inputs.</div>
+           <canvas id="testDrawingCanvas" width="${side}" height="${side}" style="width: 160px; height: 160px; border: 1px solid var(--border); background-color: #000; cursor: crosshair; image-rendering: pixelated; margin: 0 auto; display: block;"></canvas>
+           <div class="btn-row" style="justify-content:center;">
+             <button class="btn secondary" id="clearTestCanvasBtn" style="font-size:11px;">Clear Canvas</button>
+           </div>
+        </div>
+      `;
+      const canvas = document.getElementById("testDrawingCanvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.fillStyle = "black";
+      ctx.fillRect(0, 0, side, side);
+      
+      let drawing = false;
+      const paint = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        const x = Math.floor((e.clientX - rect.left) * scaleX);
+        const y = Math.floor((e.clientY - rect.top) * scaleY);
+        if (x >= 0 && x < side && y >= 0 && y < side) {
+           ctx.fillStyle = "white";
+           ctx.fillRect(x, y, 1, 1);
+           if (side > 16) {
+             ctx.fillRect(x-1, y, 1, 1);
+             ctx.fillRect(x+1, y, 1, 1);
+             ctx.fillRect(x, y-1, 1, 1);
+             ctx.fillRect(x, y+1, 1, 1);
+           }
+        }
+      };
+
+      canvas.addEventListener("mousedown", e => { drawing = true; paint(e); });
+      canvas.addEventListener("mousemove", e => { if (drawing) paint(e); });
+      canvas.addEventListener("mouseup", () => drawing = false);
+      canvas.addEventListener("mouseleave", () => drawing = false);
+      
+      document.getElementById("clearTestCanvasBtn").addEventListener("click", () => {
+         ctx.fillStyle = "black";
+         ctx.fillRect(0, 0, side, side);
+      });
+
+      this._testCanvasParams.ctx = ctx;
+      this._testCanvasParams.canvas = canvas;
+      return;
+    }
+
+    this._testCanvasParams = null;
+    c.innerHTML = (fnMeta.input_labels || []).map((lbl, i) => {
       const defVal = firstSample?.[i] ?? 0;
       // Initialize sweep ranges if not exist
       if (!this._sweepRanges[i]) {
@@ -1025,7 +1288,9 @@ class UIController {
   }
 
   _renderSweepRangeControls(fnMeta) {
-    if (!fnMeta) return;
+    if (!fnMeta || !fnMeta.input_labels || !fnMeta.input_labels.length) return;
+    // Don't render sweep controls for image inputs
+    if (this._testCanvasParams) return;
     const c = document.getElementById("testInpContainer");
     if (!c) return;
 
@@ -1052,6 +1317,16 @@ class UIController {
   }
 
   _getTestInputs() {
+    if (this._testCanvasParams) {
+        const { side, ctx } = this._testCanvasParams;
+        const imgData = ctx.getImageData(0, 0, side, side).data;
+        const inputs = [];
+        for (let i = 0; i < imgData.length; i += 4) {
+            inputs.push(imgData[i] / 255.0); // using red channel as greyscale proxy
+        }
+        return inputs;
+    }
+
     const inputs = [];
     let i = 0;
     while (true) {
@@ -1074,6 +1349,29 @@ class UIController {
   renderTestOutput(pred, fnMeta, isSeg7) {
     const c = document.getElementById("testOutContainer");
     if (!c) return;
+    
+    if (pred && Array.isArray(pred)) {
+      const side = Math.sqrt(pred.length);
+      if (Number.isInteger(side) && side >= 8 && side <= 64) {
+         c.innerHTML = `
+            <div style="display:flex; flex-direction:column; gap:8px;">
+               <canvas id="testDrawnOut" width="${side}" height="${side}" style="width: 160px; height: 160px; border: 1px solid var(--border); background-color: #000; image-rendering: pixelated; margin: 0 auto; display: block;"></canvas>
+            </div>
+         `;
+         const ctx = document.getElementById("testDrawnOut").getContext("2d");
+         const imgData = ctx.createImageData(side, side);
+         for(let i = 0; i < pred.length; i++) {
+             const v = Math.max(0, Math.min(255, Math.floor(pred[i] * 255)));
+             imgData.data[i*4+0] = v;
+             imgData.data[i*4+1] = v;
+             imgData.data[i*4+2] = v;
+             imgData.data[i*4+3] = 255;
+         }
+         ctx.putImageData(imgData, 0, 0);
+         return;
+      }
+    }
+
     let html = '<div class="tog">';
     pred.forEach((v, i) => {
       const lbl = fnMeta?.output_labels?.[i] ?? ("Out" + i);
@@ -1145,6 +1443,21 @@ class UIController {
       () => this._emit("exportModel"));
     document.getElementById("loadBtn")?.addEventListener("click",
       () => document.getElementById("fileInp")?.click());
+      
+    document.getElementById("dbSaveBtn")?.addEventListener("click", () => {
+        const name = document.getElementById("dbModelName").value;
+        if (!name) return alert("Provide a model name!");
+        this._emit("saveDbModel", name);
+    });
+
+    document.getElementById("dbModelList")?.addEventListener("click", e => {
+       const btn = e.target.closest("button");
+       if (!btn) return;
+       const id = btn.dataset.id;
+       if (!id) return;
+       if (btn.classList.contains("btn-load")) this._emit("loadDbModel", id);
+       if (btn.classList.contains("btn-del")) this._emit("deleteDbModel", id);
+    });
     document.getElementById("fileInp")?.addEventListener("change", e => {
       const file = e.target.files[0];
       if (!file) return;
@@ -1162,14 +1475,40 @@ class UIController {
     });
   }
 
-  showSaveInfo(html) {
+  showSaveInfo(html, ok=true) {
     const el = document.getElementById("saveInfo");
-    if (el) el.innerHTML = html;
+    if (!el) return;
+    el.innerHTML = html;
+    el.className = "info-box " + (ok ? "ok" : "err");
+    if (ok) setTimeout(() => { el.className = "info-box"; el.innerHTML = "Exported."; }, 4000);
   }
 
-  showLoadInfo(html) {
+  showLoadInfo(html, ok=true) {
     const el = document.getElementById("loadInfo");
-    if (el) el.innerHTML = html;
+    if (!el) return;
+    el.innerHTML = html;
+    el.className = "info-box " + (ok ? "ok" : "err");
+  }
+
+  renderDbModelList(models) {
+    const c = document.getElementById("dbModelList");
+    if (!c) return;
+    if (models.length === 0) {
+       c.innerHTML = '<div class="info-box">No saved models found.</div>';
+       return;
+    }
+    c.innerHTML = models.map(m => `
+       <div style="display:flex; justify-content:space-between; align-items:center; padding: 6px; border-bottom: 1px solid var(--border)">
+         <div>
+            <div style="font-size:12px;font-weight:600;">${m.name}</div>
+            <div style="font-size:10px;color:var(--text3);">${m.architecture_name || 'Net'} • ${m.epochs_trained} Epochs • Loss: ${m.final_loss ? m.final_loss.toFixed(3) : '?'}</div>
+         </div>
+         <div class="btn-row">
+            <button class="btn success btn-load" data-id="${m.id}" style="font-size:10px;padding:2px 6px;">Load</button>
+            <button class="btn danger btn-del" data-id="${m.id}" style="font-size:10px;padding:2px 6px;">Del</button>
+         </div>
+       </div>
+    `).join("");
   }
 
   _renderModelSummary() {
@@ -1341,10 +1680,32 @@ class UIController {
       html += `</div>`;
     } else if (!isIn) {
       // Show normal fan-in info when not showing influences
-      html += `${wRow.length ? `<br>Fan-in: ${wRow.length}
-        <br><span style="font-size:10px;color:var(--text3)">
-          ${wRow.slice(0, 10).map(w => w.toFixed(3)).join(", ")}${wRow.length > 10 ? "…" : ""}
-        </span>` : ""}`;
+      if (layerData?.type === "conv2d" && Array.isArray(wRow)) {
+        html += `<br><br><b style="color:var(--accent)">🔍 Filters (Out Channel ${idx})</b><br>`;
+        html += `<div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:5px; max-height:150px; overflow-y:auto; padding:4px;">`;
+        wRow.forEach((inChannelFilter, inChIdx) => {
+          if (!Array.isArray(inChannelFilter)) return;
+          html += `<div><div style="font-size:9px;color:var(--text3);text-align:center;margin-bottom:2px;">In Ch ${inChIdx}</div>
+            <table style="border-collapse:collapse;border:1px solid var(--border);">`;
+          inChannelFilter.forEach(row => {
+            if (!Array.isArray(row)) return;
+            html += `<tr>`;
+            row.forEach(val => {
+              const v  = Math.min(1, Math.abs(val) / 2);
+              const bg = val > 0 ? `rgba(63,185,80,${v*.8})` : `rgba(248,81,73,${v*.8})`;
+              html += `<td style="background:${bg};width:12px;height:12px;font-size:0;" title="${val.toFixed(4)}"></td>`;
+            });
+            html += `</tr>`;
+          });
+          html += `</table></div>`;
+        });
+        html += `</div>`;
+      } else {
+        html += `${wRow.length ? `<br>Fan-in: ${wRow.length}
+          <br><span style="font-size:10px;color:var(--text3)">
+            ${wRow.slice(0, 10).map(w => typeof w === 'number' ? w.toFixed(3) : "[..]").join(", ")}${wRow.length > 10 ? "…" : ""}
+          </span>` : ""}`;
+      }
     }
 
     html += `<br><br>
@@ -1378,22 +1739,33 @@ class UIController {
     }
     let html = "";
     layers.forEach((l, li) => {
+      if (!l.W || !Array.isArray(l.W) || !l.W.length) {
+        html += `<div style="margin-bottom:8px">
+          <div class="shd" style="margin-bottom:3px">Layer ${li+1} (${l.type || 'unknown'})</div>
+          <div class="info-box" style="font-size:10px">Weight matrix not available for this layer type.</div>
+        </div>`;
+        return;
+      }
+      const rows = l.W.length;
+      const cols = Array.isArray(l.W[0]) ? l.W[0].length : 1;
       html += `<div style="margin-bottom:8px">
-        <div class="shd" style="margin-bottom:3px">Layer ${li+1} (${l.W.length}×${l.W[0].length})</div>
+        <div class="shd" style="margin-bottom:3px">Layer ${li+1} (${rows}×${cols})</div>
         <div style="overflow-x:auto">
         <table style="border-collapse:collapse;font-size:9px;font-family:monospace">`;
       l.W.forEach(row => {
         html += "<tr>";
-        row.forEach(w => {
-          const v  = Math.min(1, Math.abs(w) / 2);
-          const bg = w > 0 ? `rgba(63,185,80,${v*.5})` : `rgba(248,81,73,${v*.5})`;
-          html += `<td style="background:${bg};padding:1px 3px;border:1px solid #21262d;text-align:right">${w.toFixed(2)}</td>`;
+        (Array.isArray(row) ? row : []).forEach(w => {
+          const wn = typeof w === 'number' ? w : parseFloat(w) || 0;
+          const v  = Math.min(1, Math.abs(wn) / 2);
+          const bg = wn > 0 ? `rgba(63,185,80,${v*.5})` : `rgba(248,81,73,${v*.5})`;
+          html += `<td style="background:${bg};padding:1px 3px;border:1px solid #21262d;text-align:right">${wn.toFixed(2)}</td>`;
         });
         html += "</tr>";
       });
+      const biases = Array.isArray(l.b) ? l.b : [];
       html += `</table></div>
         <div style="font-size:10px;color:var(--text2);margin-top:2px">
-          b: [${l.b.map(b => b.toFixed(2)).join(", ")}]
+          b: [${biases.map(b => (typeof b === 'number' ? b : parseFloat(b) || 0).toFixed(2)).join(", ")}]
         </div></div>`;
     });
     c.innerHTML = html;
@@ -1443,27 +1815,17 @@ class UIController {
       inputs:        this._inputNeurons || 2,
       outputs:       this._outputNeurons || 1,
       layers:        this._hiddenLayers.map(l => {
-        switch (l.type) {
-          case "dropout":
-            return { type: "dropout", rate: l.rate ?? 0.5 };
-          case "batchnorm":
-            return { type: "batchnorm" };
-          case "conv2d":
-            return {
-              type: "conv2d",
-              out_channels: l.out_channels ?? 32,
-              kernel_size: l.kernel_size ?? 3,
-              activation: l.activation || "relu"
-            };
-          case "maxpool2d":
-            return { type: "maxpool2d", pool_size: l.pool_size ?? 2 };
-          case "flatten":
-            return { type: "flatten" };
-          case "lstm":
-            return { type: "lstm", hidden_size: l.hidden_size ?? 64 };
-          default:
-            return { type: "dense", neurons: l.neurons || 4, activation: l.activation || "tanh" };
-        }
+        const out = { type: l.type };
+        if (l.type === "dense") { out.neurons = l.neurons; out.activation = l.activation; }
+        else if (l.type === "dropout") { out.rate = l.rate; }
+        else if (l.type === "conv2d") { out.out_channels = l.out_channels; out.kernel_size = l.kernel_size; out.stride = l.stride; out.padding = l.padding; out.activation = l.activation; }
+        else if (l.type === "maxpool2d") { out.pool_size = l.pool_size; out.stride = l.stride; out.padding = l.padding; }
+        else if (l.type === "lstm" || l.type === "simple_rnn") { out.hidden_size = l.hidden_size; out.return_sequences = l.return_sequences; }
+        else if (l.type === "embedding") { out.vocab_size = l.vocab_size; out.embed_dim = l.embed_dim; }
+        else if (l.type === "layernorm") { out.eps = l.eps; }
+        else if (l.type === "multihead_attention") { out.num_heads = l.num_heads; out.d_model = l.d_model; }
+        else if (l.type === "positional_encoding") { out.d_model = l.d_model; out.max_len = l.max_len; }
+        return out;
       }),
       activation:    "tanh",
       optimizer:     _val("optSel"),
@@ -1542,6 +1904,23 @@ class UIController {
     this._fnMeta = fnMeta; // Store for later access
     this._renderTestInputs(fnMeta, firstSample);
     this._renderSweepRangeControls(fnMeta);
+  }
+
+  renderTestLayerBounds(snapshot) {
+    if (!snapshot || !snapshot.layers) return;
+    const sl = document.getElementById("testStartLayer");
+    const el = document.getElementById("testEndLayer");
+    if (!sl || !el) return;
+
+    sl.innerHTML = `<option value="0">Input Layer</option>`;
+    el.innerHTML = `<option value="">Output Layer</option>`;
+    
+    snapshot.layers.forEach((layer, i) => {
+      const type = layer.type || "Layer";
+      const lbl = `(L${i+1}) ${type}`;
+      sl.innerHTML += `<option value="${i+1}">${lbl}</option>`;
+      el.innerHTML += `<option value="${i+1}">${lbl}</option>`;
+    });
   }
 
   getTestInputs() { return this._getTestInputs(); }

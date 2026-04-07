@@ -312,6 +312,20 @@
         <p>Enter values for each input neuron and run a forward pass through the trained model to see live predictions.</p>
       </div>
       <div class="card">
+        <div class="shd" style="margin-bottom:8px">Execution Boundaries (Latent Space)</div>
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <div style="flex:1">
+            <label style="font-size:10px;color:var(--text2);">Start Layer (Input at)</label>
+            <select id="testStartLayer" style="width:100%;"><option value="0">Input Layer</option></select>
+          </div>
+          <div style="flex:1">
+            <label style="font-size:10px;color:var(--text2);">End Layer (Output at)</label>
+            <select id="testEndLayer" style="width:100%;"><option value="">Output Layer</option></select>
+          </div>
+        </div>
+        <p style="font-size:11px;color:var(--text3);margin:0;">Useful for inspecting encoder outputs (latent space) or testing decoders directly.</p>
+      </div>
+      <div class="card">
         <div class="shd" style="margin-bottom:8px">Input Values</div>
         <div id="testInpContainer">
           <div class="info-box">Build a network in the Train tab first.</div>
@@ -351,6 +365,19 @@
           <button class="btn success" id="saveBtn">⬇ Export JSON</button>
         </div>
         <div class="info-box" id="saveInfo">Build and train a model first.</div>
+      </div>
+      <div class="card">
+        <div class="shd" style="margin-bottom:8px">Account Model Database</div>
+        <p style="font-size:11px;color:var(--text3);margin-bottom:8px;">Save models securely to your account, or load previously saved models.</p>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <input type="text" id="dbModelName" placeholder="Model Name..." style="flex:1">
+          <button class="btn success" id="dbSaveBtn">💾 Save to DB</button>
+        </div>
+        <hr class="dv" style="margin: 12px 0;">
+        <div class="shd" style="margin-bottom:8px">My Saved Models</div>
+        <div id="dbModelList" style="max-height: 200px; overflow-y: auto; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 4px; padding: 4px;">
+           <div class="info-box">Loading...</div>
+        </div>
       </div>
       <div class="card">
         <div class="shd" style="margin-bottom:8px">Import Model</div>
@@ -674,6 +701,39 @@
       <button class="modal-close" id="closePresetModal">✕</button>
     </div>
     <div id="presetGrid" class="preset-grid-modal"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     LAYER SELECTION MODAL
+══════════════════════════════════════════════════════════ -->
+<div id="layerModal" class="modal-overlay" style="display: none;">
+  <div class="modal-content layer-modal" style="width: 80%; max-width: 800px; padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div class="shd" style="font-size: 14px;">➕ Add Hidden Layer</div>
+      <button class="modal-close" id="closeLayerModal">✕</button>
+    </div>
+    
+    <div style="display: flex; gap: 20px; height: 400px;">
+      <!-- Catalog -->
+      <div style="flex: 2; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; padding: 10px; background: var(--bg);">
+        <div class="shd" style="margin-bottom: 8px;">Layer Catalog</div>
+        <div id="layerCatalogGrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;">
+          <!-- Injected via ui.js -->
+        </div>
+      </div>
+      
+      <!-- Config -->
+      <div style="flex: 1; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 6px; padding: 10px; background: var(--surf2);">
+        <div class="shd" style="margin-bottom: 8px;">Configuration</div>
+        <div id="layerConfigArea" style="flex: 1; overflow-y: auto;">
+          <div class="info-box">Select a layer type from the catalog.</div>
+        </div>
+        <div style="margin-top: 10px; align-self: flex-end;">
+          <button class="btn success" id="confirmAddLayerBtn" disabled>+ Add to Model</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 

@@ -84,10 +84,10 @@ class TrainingSession:
             "accuracy": round(acc, 4),
         }
 
-    def predict(self, x: list[float]) -> list[float]:
+    def predict(self, x: list[float], start_layer: int = 0, end_layer: Optional[int] = None) -> list[float]:
         if self.network is None:
             raise RuntimeError("No network built.")
-        return self.network.predict(np.array(x)).tolist()
+        return self.network.predict(np.array(x), start_layer=start_layer, end_layer=end_layer).tolist()
 
     def activation_snapshot(self, x: list[float]) -> list[list[float]]:
         if self.network is None:

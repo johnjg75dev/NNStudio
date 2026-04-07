@@ -12,7 +12,9 @@ const API = (() => {
     if (body !== null) opts.body = JSON.stringify(body);
     const res = await fetch(path, opts);
     const json = await res.json();
-    if (!json.ok) throw new Error(json.error || "API error");
+    // Accept both {ok: true} and {success: true} response formats
+    const isOk = json.ok === true || json.success === true;
+    if (!isOk) throw new Error(json.error || "API error");
     return json.data !== undefined ? json.data : json;
   }
 
@@ -28,7 +30,7 @@ const API = (() => {
       return result;
     },
     resetWeights:    ()      => request("POST", "/api/session/reset",   {}),
-    predict:         (x)     => request("POST", "/api/session/predict", { x }),
+    predict:         (x, start_layer, end_layer)     => request("POST", "/api/session/predict", { x, start_layer, end_layer }),
     getSnapshot:     async () => {
       const result = await request("GET", "/api/session/snapshot");
       return result;
@@ -36,10 +38,19 @@ const API = (() => {
     exportModel:     ()      => request("POST", "/api/session/export",  {}),
     importModel:     (data)  => request("POST", "/api/session/import",  data),
 
+    // ── database models ──
+    listDbModels:    ()      => request("GET", "/api/models"),
+    saveDbModel:     (name)  => request("POST", "/api/models/save", { name }),
+    loadDbModel:     (id)    => request("POST", `/api/models/${id}/load-session`),
+    deleteDbModel:   (id)    => request("DELETE", `/api/models/${id}`),
+
     // ── training ──
     trainStep:       (steps, lr) => request("POST", "/api/train/step",     { steps, lr }),
-    evaluate:        async (ranges) => {
-      const result = await request("POST", "/api/train/evaluate", ranges ? { ranges } : {});
+    evaluate:        async (ranges, start_layer, end_layer) => {
+      const req = ranges ? { ranges } : {};
+      if (start_layer !== undefined) req.start_layer = start_layer;
+      if (end_layer !== undefined) req.end_layer = end_layer;
+      const result = await request("POST", "/api/train/evaluate", req);
       return result;
     },
 

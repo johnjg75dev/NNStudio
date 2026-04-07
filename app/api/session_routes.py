@@ -149,14 +149,16 @@ def reset_weights():
 def predict():
     """
     Run a single forward pass.
-    Body: { x: [float, ...] }
+    Body: { x: [float, ...], start_layer: int, end_layer: int|null }
     """
     body = request.get_json(force=True)
     x    = body.get("x", [])
+    sl   = body.get("start_layer", 0)
+    el   = body.get("end_layer", None)
     ts   = get_training_session()
 
-    output      = ts.predict(x)
-    activations = ts.activation_snapshot(x)
+    output      = ts.predict(x, start_layer=int(sl) if sl is not None else 0, end_layer=int(el) if el is not None else None)
+    activations = ts.activation_snapshot(x) # TODO: maybe we need snapshot offset?
 
     return ok({
         "output":      output,
