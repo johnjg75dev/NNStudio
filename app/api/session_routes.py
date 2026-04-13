@@ -2,6 +2,7 @@
 app/api/session_routes.py
 /api/session/*  — manage the per-browser training session.
 """
+
 from __future__ import annotations
 import json
 import numpy as np
@@ -12,6 +13,7 @@ from .helpers import ok, err, api_route, get_training_session, get_registry
 from app.core.network import NeuralNetwork
 
 session_bp = Blueprint("session", __name__)
+
 
 @session_bp.post("/build")
 @api_route
@@ -28,24 +30,36 @@ def build():
 
     ds_id = body.get("ds_id")
     func_key = body.get("func_key", "xor")
-    
+
     dataset = []
     fn_mod = None
 
     if ds_id:
-        ds = Dataset.query.filter_by(id=ds_id, user_id=current_user.id).first()
+        # Safely get user ID, default to None for anonymous users
+        user_id = getattr(current_user, "id", None)
+        ds = Dataset.query.filter_by(id=ds_id, user_id=user_id).first()
         if ds:
             dataset = ds.data or []
+
             # Create a mock fn_mod from dataset metadata
             class DatasetMock:
                 inputs = ds.num_inputs
                 outputs = ds.num_outputs or 1
+
                 def to_dict(self):
-                    return {"key": f"ds_{ds.id}", "label": ds.name, "inputs": self.inputs, "outputs": self.outputs}
+                    return {
+                        "key": f"ds_{ds.id}",
+                        "label": ds.name,
+                        "inputs": self.inputs,
+                        "outputs": self.outputs,
+                    }
+
             fn_mod = DatasetMock()
 
     if not fn_mod:
-        fn_mod = registry.get_with_custom(func_key, current_user.id)
+        # Safely get user ID, default to None for anonymous users
+        user_id = getattr(current_user, "id", None)
+        fn_mod = registry.get_with_custom(func_key, user_id)
         if fn_mod:
             dataset = fn_mod.generate_dataset()
         else:
@@ -53,28 +67,30 @@ def build():
 
     # Use user-specified inputs/outputs or fall back to function defaults
     config = {
-        "inputs":        body.get("inputs", fn_mod.inputs),
-        "outputs":       body.get("outputs", fn_mod.outputs),
-        "layers":        body.get("layers", []),
-        "activation":    body.get("activation", "tanh"),
-        "optimizer":     body.get("optimizer", "adam"),
-        "lr":            float(body.get("lr", 0.01)),
-        "loss":          body.get("loss", "bce"),
-        "weight_decay":  float(body.get("weight_decay", 0.0)),
-        "func_key":      func_key,
-        "arch_key":      body.get("arch_key", "mlp"),
+        "inputs": body.get("inputs", fn_mod.inputs),
+        "outputs": body.get("outputs", fn_mod.outputs),
+        "layers": body.get("layers", []),
+        "activation": body.get("activation", "tanh"),
+        "optimizer": body.get("optimizer", "adam"),
+        "lr": float(body.get("lr", 0.01)),
+        "loss": body.get("loss", "bce"),
+        "weight_decay": float(body.get("weight_decay", 0.0)),
+        "func_key": func_key,
+        "arch_key": body.get("arch_key", "mlp"),
     }
 
     ts = get_training_session()
     ts.build_network(config, dataset)
 
     net = ts.network
-    return ok({
-        "topology":    net.topology,
-        "param_count": net.param_count,
-        "epoch":       net.epoch,
-        "func":        fn_mod.to_dict(),
-    })
+    return ok(
+        {
+            "topology": net.topology,
+            "param_count": net.param_count,
+            "epoch": net.epoch,
+            "func": fn_mod.to_dict(),
+        }
+    )
 
 
 @session_bp.post("/reset")
@@ -87,58 +103,78 @@ def reset_weights():
     ts.network._build_layers() if hasattr(ts.network, "_build_layers") else None
     # Rebuild layers in-place
     from app.core.network import NetworkBuilder
-    from app.core.layers import DropoutLayer, BatchNormLayer, Conv2DLayer, MaxPool2DLayer, FlattenLayer
+    from app.core.layers import (
+        DropoutLayer,
+        BatchNormLayer,
+        Conv2DLayer,
+        MaxPool2DLayer,
+        FlattenLayer,
+    )
 
     # Build layers config from existing network
     layers_config = []
     for i, layer in enumerate(ts.network.layers[:-1]):  # Exclude output layer
         layer_type = layer.__class__.__name__
-        
+
         if isinstance(layer, DropoutLayer):
-            layers_config.append({
-                "type": "dropout",
-                "rate": layer.rate,
-            })
+            layers_config.append(
+                {
+                    "type": "dropout",
+                    "rate": layer.rate,
+                }
+            )
         elif isinstance(layer, BatchNormLayer):
-            layers_config.append({
-                "type": "batchnorm",
-            })
+            layers_config.append(
+                {
+                    "type": "batchnorm",
+                }
+            )
         elif isinstance(layer, Conv2DLayer):
-            layers_config.append({
-                "type": "conv2d",
-                "out_channels": layer.out_channels,
-                "kernel_size": layer.kernel_size,
-                "padding": layer.padding,
-                "activation": layer.activation.name,
-            })
+            layers_config.append(
+                {
+                    "type": "conv2d",
+                    "out_channels": layer.out_channels,
+                    "kernel_size": layer.kernel_size,
+                    "padding": layer.padding,
+                    "activation": layer.activation.name,
+                }
+            )
         elif isinstance(layer, MaxPool2DLayer):
-            layers_config.append({
-                "type": "maxpool2d",
-                "pool_size": layer.pool_size,
-                "stride": layer.stride,
-            })
+            layers_config.append(
+                {
+                    "type": "maxpool2d",
+                    "pool_size": layer.pool_size,
+                    "stride": layer.stride,
+                }
+            )
         elif isinstance(layer, FlattenLayer):
-            layers_config.append({
-                "type": "flatten",
-            })
-        elif hasattr(layer, 'activation'):
-            layers_config.append({
-                "type": "dense",
-                "neurons": layer.n_out,
-                "activation": layer.activation.name,
-            })
+            layers_config.append(
+                {
+                    "type": "flatten",
+                }
+            )
+        elif hasattr(layer, "activation"):
+            layers_config.append(
+                {
+                    "type": "dense",
+                    "neurons": layer.n_out,
+                    "activation": layer.activation.name,
+                }
+            )
 
     cfg = {
-        "inputs":        ts.network.topology[0],
-        "outputs":       ts.network.topology[-1],
-        "layers":        layers_config,
-        "activation":    ts.network.layers[0].activation.name if hasattr(ts.network.layers[0], 'activation') else "tanh",
-        "optimizer":     ts.network.optimizer.__class__.__name__.lower(),
-        "lr":            ts.network.optimizer.lr,
-        "loss":          ts.network.loss_fn.name,
-        "weight_decay":  getattr(ts.network.optimizer, "weight_decay", 0.0),
-        "func_key":      ts.func_key,
-        "arch_key":      ts.arch_key,
+        "inputs": ts.network.topology[0],
+        "outputs": ts.network.topology[-1],
+        "layers": layers_config,
+        "activation": ts.network.layers[0].activation.name
+        if hasattr(ts.network.layers[0], "activation")
+        else "tanh",
+        "optimizer": ts.network.optimizer.__class__.__name__.lower(),
+        "lr": ts.network.optimizer.lr,
+        "loss": ts.network.loss_fn.name,
+        "weight_decay": getattr(ts.network.optimizer, "weight_decay", 0.0),
+        "func_key": ts.func_key,
+        "arch_key": ts.arch_key,
     }
     ts.build_network(cfg, ts.dataset)
     return ok({"message": "Weights reset.", "epoch": 0})
@@ -149,21 +185,46 @@ def reset_weights():
 def predict():
     """
     Run a single forward pass.
-    Body: { x: [float, ...], start_layer: int, end_layer: int|null }
+    Body: { x: [float, ...], start_layer: int, end_layer: int|null, node_overrides: dict|null }
     """
     body = request.get_json(force=True)
-    x    = body.get("x", [])
-    sl   = body.get("start_layer", 0)
-    el   = body.get("end_layer", None)
-    ts   = get_training_session()
+    x = body.get("x", [])
+    sl = body.get("start_layer", 0)
+    el = body.get("end_layer", None)
+    overrides = body.get("node_overrides")
+    ts = get_training_session()
 
-    output      = ts.predict(x, start_layer=int(sl) if sl is not None else 0, end_layer=int(el) if el is not None else None)
-    activations = ts.activation_snapshot(x) # TODO: maybe we need snapshot offset?
+    output = ts.predict(
+        x,
+        start_layer=int(sl) if sl is not None else 0,
+        end_layer=int(el) if el is not None else None,
+        node_overrides=overrides,
+    )
+    activations = ts.activation_snapshot(x)
 
-    return ok({
-        "output":      output,
-        "activations": activations,
-    })
+    return ok(
+        {
+            "output": output,
+            "activations": activations,
+        }
+    )
+
+
+@session_bp.post("/latent-sweep")
+@api_route
+def latent_sweep():
+    """
+    Sweep a single latent node range and return output variations.
+    """
+    body = request.get_json(force=True)
+    x = body.get("x", [])
+    layer = body.get("layer")
+    node = body.get("node")
+    rng = body.get("range", [-2, 2, 0.2])
+
+    ts = get_training_session()
+    data = ts.latent_sweep(x, layer, node, *rng)
+    return ok({"sweep_data": data})
 
 
 @session_bp.get("/snapshot")
@@ -173,7 +234,7 @@ def snapshot():
     Return a full visual snapshot of the current network state:
     topology, all weights, activations on first training sample.
     """
-    ts  = get_training_session()
+    ts = get_training_session()
     if ts.network is None:
         return ok({"built": False})
 
@@ -188,35 +249,35 @@ def snapshot():
     layer_data = []
     for i, layer in enumerate(net.layers):
         snap = layer.weight_snapshot()
-        
+
         # Get proper dimensions for each layer type
         layer_type = layer.__class__.__name__
-        if layer_type == 'Conv2DLayer':
+        if layer_type == "Conv2DLayer":
             n_in = layer.in_channels * 64  # Assume 8x8 input
             n_out = layer.out_channels * 16  # Assume 4x4 output
-        elif layer_type == 'MaxPool2DLayer':
+        elif layer_type == "MaxPool2DLayer":
             n_in = 0  # Will be inferred from previous layer
             n_out = 0
-        elif layer_type == 'FlattenLayer':
+        elif layer_type == "FlattenLayer":
             n_in = 0
             n_out = 0
-        elif hasattr(layer, 'n_in') and hasattr(layer, 'n_out'):
+        elif hasattr(layer, "n_in") and hasattr(layer, "n_out"):
             n_in = layer.n_in
             n_out = layer.n_out
         else:
             n_in = 0
             n_out = 0
-        
+
         layer_info = {
-            "index":      i,
-            "n_in":       n_in,
-            "n_out":      n_out,
-            "is_output":  layer.is_output,
-            "W":          snap["W"],
-            "b":          snap["b"],
-            "dW":         snap["dW"],
+            "index": i,
+            "n_in": n_in,
+            "n_out": n_out,
+            "is_output": layer.is_output,
+            "W": snap["W"],
+            "b": snap["b"],
+            "dW": snap["dW"],
             "activation": snap["activation"],
-            "type":       layer_type.replace("Layer", "").lower(),
+            "type": layer_type.replace("Layer", "").lower(),
         }
         # Add type-specific info
         if hasattr(layer, "rate"):  # Dropout
@@ -235,18 +296,20 @@ def snapshot():
             layer_info["num_heads"] = layer.num_heads
         layer_data.append(layer_info)
 
-    return ok({
-        "built":        True,
-        "topology":     net.topology,
-        "param_count":  net.param_count,
-        "epoch":        net.epoch,
-        "loss_history": net.loss_history[-300:],
-        "layers":       layer_data,
-        "activations":  activations,
-        "func_key":     ts.func_key,
-        "arch_key":     ts.arch_key,
-        "func":         fn_mod.to_dict() if fn_mod else {},
-    })
+    return ok(
+        {
+            "built": True,
+            "topology": net.topology,
+            "param_count": net.param_count,
+            "epoch": net.epoch,
+            "loss_history": net.loss_history[-300:],
+            "layers": layer_data,
+            "activations": activations,
+            "func_key": ts.func_key,
+            "arch_key": ts.arch_key,
+            "func": fn_mod.to_dict() if fn_mod else {},
+        }
+    )
 
 
 @session_bp.post("/export")
@@ -267,21 +330,23 @@ def import_model():
     Body: the JSON object returned by /export.
     """
     body = request.get_json(force=True)
-    net  = NeuralNetwork.from_dict(body)
+    net = NeuralNetwork.from_dict(body)
 
-    ts           = get_training_session()
-    ts.network   = net
-    ts.func_key  = body.get("func_key", "xor")
-    ts.arch_key  = body.get("arch_key", "mlp")
+    ts = get_training_session()
+    ts.network = net
+    ts.func_key = body.get("func_key", "xor")
+    ts.arch_key = body.get("arch_key", "mlp")
 
     registry = get_registry()
-    fn_mod   = registry.get(ts.func_key)
+    fn_mod = registry.get(ts.func_key)
     if fn_mod:
         ts.dataset = fn_mod.generate_dataset()
 
     ts.touch()
-    return ok({
-        "topology":    net.topology,
-        "param_count": net.param_count,
-        "epoch":       net.epoch,
-    })
+    return ok(
+        {
+            "topology": net.topology,
+            "param_count": net.param_count,
+            "epoch": net.epoch,
+        }
+    )

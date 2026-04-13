@@ -7,9 +7,6 @@ Routes:
   GET    /api/models                   - List all saved models for user
   GET    /api/models/<id>              - Get model details
   DELETE /api/models/<id>              - Delete a saved model
-  POST   /api/models/<id>/export       - Export model to various formats
-  POST   /api/models/<id>/load-session - Load model into training session
-  GET    /api/models/<id>/download/<format> - Download exported model
 """
 from flask import Blueprint, request, jsonify, send_file
 from flask_login import login_required, current_user
@@ -20,7 +17,6 @@ import os
 from .. import db
 from ..models import SavedModel
 from ..core.exporters import ModelExporter
-from ..core.session_manager import SessionManager
 from .helpers import get_session_manager
 
 model_bp = Blueprint('models', __name__)
@@ -79,7 +75,9 @@ def save_model():
             function_name=training_session.func_key,
             epochs_trained=network.epoch,
             final_loss=network.loss_history[-1] if network.loss_history else None,
-            final_accuracy=None,  # Can be computed if needed
+            final_accuracy=None,
+            history=training_session.modification_history,
+            snapshots=training_session.evaluation_history
         )
         
         db.session.add(saved_model)
@@ -428,8 +426,10 @@ def load_model_session(model_id):
         
         # Load into session
         training_session.network = network
-        training_session.arch_key = model.architecture_name or "unknown"
-        training_session.func_key = model.function_name or "unknown"
+        training_session.arch_key = model.architecture_name or "mlp"
+        training_session.func_key = model.function_name or "xor"
+        training_session.modification_history = model.history or []
+        training_session.evaluation_history = model.snapshots or []
         training_session.touch()
         
         return jsonify({

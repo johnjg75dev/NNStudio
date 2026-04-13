@@ -34,14 +34,14 @@ class ActivationVisualizer {
   }
   
   /**
-   * Draw background grid and axes
+   * Draw background grid and axes with tick marks and labels
    */
   static _drawGrid(ctx, w, h) {
     const cx = w / 2;
     const cy = h / 2;
     const scale = w / 8; // -4 to +4 range
-    
-    // Grid lines
+
+    // Draw grid lines (faint)
     ctx.strokeStyle = "rgba(255,255,255,0.05)";
     ctx.lineWidth = 1;
     for (let i = -4; i <= 4; i++) {
@@ -56,8 +56,8 @@ class ActivationVisualizer {
       ctx.lineTo(w, y);
       ctx.stroke();
     }
-    
-    // Axes
+
+    // Draw axes
     ctx.strokeStyle = "rgba(255,255,255,0.2)";
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -68,65 +68,102 @@ class ActivationVisualizer {
     ctx.moveTo(0, cy);
     ctx.lineTo(w, cy);
     ctx.stroke();
+
+    // Draw tick marks and labels
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = 1;
+    ctx.fillStyle = "rgba(255,255,255,0.8)";
+    ctx.font = "10px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    // X-axis ticks (positive and negative)
+    for (let i = -4; i <= 4; i++) {
+      if (i === 0) continue; // Skip origin (already covered by axes)
+      const x = cx + i * scale;
+      // Tick mark
+      ctx.beginPath();
+      ctx.moveTo(x, cy - 5);
+      ctx.lineTo(x, cy + 5);
+      ctx.stroke();
+      // Label
+      ctx.fillText(i, x, cy + 15);
+    }
+
+    // Y-axis ticks (positive and negative)
+    for (let i = -4; i <= 4; i++) {
+      if (i === 0) continue;
+      const y = cy - i * scale;
+      // Tick mark
+      ctx.beginPath();
+      ctx.moveTo(cx - 5, y);
+      ctx.lineTo(cx + 5, y);
+      ctx.stroke();
+      // Label
+      ctx.fillText(i, cx - 12, y);
+    }
+
+    // Origin label
+    ctx.fillText("0", cx, cy + 15);
   }
   
   /**
    * Draw activation function curve
    */
-  static _drawFunction(ctx, w, h, activationType) {
-    const cx = w / 2;
-    const cy = h / 2;
-    const scale = w / 8; // -4 to +4 range
-    
-    ctx.strokeStyle = "var(--primary)"; // Primary color
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    
-    let first = true;
-    for (let px = 0; px < w; px += 2) {
-      const x = (px - cx) / scale;
-      const y = this._evaluate(x, activationType);
-      const py = cy - y * scale;
-      
-      if (first) {
-        ctx.moveTo(px, py);
-        first = false;
-      } else {
-        ctx.lineTo(px, py);
-      }
-    }
-    ctx.stroke();
-  }
+static _drawFunction(ctx, w, h, activationType) {
+       const cx = w / 2;
+       const cy = h / 2;
+       const scale = w / 8; // -4 to +4 range
+       
+       ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent') || "#58a6ff";
+       ctx.lineWidth = 2.4;
+       ctx.beginPath();
+       
+       let first = true;
+       for (let px = 0; px < w; px += 2) {
+         const x = (px - cx) / scale;
+         const y = this._evaluate(x, activationType);
+         const py = cy - y * scale;
+         
+         if (first) {
+           ctx.moveTo(px, py);
+           first = false;
+         } else {
+           ctx.lineTo(px, py);
+         }
+       }
+       ctx.stroke();
+     }
   
   /**
    * Draw derivative curve (faint)
    */
-  static _drawDerivative(ctx, w, h, activationType) {
-    const cx = w / 2;
-    const cy = h / 2;
-    const scale = w / 8;
-    
-    ctx.strokeStyle = "rgba(100,200,255,0.3)"; // Faint blue
-    ctx.lineWidth = 1.5;
-    ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    
-    let first = true;
-    for (let px = 0; px < w; px += 2) {
-      const x = (px - cx) / scale;
-      const dy = this._derivative(x, activationType);
-      const py = cy - dy * scale * 0.5; // Scale derivative smaller
-      
-      if (first) {
-        ctx.moveTo(px, py);
-        first = false;
-      } else {
-        ctx.lineTo(px, py);
-      }
-    }
-    ctx.stroke();
-    ctx.setLineDash([]); // Reset
-  }
+static _drawDerivative(ctx, w, h, activationType) {
+     const cx = w / 2;
+     const cy = h / 2;
+     const scale = w / 8;
+     
+     ctx.strokeStyle = "rgba(100,200,255,0.3)"; // Faint blue
+     ctx.lineWidth = 1.2;
+     ctx.setLineDash([4, 4]);
+     ctx.beginPath();
+     
+     let first = true;
+     for (let px = 0; px < w; px += 2) {
+       const x = (px - cx) / scale;
+       const dy = this._derivative(x, activationType);
+       const py = cy - dy * scale * 0.5; // Scale derivative smaller
+       
+       if (first) {
+         ctx.moveTo(px, py);
+         first = false;
+       } else {
+         ctx.lineTo(px, py);
+       }
+     }
+     ctx.stroke();
+     ctx.setLineDash([]); // Reset
+   }
   
   /**
    * Evaluate activation function

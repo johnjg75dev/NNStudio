@@ -34,11 +34,19 @@ class NeuralNetwork:
         self.loss_history: list[float] = []
 
     # ── forward pass ──
-    def predict(self, x: np.ndarray, training: bool = False, start_layer: int = 0, end_layer: int | None = None) -> np.ndarray:
+    def predict(self, x: np.ndarray, training: bool = False, start_layer: int = 0, end_layer: int | None = None, node_overrides: dict | None = None) -> np.ndarray:
         a = x.astype(np.float64)
         end_idx = end_layer if end_layer is not None else len(self.layers)
         for i in range(start_layer, end_idx):
             a = self.layers[i].forward(a, training=training)
+            # Apply overrides for this layer if any
+            if node_overrides and node_overrides.get("layer") == (i + 1):
+                node_idx = node_overrides.get("node")
+                val = node_overrides.get("val")
+                if node_idx is not None and val is not None:
+                    # a is usually (N,) or (N, 1)
+                    if a.ndim > 0 and node_idx < a.size:
+                        a.flat[node_idx] = val
         return a
 
     # ── single sample train step ──

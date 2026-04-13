@@ -19,6 +19,13 @@ class DatasetUIController {
   _initEventListeners() {
     // New dataset button
     document.getElementById("newDatasetBtn")?.addEventListener("click", () => this._showCreateModal());
+    
+    // Close create modal when clicking outside
+    document.getElementById("createDatasetModal")?.addEventListener("click", (e) => {
+      if (e.target.id === "createDatasetModal") {
+        this._closeCreateModal();
+      }
+    });
 
     // Save button
     document.getElementById("dsSaveBtn")?.addEventListener("click", () => this._saveCurrentDataset());
@@ -41,6 +48,13 @@ class DatasetUIController {
       document.getElementById("dsSyntheticModal").style.display = "none";
     });
     document.getElementById("dsSyntheticGenerateBtn")?.addEventListener("click", () => this._generateSyntheticRange());
+    
+    // Close modal when clicking outside
+    document.getElementById("dsSyntheticModal")?.addEventListener("click", (e) => {
+      if (e.target.id === "dsSyntheticModal") {
+        e.target.style.display = "none";
+      }
+    });
 
     // Download predefined
     document.getElementById("dsDownloadBtn")?.addEventListener("click", () => this._downloadPredefined());
@@ -171,7 +185,7 @@ class DatasetUIController {
       if (desc) desc.textContent = ds.description || "Download this predefined dataset to use it.";
     } else if (ds.ds_type === "image") {
       if (imgView) imgView.style.display = "flex";
-      // TODO: image pixel editor
+      this._initImageEditor();
     } else {
       // Tabular or predefined-downloaded
       if (tabView) tabView.style.display = "flex";
@@ -286,7 +300,7 @@ class DatasetUIController {
         <input type="number" id="synSamples" value="5" min="2" max="50" style="width:100%;">
       </div>`;
 
-    modal.style.display = "block";
+    modal.style.display = "flex";
   }
 
   _generateSyntheticRange() {
@@ -421,6 +435,10 @@ class DatasetUIController {
   _showCreateModal() {
     document.getElementById("createDatasetModal").style.display = "flex";
   }
+  
+  _closeCreateModal() {
+    document.getElementById("createDatasetModal").style.display = "none";
+  }
 
   async _confirmCreate() {
     const name = document.getElementById("newDsName").value;
@@ -435,10 +453,290 @@ class DatasetUIController {
         data: [{ x: new Array(num_inputs).fill(0), y: is_input_only ? null : new Array(num_outputs).fill(0) }]
       });
       document.getElementById("createDatasetModal").style.display = "none";
+      this._app._ui._switchTab("datasets");
       this.refreshDatasets();
       this.loadDataset(result.dataset.id);
     } catch (e) {
       alert("Create failed: " + e.message);
+    }
+  }
+
+  // ── IMAGE PIXEL EDITOR ───────────────────────────────────────────────
+  _initImageEditor() {
+    const ds = this._activeDataset;
+    if (!ds || ds.ds_type !== "image") return;
+
+    // Ensure dataset has at least one sample with initialized data
+    if (!ds.data || ds.data.length === 0) {
+      ds.data = [{
+        x: new Array(ds.num_inputs).fill(0),
+        y: new Array(ds.num_outputs || 1).fill(0)
+      }];
+    }
+
+    // Get references to UI elements
+    this._imgCanvas = document.getElementById("dsPixelCanvas");
+    this._imgCtx = this._imgCanvas.getContext("2d");
+    this._imgContainer = document.getElementById("dsPixelContainer");
+    this._colorPicker = document.getElementById("dsColorPicker");
+    this._colorInfo = document.getElementById("dsColorInfo");
+    this._zoomVal = document.getElementById("dsImgZoomVal");
+    this._histCanvas = document.getElementById("dsImgHist");
+    this._histCtx = this._histCanvas.getContext("2d");
+
+    // Set default values
+    this._zoom = 4;
+    this._isDrawing = false;
+    this._currentColor = this._hexToRgb(this._colorPicker.value);
+    this._brushSize = 1;
+
+    // Update color info
+    this._updateColorInfo();
+
+    // Setup event listeners
+    this._setupCanvasEvents();
+    this._colorPicker.addEventListener("change", () => {
+      this._currentColor = this._hexToRgb(this._colorPicker.value);
+      this._updateColorInfo();
+    });
+
+    // Zoom buttons
+    document.getElementById("dsImgZoomIn").addEventListener("click", () => this._zoomImage(2));
+    document.getElementById("dsImgZoomOut").addEventListener("click", () => this._zoomImage(0.5));
+
+    // Navigation buttons
+    document.getElementById("dsImgPrev").addEventListener("click", () => this._navigateImage(-1));
+    document.getElementById("dsImgNext").addEventListener("click", () => this._navigateImage(1));
+
+    // Initialize with first sample
+    this._currentSampleIdx = 0;
+    this._renderImage();
+    this._updateHistogram();
+  }
+
+  _setupCanvasEvents() {
+    const canvas = this._imgCanvas;
+    canvas.addEventListener("mousedown", (e) => this._startDrawing(e));
+    canvas.addEventListener("mousemove", (e) => this._draw(e));
+    canvas.addEventListener("mouseup", () => this._stopDrawing());
+    canvas.addEventListener("mouseleave", () => this._stopDrawing());
+    
+    // Touch support
+    canvas.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const mouseEvent = new MouseEvent("mousedown", {
+        clientX: touch.clientX,
+        clientY: touch.clientY
+      });
+      canvas.dispatchEvent(mouseEvent);
+    });
+    
+    canvas.addEventListener("touchmove", (e) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      const mouseEvent = new MouseEvent("mousemove", {
+        clientX: touch.clientX,
+        clientY: touch.clientY
+      });
+      canvas.dispatchEvent(mouseEvent);
+    });
+    
+    canvas.addEventListener("touchend", (e) => {
+      e.preventDefault();
+      const mouseEvent = new MouseEvent("mouseup", {});
+      canvas.dispatchEvent(mouseEvent);
+    });
+  }
+
+  _startDrawing(e) {
+    this._isDrawing = true;
+    this._draw(e);
+  }
+
+  _stopDrawing() {
+    if (this._isDrawing) {
+      this._isDrawing = false;
+      this._updateDatasetFromCanvas(); // Save changes after each stroke
+    }
+  }
+
+  _draw(e) {
+    if (!this._isDrawing) return;
+
+    const rect = this._imgCanvas.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) / this._zoom);
+    const y = Math.floor((e.clientY - rect.top) / this._zoom);
+
+    this._drawPixel(x, y, this._currentColor);
+    this._updateHistogram(); // Update histogram in real-time
+  }
+
+  _drawPixel(x, y, color) {
+    const ds = this._activeDataset;
+    if (!ds || !ds.data || ds.data.length === 0) return;
+
+    const sample = ds.data[this._currentSampleIdx];
+    if (!sample.x) return;
+
+    const width = ds.width;
+    const height = ds.height;
+    const channels = ds.channels || 1;
+
+    // Bounds check
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+
+    // Update the pixel in the dataset
+    const idx = (y * width + x) * channels;
+    sample.x[idx] = color[0] / 255; // Red channel
+    if (channels > 1) sample.x[idx + 1] = color[1] / 255; // Green
+    if (channels > 2) sample.x[idx + 2] = color[2] / 255; // Blue
+
+    // Redraw just the pixel on canvas
+    const canvasX = x * this._zoom;
+    const canvasY = y * this._zoom;
+    const pixelSize = this._zoom;
+    
+    this._imgCtx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+    this._imgCtx.fillRect(canvasX, canvasY, pixelSize, pixelSize);
+  }
+
+  _navigateImage(direction) {
+    const ds = this._activeDataset;
+    if (!ds || !ds.data) return;
+
+    const numSamples = ds.data.length;
+    if (numSamples === 0) return;
+
+    // Save current sample data before leaving (in case it wasn't saved)
+    // The data is already updated in _drawPixel, but ensure it's committed
+
+    // Calculate new index
+    let newIndex = this._currentSampleIdx + direction;
+    if (newIndex < 0) newIndex = 0;
+    if (newIndex >= numSamples) newIndex = numSamples - 1;
+
+    if (newIndex !== this._currentSampleIdx) {
+      this._currentSampleIdx = newIndex;
+      this._renderImage();
+      this._updateHistogram();
+    }
+  }
+
+  _renderImage() {
+    const ds = this._activeDataset;
+    if (!ds || !ds.data || ds.data.length === 0) return;
+
+    const sample = ds.data[this._currentSampleIdx];
+    if (!sample.x) return;
+
+    const width = ds.width;
+    const height = ds.height;
+    const channels = ds.channels || 1;
+
+    // Set canvas size to match image size multiplied by zoom
+    this._imgCanvas.width = width * this._zoom;
+    this._imgCanvas.height = height * this._zoom;
+    
+    // Create image data
+    const imgData = this._imgCtx.createImageData(width * this._zoom, height * this._zoom);
+    const data = sample.x;
+
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const idx = (y * width + x) * channels;
+        const val = data[idx]; // Use first channel for grayscale
+        const color = Math.floor(val * 255);
+        
+        for (let zy = 0; zy < this._zoom; zy++) {
+          for (let zx = 0; zx < this._zoom; zx++) {
+            const pos = ((y * this._zoom + zy) * width * this._zoom + (x * this._zoom + zx)) * 4;
+            imgData.data[pos] = color;
+            imgData.data[pos + 1] = color;
+            imgData.data[pos + 2] = color;
+            imgData.data[pos + 3] = 255;
+          }
+        }
+      }
+    }
+
+    this._imgCtx.putImageData(imgData, 0, 0);
+  }
+
+  _updateDatasetFromCanvas() {
+    // The data is already updated in the _drawPixel method
+    // This method can be used for any additional processing if needed
+  }
+
+  _zoomImage(factor) {
+    const ds = this._activeDataset;
+    if (!ds) return;
+
+    const newZoom = Math.max(1, Math.floor(this._zoom * factor));
+    if (newZoom < 1 || newZoom > 32) return; // Limit zoom range
+
+    this._zoom = newZoom;
+    this._zoomVal.textContent = this._zoom + "x";
+    this._renderImage();
+  }
+
+  _updateHistogram() {
+    const ds = this._activeDataset;
+    if (!ds || !ds.data || ds.data.length === 0) return;
+
+    const sample = ds.data[this._currentSampleIdx];
+    if (!sample.x) return;
+
+    const width = ds.width;
+    const height = ds.height;
+    const totalPixels = width * height;
+    const data = sample.x;
+    
+    // Calculate histogram (64 bins)
+    const bins = 64;
+    const histogram = new Array(bins).fill(0);
+    
+    for (let i = 0; i < totalPixels; i++) {
+      const val = Math.floor(data[i * ds.channels] * 255); // Use first channel
+      const bin = Math.min(Math.floor(val / (256 / bins)), bins - 1);
+      histogram[bin]++;
+    }
+
+    // Find max count for normalization
+    const maxCount = Math.max(...histogram);
+
+    // Draw histogram
+    const canvas = this._histCanvas;
+    const ctx = this._histCtx;
+    const w = canvas.width = canvas.offsetWidth;
+    const h = canvas.height = canvas.offsetHeight;
+    
+    ctx.clearRect(0, 0, w, h);
+    
+    // Draw bars
+    const barWidth = w / bins;
+    for (let i = 0; i < bins; i++) {
+      const barHeight = (histogram[i] / maxCount) * (h - 20);
+      ctx.fillStyle = `rgb(${i * 4}, ${i * 4}, ${i * 4})`;
+      ctx.fillRect(i * barWidth, h - barHeight, barWidth - 1, barHeight);
+    }
+  }
+
+  _hexToRgb(hex) {
+    // Convert hex to rgb array
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? [
+      parseInt(result[1], 16),
+      parseInt(result[2], 16),
+      parseInt(result[3], 16)
+    ] : [255, 255, 255];
+  }
+
+  _updateColorInfo() {
+    if (this._colorInfo) {
+      const rgb = this._currentColor;
+      this._colorInfo.textContent = `RGB: ${rgb[0]}, ${rgb[1]}, ${rgb[2]}`;
+      this._colorInfo.style.color = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
     }
   }
 }

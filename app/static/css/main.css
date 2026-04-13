@@ -707,7 +707,7 @@ table.summary td:first-child { color: var(--text2); width: 45%; }
 .activation-canvas {
   display: block;
   width: 100%;
-  height: 140px;
+  height: 168px; /* Increased from 140px (20% taller) */
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 3px;

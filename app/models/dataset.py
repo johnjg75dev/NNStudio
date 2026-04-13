@@ -49,6 +49,7 @@ class Dataset(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def to_dict(self):
+        data_length = len(self.data) if self.data else 0
         return {
             "id": self.id,
             "name": self.name,
@@ -64,6 +65,7 @@ class Dataset(db.Model):
             "channels": self.channels,
             "is_predefined": self.is_predefined,
             "downloaded": self.downloaded,
+            "data_length": data_length,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
         }

@@ -25,6 +25,10 @@ class TrainingSession:
     dataset:     list[dict] = field(default_factory=list)
     created_at:  float = field(default_factory=time.time)
     updated_at:  float = field(default_factory=time.time)
+    evaluation_history: list[dict] = field(default_factory=list)
+    modification_history: list[dict] = field(default_factory=list)
+    eval_sample_indices: list[int] = field(default_factory=lambda: [0, 1, 2, 3, 4])
+    snapshots:  dict = field(default_factory=dict)
 
     def touch(self):
         self.updated_at = time.time()
@@ -76,18 +80,47 @@ class TrainingSession:
         self.network.loss_history.append(loss)
         if len(self.network.loss_history) > 500:
             self.network.loss_history = self.network.loss_history[-500:]
+        
+        # Periodic Evaluation Log
+        if self.network.epoch % 50 == 0 or self.network.epoch == 1:
+            eval_preds = []
+            for idx in self.eval_sample_indices:
+                if idx < len(active_dataset):
+                    s = active_dataset[idx]
+                    p = self.predict(s["x"])
+                    eval_preds.append({"x": s["x"], "y": s["y"], "pred": p})
+            self.evaluation_history.append({
+                "epoch": self.network.epoch,
+                "preds": eval_preds,
+                "loss": loss,
+                "acc": acc
+            })
+            if len(self.evaluation_history) > 50: self.evaluation_history.pop(0)
+
         self.touch()
 
         return {
             "epoch":   self.network.epoch,
             "loss":    round(loss, 6),
             "accuracy": round(acc, 4),
+            "eval_history": self.evaluation_history[-1:] # Return latest for live update
         }
 
-    def predict(self, x: list[float], start_layer: int = 0, end_layer: Optional[int] = None) -> list[float]:
+    def predict(self, x: list[float], start_layer: int = 0, end_layer: Optional[int] = None, node_overrides: Optional[dict] = None) -> list[float]:
         if self.network is None:
             raise RuntimeError("No network built.")
-        return self.network.predict(np.array(x), start_layer=start_layer, end_layer=end_layer).tolist()
+        return self.network.predict(np.array(x), start_layer=start_layer, end_layer=end_layer, node_overrides=node_overrides).tolist()
+
+    def latent_sweep(self, x: list[float], layer: int, node: int, r_min: float = -2, r_max: float = 2, step: float = 0.2):
+        if self.network is None:
+            return []
+        
+        sweep_data = []
+        for val in np.arange(r_min, r_max + step, step):
+            p = self.predict(x, node_overrides={"layer": layer, "node": node, "val": float(val)})
+            # We take the first output for simpler plotting if there are many
+            sweep_data.append({"val": float(val), "result": float(p[0])})
+        return sweep_data
 
     def activation_snapshot(self, x: list[float]) -> list[list[float]]:
         if self.network is None:

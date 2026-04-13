@@ -23,6 +23,10 @@ class UIController {
     this._layers   = [];   // Initialize to avoid undefined map errors
     this._fnMeta   = null; // Store function metadata for test tab
     this._sweepRanges = {}; // Store sweep range for each input
+    this._history  = [];   // Model modification history
+    this._latentActive = null; // { layerIdx, nodeIdx, originalVal }
+    this._imageInDim = [28, 28, 1];
+    this._imageOutDim = [10, 1, 1];
   }
 
   on(event, fn) { this._handlers[event] = fn; }
@@ -52,6 +56,8 @@ class UIController {
     this._initKeyboard();
     this._initCustomFunctionsTab();
     this._initDatasetsTab();
+    this._initLatentExplorer();
+    this._initImageIO();
   }
 
   // ════════════════════════════════════════════════════════
@@ -348,12 +354,27 @@ class UIController {
     document.getElementById("closeLayerModal")?.addEventListener("click", () => modal.style.display = "none");
     modal.addEventListener("click", (e) => { if (e.target === modal) modal.style.display = "none"; });
 
+    const placementSelect = document.getElementById("layerPlacement");
+    const placementIndex = document.getElementById("layerPlacementIndex");
+    placementSelect?.addEventListener("change", () => {
+      placementIndex.style.display = placementSelect.value === "after" ? "block" : "none";
+    });
+
     const btn = document.getElementById("confirmAddLayerBtn");
     btn?.addEventListener("click", () => {
       if (!this._layerSelectedType) return;
-      const cfg = this._readLayerConfigForm(this._layerSelectedType);
-      this.addHiddenLayer(cfg);
+      
+      const quantity = parseInt(document.getElementById("layerQuantity").value) || 1;
+      const placement = placementSelect.value;
+      const index = parseInt(placementIndex.value) || 0;
+      
+      for (let i = 0; i < quantity; i++) {
+        const cfg = this._readLayerConfigForm(this._layerSelectedType);
+        this.addHiddenLayer(cfg, placement, index + i);
+      }
+      
       modal.style.display = "none";
+      this._appendHistory(`Added ${quantity} ${this._layerSelectedType} layer(s)`);
     });
   }
 
@@ -498,18 +519,43 @@ class UIController {
   }
 
 
-  addHiddenLayer(config) {
+  addHiddenLayer(config, placement = "bottom", index = 0) {
     const id = Math.random().toString(36).substr(2, 9);
     const layer = { ...config, id };
-    this._hiddenLayers.push(layer);
+    
+    if (placement === "top") {
+      this._hiddenLayers.unshift(layer);
+    } else if (placement === "after") {
+      this._hiddenLayers.splice(index, 0, layer);
+    } else {
+      this._hiddenLayers.push(layer);
+    }
+    
     this._renderAllLayers();
     this._emit("controlChanged", this.getConfig());
+  }
+
+  moveLayer(id, direction) {
+    const idx = this._hiddenLayers.findIndex(l => l.id === id);
+    if (idx === -1) return;
+    
+    const newIdx = idx + direction;
+    if (newIdx < 0 || newIdx >= this._hiddenLayers.length) return;
+    
+    const temp = this._hiddenLayers[idx];
+    this._hiddenLayers[idx] = this._hiddenLayers[newIdx];
+    this._hiddenLayers[newIdx] = temp;
+    
+    this._renderAllLayers();
+    this._emit("controlChanged", this.getConfig());
+    this._appendHistory(`Moved layer ${idx+1} ${direction > 0 ? 'down' : 'up'}`);
   }
 
   removeHiddenLayer(id) {
     this._hiddenLayers = this._hiddenLayers.filter(l => l.id !== id);
     this._renderAllLayers();
     this._emit("controlChanged", this.getConfig());
+    this._appendHistory("Removed a layer");
   }
 
   _renderAllLayers() {
@@ -914,6 +960,27 @@ class UIController {
       controlsDiv.appendChild(otherLbl);
     }
 
+    // Move controls
+    const moveControls = document.createElement("div");
+    moveControls.style = "display: flex; flex-direction: column; gap: 1px; margin-right: 4px;";
+    
+    const upBtn = document.createElement("button");
+    upBtn.innerHTML = "▲";
+    upBtn.title = "Move Up";
+    upBtn.style = "font-size: 8px; padding: 0 2px; cursor: pointer; background: none; border: 1px solid var(--border); color: var(--text3); border-radius: 2px;";
+    upBtn.disabled = index === 1;
+    upBtn.addEventListener("click", () => this.moveLayer(layer.id, -1));
+    
+    const downBtn = document.createElement("button");
+    downBtn.innerHTML = "▼";
+    downBtn.title = "Move Down";
+    downBtn.style = "font-size: 8px; padding: 0 2px; cursor: pointer; background: none; border: 1px solid var(--border); color: var(--text3); border-radius: 2px;";
+    downBtn.disabled = index === this._hiddenLayers.length;
+    downBtn.addEventListener("click", () => this.moveLayer(layer.id, 1));
+    
+    moveControls.appendChild(upBtn);
+    moveControls.appendChild(downBtn);
+
     // Delete button
     const delBtn = document.createElement("button");
     delBtn.innerHTML = "×";
@@ -922,12 +989,216 @@ class UIController {
       this.removeHiddenLayer(layer.id);
     });
 
+    div.appendChild(moveControls);
     div.appendChild(typeBadge);
     div.appendChild(idxLbl);
     div.appendChild(typeSelect);
     div.appendChild(controlsDiv);
     div.appendChild(delBtn);
     container.appendChild(div);
+  }
+
+  _appendHistory(action) {
+    const snapshot = {
+      timestamp: new Date().toLocaleTimeString(),
+      action: action,
+      config: JSON.parse(JSON.stringify(this.getConfig())),
+      id: Math.random().toString(36).substr(2, 6)
+    };
+    this._history.unshift(snapshot);
+    if (this._history.length > 50) this._history.pop();
+    this._renderHistory();
+  }
+
+  _renderHistory() {
+    const log = document.getElementById("historyLog");
+    if (!log) return;
+    
+    if (this._history.length === 0) {
+      log.innerHTML = '<div class="info-box">No snapshots yet.</div>';
+      return;
+    }
+    
+    log.innerHTML = this._history.map((h, i) => `
+      <div class="card" style="margin-bottom: 6px; padding: 8px; ${i === 0 ? 'border-left: 3px solid var(--accent);' : ''}">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+          <b style="color: var(--accent);">${h.action}</b>
+          <span style="color: var(--text3); font-size: 9px;">${h.timestamp}</span>
+        </div>
+        <div style="display: flex; gap: 5px;">
+          <button class="btn secondary" style="font-size: 9px; padding: 2px 6px; height: auto;" onclick="ui._restoreHistory('${h.id}')">Restore</button>
+          <span style="font-size: 9px; color: var(--text3);">${h.config.layers.length} layers</span>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  _restoreHistory(id) {
+    const h = this._history.find(x => x.id === id);
+    if (!h) return;
+    if (confirm(`Restore model to state: "${h.action}" at ${h.timestamp}?`)) {
+      this._applyConfig(h.config);
+      this._appendHistory(`Restored: ${h.action}`);
+    }
+  }
+
+  _applyConfig(config) {
+    this._inputNeurons = config.input_neurons;
+    this._outputNeurons = config.output_neurons;
+    this._hiddenLayers = config.layers.map(l => ({ ...l, id: Math.random().toString(36).substr(2, 9) }));
+    this._renderAllLayers();
+    this._emit("controlChanged", this.getConfig());
+  }
+
+  // ════════════════════════════════════════════════════════
+  // LATENT EXPLORER
+  // ════════════════════════════════════════════════════════
+  _initLatentExplorer() {
+    const slider = document.getElementById("latentSlider");
+    const valSpan = document.getElementById("latentVal");
+    const sweepBtn = document.getElementById("latentSweepBtn");
+    
+    slider?.addEventListener("input", () => {
+      if (!this._latentActive) return;
+      const val = parseFloat(slider.value);
+      if (valSpan) valSpan.textContent = val.toFixed(2);
+      this._emit("latentChanged", { ...this._latentActive, val });
+    });
+
+    sweepBtn?.addEventListener("click", () => {
+      if (!this._latentActive) return;
+      this._emit("latentSweep", this._latentActive);
+    });
+  }
+
+  activateLatentNode(layerIdx, nodeIdx, initialVal) {
+    this._latentActive = { layerIdx, nodeIdx, originalVal: initialVal };
+    
+    const ui = document.getElementById("latentActiveUI");
+    const ctrl = document.getElementById("latentControls");
+    const title = document.getElementById("latentTitle");
+    const slider = document.getElementById("latentSlider");
+    const valSpan = document.getElementById("latentVal");
+
+    if (ui) ui.style.display = "block";
+    if (ctrl) ctrl.style.display = "none";
+    if (title) title.textContent = `Layer ${layerIdx}, Node ${nodeIdx}`;
+    if (slider) {
+      slider.value = initialVal;
+      // Set range based on typical activation ranges
+      slider.min = -2.0;
+      slider.max = 2.0;
+      document.getElementById("latentMin").textContent = "-2.0";
+      document.getElementById("latentMax").textContent = "+2.0";
+    }
+    if (valSpan) valSpan.textContent = initialVal.toFixed(2);
+
+    // Switch to latent tab if not already there
+    const tab = document.querySelector('.rptab[data-rp="latent"]');
+    if (tab) tab.click();
+  }
+
+  // ════════════════════════════════════════════════════════
+  // IMAGE I/O
+  // ════════════════════════════════════════════════════════
+  _initImageIO() {
+    const cb = document.getElementById("cbImageIO");
+    const config = document.getElementById("imageIOConfigs");
+    
+    cb?.addEventListener("change", () => {
+      if (config) config.style.display = cb.checked ? "block" : "none";
+      this._emit("controlChanged", this.getConfig());
+    });
+  }
+
+  showImageDimModal(type) {
+    const current = type === 'input' ? this._imageInDim : this._imageOutDim;
+    const res = prompt(`Set ${type} image dimensions (W,H,C):`, current.join(","));
+    if (!res) return;
+    
+    try {
+      const parts = res.split(",").map(p => parseInt(p.trim()));
+      if (parts.length === 3 && parts.every(p => !isNaN(p))) {
+        if (type === 'input') {
+          this._imageInDim = parts;
+          document.getElementById("inImgDim").textContent = parts.join("x");
+        } else {
+          this._imageOutDim = parts;
+          document.getElementById("outImgDim").textContent = parts.join("x");
+        }
+        this._emit("controlChanged", this.getConfig());
+      }
+    } catch(e) { alert("Invalid format. Use W,H,C"); }
+  }
+
+  // ════════════════════════════════════════════════════════
+  // SHARED HELPERS
+  // ════════════════════════════════════════════════════════
+  getConfig() {
+    return {
+      input_neurons: this._inputNeurons,
+      output_neurons: this._outputNeurons,
+      layers: this._hiddenLayers,
+      learning_rate: Math.pow(10, parseFloat(document.getElementById("lrSl")?.value || -2)),
+      optimizer: document.getElementById("optSel")?.value || "adam",
+      loss_func: document.getElementById("lossSel")?.value || "mse",
+      weight_decay: parseFloat(document.getElementById("wdSl")?.value || 0),
+      visualise_image: document.getElementById("cbImageIO")?.checked || false,
+      image_in_dim: this._imageInDim,
+      image_out_dim: this._imageOutDim
+    };
+  }
+
+  _renderImageGrid(container, samples) {
+    const [inW, inH, inC] = this._imageInDim;
+    const [outW, outH, outC] = this._imageOutDim;
+    
+    let html = `<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:10px; padding:5px;">`;
+    
+    samples.forEach((r, idx) => {
+      html += `
+        <div class="card" style="padding:5px; font-size:9px; text-align:center; cursor:pointer;" onclick="ui._emit('ioRowClicked', ${JSON.stringify(r.x)})">
+          <div style="color:var(--text3); margin-bottom:3px;">Sample ${idx+1}</div>
+          <div style="display:flex; justify-content:center; gap:5px; margin-bottom:4px;">
+            <div title="Input Image">
+              <canvas id="ioIn_${idx}" width="${inW}" height="${inH}" style="width:50px; height:50px; image-rendering:pixelated; border:1px solid var(--border);"></canvas>
+            </div>
+            <div title="Predicted Image">
+              <canvas id="ioOut_${idx}" width="${outW}" height="${outH}" style="width:50px; height:50px; image-rendering:pixelated; border:1px solid var(--border);"></canvas>
+            </div>
+          </div>
+          <div style="font-size:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+            Target: [${r.y.slice(0,3).map(v=>v.toFixed(1)).join(",")}${r.y.length>3?"...":""}]
+          </div>
+        </div>`;
+    });
+    
+    container.innerHTML = html + "</div>";
+    
+    // Draw onto canvases
+    samples.forEach((r, idx) => {
+      this._drawToCanvas(`ioIn_${idx}`, r.x, this._imageInDim);
+      this._drawToCanvas(`ioOut_${idx}`, r.pred, this._imageOutDim);
+    });
+  }
+
+  _drawToCanvas(id, data, dims) {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const [w, h, c] = dims;
+    const imgData = ctx.createImageData(w, h);
+    
+    for (let i = 0; i < w * h; i++) {
+        const val = data[i] || 0;
+        const col = Math.max(0, Math.min(255, val * 255));
+        const idx = i * 4;
+        imgData.data[idx] = col;
+        imgData.data[idx+1] = col;
+        imgData.data[idx+2] = col;
+        imgData.data[idx+3] = 255;
+    }
+    ctx.putImageData(imgData, 0, 0);
   }
 
   _updateLayerType(layer, newType) {
@@ -1543,6 +1814,13 @@ class UIController {
     const c = document.getElementById("ioContainer");
     if (!c || !samples || !fnMeta) return;
 
+    const isImageMode = document.getElementById("cbImageIO")?.checked;
+    
+    if (isImageMode) {
+      this._renderImageGrid(c, samples);
+      return;
+    }
+
     if (fnMeta.key === "seg7") {
       c.innerHTML = '<div class="seg-display">' +
         samples.map((r, idx) => `<div class="seg-digit" data-sample-idx="${idx}">${segSVG(r.pred)}</div>`).join("") +
@@ -1628,6 +1906,9 @@ class UIController {
       html += `<br>Type: Input<br>Activation: <b>${av.toFixed(5)}</b>`;
     } else {
       html += `<br>Type: ${isOut ? "Output" : "Hidden"}<br>Activation: <b>${av.toFixed(5)}</b>`;
+      if (!isIn && !isOut) {
+        html += `<br><button class="btn success" style="font-size:10px; margin-top:5px; width:100%;" onclick="ui.activateLatentNode(${layer}, ${idx}, ${av})">🎚 Explore Latent</button>`;
+      }
       if (bias !== undefined) {
         html += `<br>Bias: <b>${bias.toFixed(5)}</b>`;
       }

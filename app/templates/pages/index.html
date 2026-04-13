@@ -144,6 +144,13 @@
     <label><input type="checkbox" id="cbDeadWeights"> Dead weights
       <span class="ti" data-tip="<b>Dead Weights</b><br>Highlight weights near zero (contributing little).<br>Dotted/faint edges indicate dead connections.<br>Often caused by ReLU with high learning rate.">?</span>
     </label>
+    <label><input type="checkbox" id="cbImageIO"> Visualise I/O as Images
+      <span class="ti" data-tip="<b>Image Visualization</b><br>Toggle between showing I/O as individual nodes or as a spatial image (if dimensions allow).">?</span>
+    </label>
+    <div id="imageIOConfigs" style="display: none; padding: 5px; background: var(--surf2); margin-top: 4px; border-radius: 4px; font-size: 10px;">
+      <div style="margin-bottom: 3px;">Input: <span id="inImgDim">28x28x1</span> <button class="btn secondary" style="padding: 1px 4px; font-size: 9px;" onclick="ui.showImageDimModal('input')">⚙</button></div>
+      <div>Output: <span id="outImgDim">28x28x1</span> <button class="btn secondary" style="padding: 1px 4px; font-size: 9px;" onclick="ui.showImageDimModal('output')">⚙</button></div>
+    </div>
 
     <hr class="dv">
     <div class="shd">Live Stats</div>
@@ -195,14 +202,35 @@
     <div class="rptabs">
       <button class="rptab active" data-rp="io">I/O</button>
       <button class="rptab"        data-rp="node">Node</button>
+      <button class="rptab"        data-rp="latent">Latent</button>
       <button class="rptab"        data-rp="wmat">Weights</button>
       <button class="rptab"        data-rp="plot2d">2D Plot</button>
+      <button class="rptab"        data-rp="history">History</button>
     </div>
     <div class="rppane active" id="rp-io">
       <div id="ioContainer"><div class="info-box">Build a network to see predictions.</div></div>
     </div>
     <div class="rppane" id="rp-node">
       <div class="info-box" id="nodeInfo">Click a node to inspect it.</div>
+    </div>
+    <div class="rppane" id="rp-latent">
+      <div style="padding: 8px;">
+        <div class="shd" style="margin-bottom: 8px;">Latent Space Explorer</div>
+        <div id="latentControls" class="info-box">Select a node or latent layer to manipulate.</div>
+        <div id="latentActiveUI" style="display: none;">
+          <div style="font-size: 11px; margin-bottom: 10px;">
+            <b id="latentTitle">Layer 2, Node 5</b>
+            <div style="color: var(--text3); font-size: 10px; margin-top: 2px;">Slide to see effect on model output.</div>
+          </div>
+          <input type="range" id="latentSlider" min="-1" max="1" step="0.01" value="0" style="width: 100%;">
+          <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text2); margin-top: 4px;">
+            <span id="latentMin">-1.0</span>
+            <span id="latentVal">0.00</span>
+            <span id="latentMax">+1.0</span>
+          </div>
+          <button class="btn secondary" id="latentSweepBtn" style="width: 100%; margin-top: 10px; font-size: 10px;">⟷ Sweep Latent Range</button>
+        </div>
+      </div>
     </div>
     <div class="rppane" id="rp-wmat">
       <div id="wmatContainer"><div class="info-box">Build a network to see weight matrices.</div></div>
@@ -214,6 +242,14 @@
       </div>
       <canvas id="plot2dCanvas"></canvas>
       <div id="plot2dInfo" style="font-size:10px;color:var(--text3);margin-top:6px;"></div>
+    </div>
+    <div class="rppane" id="rp-history">
+      <div style="padding: 8px; height: 100%; display: flex; flex-direction: column;">
+        <div class="shd" style="margin-bottom: 8px;">Model Modification History</div>
+        <div id="historyLog" style="flex: 1; overflow-y: auto; font-size: 11px;">
+          <div class="info-box">No snapshots yet. Build or modify the model to create snapshots.</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -230,72 +266,140 @@
   </div>
 
   <div class="center" style="background: var(--bg); padding: 20px;">
-    <div class="content-col" style="max-width: 800px; margin: 0 auto;">
-      <div id="datasetEditorHeader"></div>
-
-      <div class="card" id="tabularEditor" style="display:none;">
-        <div class="shd" style="margin-bottom:8px">Tabular Editor</div>
-        <div id="tableContainer" style="overflow-x:auto; max-height: 400px;"></div>
-        <hr class="dv" style="margin: 15px 0;">
-        <div class="shd" style="margin-bottom:8px">Synthetic Generator</div>
-        <div class="btn-row">
-          <select id="syntheticType" style="width:120px;">
-            <option value="sine">Sine Wave</option>
-            <option value="linear">Linear</option>
-          </select>
-          <input type="number" id="syntheticSamples" value="50" style="width:80px;">
-          <button class="btn secondary" id="genSyntheticBtn">Generate Samples</button>
-        </div>
+    <div class="content-col" style="max-width: 1000px; margin: 0 auto;">
+      
+      <!-- Empty State -->
+      <div id="datasetEditorEmpty" class="info-box" style="height: 200px; display: flex; align-items: center; justify-content: center;">
+        Select a dataset from the list or create a new one to start editing.
       </div>
 
-      <div class="card" id="pixelEditor" style="display:none;">
-        <div class="shd" style="margin-bottom:8px">Pixel Editor</div>
-        <div style="display:flex; gap: 20px; align-items: flex-start;">
-          <div id="pixelGrid" class="pixel-grid"></div>
-          <div style="flex:1;">
-            <label>Grid Size</label>
-            <select id="pixelGridSize">
-              <option value="8">8 x 8</option>
-              <option value="16">16 x 16</option>
-              <option value="28">28 x 28 (MNIST)</option>
+      <!-- Dataset Editor -->
+      <div id="datasetEditor" style="display: none; flex-direction: column; gap: 15px;">
+        
+        <!-- Header -->
+        <div id="datasetEditorHeader" style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; gap: 10px; align-items: center; flex: 1;">
+            <input type="text" id="dsName" placeholder="Dataset Name" style="flex: 1; font-weight: bold;">
+            <select id="dsType" style="width: 150px;">
+              <option value="tabular">Tabular</option>
+              <option value="image">Image</option>
             </select>
-            <p style="margin-top:10px; font-size:10px; color:var(--text3)">Left-click to toggle pixels. This editor modifies the first sample in the dataset.</p>
+            <label style="font-size: 11px; white-space: nowrap;">
+              <input type="checkbox" id="dsInputOnly"> Input Only
+            </label>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn secondary" id="dsAddRowBtn">+ Add Row</button>
+            <button class="btn secondary" id="dsSyntheticBtn">⚡ Synthetic</button>
+            <button class="btn secondary" id="dsImportCsvBtn">📄 Import CSV</button>
+            <button class="btn secondary" id="dsClearBtn">🗑 Clear</button>
+            <button class="btn success" id="dsSaveBtn">💾 Save Dataset</button>
           </div>
         </div>
-      </div>
 
-      <div class="btn-row" style="margin-top:20px;">
-        <button class="btn success" id="saveDatasetBtn">Save Dataset Changes</button>
+        <!-- Tabular View -->
+        <div id="dsTabularView" style="display: none; flex-direction: column;">
+          <div id="dsTableContainer" style="overflow-x: auto; max-height: 500px;"></div>
+        </div>
+
+        <!-- Image View -->
+        <div id="dsImageView" style="display: none; flex-direction: column; gap: 15px;">
+          <div style="display: flex; gap: 20px;">
+            <div id="dsPixelContainer" style="flex: 1;">
+              <canvas id="dsPixelCanvas" style="border: 1px solid var(--border); cursor: crosshair;"></canvas>
+            </div>
+            <div style="width: 250px; display: flex; flex-direction: column; gap: 10px;">
+              <div class="card" style="padding: 10px;">
+                <div class="shd" style="margin-bottom: 8px;">Tools</div>
+                <label style="font-size: 11px;">Color</label>
+                <input type="color" id="dsColorPicker" value="#808080" style="width: 100%; height: 40px; margin-bottom: 8px;">
+                <div id="dsColorInfo" style="font-size: 10px; color: var(--text3);">RGB: 128, 128, 128</div>
+              </div>
+              <div class="card" style="padding: 10px;">
+                <div class="shd" style="margin-bottom: 8px;">Navigation</div>
+                <div style="display: flex; gap: 4px; margin-bottom: 8px;">
+                  <button class="btn secondary" id="dsImgZoomOut" style="flex: 1; font-size: 10px;">Zoom −</button>
+                  <button class="btn secondary" id="dsImgZoomIn" style="flex: 1; font-size: 10px;">Zoom +</button>
+                </div>
+                <div style="text-align: center; font-size: 11px; color: var(--text3);">Zoom: <span id="dsImgZoomVal">4x</span></div>
+                <div style="display: flex; gap: 4px; margin-top: 8px;">
+                  <button class="btn secondary" id="dsImgPrev" style="flex: 1; font-size: 10px;">← Prev</button>
+                  <button class="btn secondary" id="dsImgNext" style="flex: 1; font-size: 10px;">Next →</button>
+                </div>
+              </div>
+              <div class="card" style="padding: 10px;">
+                <div class="shd" style="margin-bottom: 8px;">Histogram</div>
+                <canvas id="dsImgHist" style="width: 100%; height: 100px; border: 1px solid var(--border);"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Predefined Dataset View -->
+        <div id="dsPredefinedView" style="display: none;">
+          <div class="card" style="padding: 20px; text-align: center;">
+            <h3 style="margin-bottom: 10px;">📦 Predefined Dataset</h3>
+            <p id="dsPredefinedDesc" style="font-size: 12px; color: var(--text3); margin-bottom: 15px;">
+              Download this predefined dataset to use it.
+            </p>
+            <button class="btn success" id="dsDownloadBtn" style="font-size: 12px;">⬇ Download Dataset</button>
+            <div id="dsDownloadBar" style="width: 100%; height: 4px; background: var(--border); margin-top: 15px; border-radius: 2px; overflow: hidden; display: none;">
+              <div id="dsDownloadProgress" style="width: 0%; height: 100%; background: var(--green); transition: width 0.3s;"></div>
+            </div>
+            <div id="dsDownloadStatus" style="font-size: 11px; color: var(--text3); margin-top: 8px;"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Synthetic Range Modal -->
+  <div id="dsSyntheticModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; align-items: center; justify-content: center;">
+    <div class="card" style="width: 500px; max-height: 80vh; overflow-y: auto; padding: 20px;">
+      <h3 style="margin-bottom: 15px;">⚡ Synthetic Data Generator</h3>
+      <p style="font-size: 11px; color: var(--text3); margin-bottom: 15px;">
+        Generate a range of input values to explore the function behavior.
+      </p>
+      <div id="dsSyntheticInputs" style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
+        <!-- Dynamic inputs will be inserted here -->
+      </div>
+      <div style="display: flex; gap: 8px; justify-content: flex-end;">
+        <button class="btn secondary" id="dsSyntheticCloseBtn">Cancel</button>
+        <button class="btn success" id="dsSyntheticGenerateBtn">Generate</button>
       </div>
     </div>
   </div>
 
   <!-- Create Dataset Modal -->
-  <div id="createDatasetModal" class="card" style="display: none; position: fixed; top: 20%; left: 30%; width: 40%; z-index: 2000; box-shadow: 0 20px 60px rgba(0,0,0,0.8); background: var(--surf3); flex-direction: column;">
-    <h3>🆕 Create New Dataset</h3>
-    <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
-      <label>Name</label>
-      <input type="text" id="newDsName" placeholder="My Dataset">
-      <label>Type</label>
-      <select id="newDsType">
-        <option value="tabular">Tabular</option>
-        <option value="image">Image / Grid</option>
-      </select>
-      <div style="display:flex; gap:10px;">
-        <div style="flex:1">
-          <label>Inputs</label>
-          <input type="number" id="newDsInputs" value="2">
+  <div id="createDatasetModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 3000; align-items: center; justify-content: center;">
+    <div class="card" style="width: 450px; padding: 20px;">
+      <h3 style="margin-bottom: 15px;">🆕 Create New Dataset</h3>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <label style="font-size: 11px;">Name</label>
+        <input type="text" id="newDsName" placeholder="My Dataset" style="width: 100%;">
+        <label style="font-size: 11px;">Type</label>
+        <select id="newDsType" style="width: 100%;">
+          <option value="tabular">Tabular</option>
+          <option value="image">Image / Grid</option>
+        </select>
+        <div style="display: flex; gap: 10px;">
+          <div style="flex: 1;">
+            <label style="font-size: 11px;">Inputs</label>
+            <input type="number" id="newDsInputs" value="2" style="width: 100%;">
+          </div>
+          <div style="flex: 1;">
+            <label style="font-size: 11px;">Outputs</label>
+            <input type="number" id="newDsOutputs" value="1" style="width: 100%;">
+          </div>
         </div>
-        <div style="flex:1">
-          <label>Outputs</label>
-          <input type="number" id="newDsOutputs" value="1">
+        <label style="font-size: 11px;">
+          <input type="checkbox" id="newDsInputOnly"> Input Only (labels from function)
+        </label>
+        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 10px;">
+          <button class="btn secondary" onclick="datasetUI._closeCreateModal()">Cancel</button>
+          <button class="btn success" onclick="datasetUI._confirmCreate()">Create</button>
         </div>
-      </div>
-      <label><input type="checkbox" id="newDsInputOnly"> Input Only (labels from function)</label>
-
-      <div class="btn-row" style="margin-top:10px; justify-content:flex-end;">
-        <button class="btn secondary" onclick="document.getElementById('createDatasetModal').style.display='none'">Cancel</button>
-        <button class="btn success" onclick="datasetUI._confirmCreate()">Create</button>
       </div>
     </div>
   </div>
@@ -728,6 +832,22 @@
         <div class="shd" style="margin-bottom: 8px;">Configuration</div>
         <div id="layerConfigArea" style="flex: 1; overflow-y: auto;">
           <div class="info-box">Select a layer type from the catalog.</div>
+        </div>
+        <div style="margin-top: 15px; background: var(--surf1); padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+          <div class="shd" style="margin-bottom: 8px; font-size: 11px;">Insertion Rules</div>
+          <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+            <label style="font-size: 10px; white-space: nowrap;">Quantity:</label>
+            <input type="number" id="layerQuantity" value="1" min="1" max="10" style="width: 50px; font-size: 10px;">
+          </div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <label style="font-size: 10px; white-space: nowrap;">Placement:</label>
+            <select id="layerPlacement" style="font-size: 10px; flex: 1;">
+              <option value="bottom">At bottom</option>
+              <option value="top">At top</option>
+              <option value="after">After Index...</option>
+            </select>
+            <input type="number" id="layerPlacementIndex" value="0" min="0" style="width: 45px; font-size: 10px; display: none;">
+          </div>
         </div>
         <div style="margin-top: 10px; align-self: flex-end;">
           <button class="btn success" id="confirmAddLayerBtn" disabled>+ Add to Model</button>

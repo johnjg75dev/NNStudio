@@ -30,7 +30,8 @@ const API = (() => {
       return result;
     },
     resetWeights:    ()      => request("POST", "/api/session/reset",   {}),
-    predict:         (x, start_layer, end_layer)     => request("POST", "/api/session/predict", { x, start_layer, end_layer }),
+    predict:         (x, start_layer, end_layer, node_overrides)     => request("POST", "/api/session/predict", { x, start_layer, end_layer, node_overrides }),
+    latentSweep:     (req)   => request("POST", "/api/session/latent-sweep", req),
     getSnapshot:     async () => {
       const result = await request("GET", "/api/session/snapshot");
       return result;
@@ -40,7 +41,7 @@ const API = (() => {
 
     // ── database models ──
     listDbModels:    ()      => request("GET", "/api/models"),
-    saveDbModel:     (name)  => request("POST", "/api/models/save", { name }),
+    saveDbModel:     (data)  => request("POST", "/api/models/save", typeof data === "string" ? { name: data } : data),
     loadDbModel:     (id)    => request("POST", `/api/models/${id}/load-session`),
     deleteDbModel:   (id)    => request("DELETE", `/api/models/${id}`),
 

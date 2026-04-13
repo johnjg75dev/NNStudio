@@ -28,6 +28,10 @@ class SavedModel(db.Model):
     final_loss = db.Column(db.Float, nullable=True)
     final_accuracy = db.Column(db.Float, nullable=True)
     
+    # History and snapshots
+    history = db.Column(db.JSON, default=[])  # Periodic evaluation logs
+    snapshots = db.Column(db.JSON, default=[]) # Model state snapshots (modifications)
+    
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
