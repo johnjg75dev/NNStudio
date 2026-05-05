@@ -6,3 +6,4 @@ from .architecture import BuiltinArchitecture
 from .saved_model import SavedModel
 from .custom_function import CustomTrainingFunction
 from .dataset import Dataset
+from .project import Project
