@@ -4,7 +4,7 @@ Admin utilities for managing built-in modules (architectures, functions, optimiz
 """
 
 from flask import Blueprint, jsonify, request
-from flask_login import login_required
+from flask_login import login_required, current_user
 from .. import db
 from ..models import BuiltinArchitecture, User
 

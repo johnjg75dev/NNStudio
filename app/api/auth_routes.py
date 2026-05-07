@@ -31,7 +31,7 @@ def check_username():
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("pages.index"))
+        return redirect(url_for("pages.home"))
         
     if request.method == "POST":
         username = request.form.get("username")
@@ -40,7 +40,7 @@ def login():
         
         if user and user.check_password(password):
             login_user(user)
-            return redirect(url_for("pages.index"))
+            return redirect(url_for("pages.home"))
         else:
             flash("Invalid username or password")
             
@@ -49,7 +49,7 @@ def login():
 @auth_bp.route("/signup", methods=["GET", "POST"])
 def signup():
     if current_user.is_authenticated:
-        return redirect(url_for("pages.index"))
+        return redirect(url_for("pages.home"))
         
     if request.method == "POST":
         username = request.form.get("username")
@@ -132,7 +132,7 @@ def signup():
             db.session.commit()
 
             login_user(new_user)
-            return redirect(url_for("pages.index"))
+            return redirect(url_for("pages.home"))
             
     return render_template("pages/signup.html")
 

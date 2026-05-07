@@ -1,0 +1,198 @@
+{% extends "layout/base.html" %}
+{% block title %}NNStudio · Projects{% endblock %}
+{% set active_section = "projects" %}
+{% set page_title = "Projects" %}
+
+{% block topbar_actions %}
+  <button class="btn primary sm" id="btn-new"><span id="ic-plus"></span>New project</button>
+{% endblock %}
+
+{% block sidebar %}
+<aside class="app-side">
+  <div class="side-section">
+    <input class="input search-input" id="proj-search" placeholder="Search projects…"/>
+  </div>
+  <div class="side-section">
+    <div class="side-title">Filter</div>
+    <div class="side-link active" data-filter="all">All projects <span class="badge" id="b-all">0</span></div>
+    <div class="side-link" data-filter="recent">Recent <span class="badge" id="b-recent">0</span></div>
+    <div class="side-link" data-filter="starred">Starred <span class="badge" id="b-starred">0</span></div>
+    <div class="side-link" data-filter="archived">Archived <span class="badge" id="b-archived">0</span></div>
+  </div>
+  <div class="side-section">
+    <div class="side-title">Tags</div>
+    <div id="tag-list"></div>
+  </div>
+</aside>
+{% endblock %}
+
+{% block content %}
+<section class="section">
+  <div class="row" style="margin-bottom:var(--s-4)">
+    <h2 style="margin:0; font-size:var(--t-24)">Projects</h2>
+    <span class="muted text-sm" style="margin-left:10px" id="proj-count">0 projects</span>
+    <span class="spacer"></span>
+    <div class="row">
+      <select id="sort" class="select" style="width:auto">
+        <option value="updated">Last opened</option>
+        <option value="created">Date created</option>
+        <option value="name">Name (A→Z)</option>
+      </select>
+      <div class="row" style="gap:0">
+        <button class="btn sm icon" id="view-grid" title="Grid view"></button>
+        <button class="btn sm icon" id="view-list" title="List view"></button>
+      </div>
+    </div>
+  </div>
+  <div id="proj-host"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const { $, el, fetchJSON, debounce, timeAgo, toast, modal } = NN;
+  document.getElementById("ic-plus").innerHTML = ICONS.plus({ size: 14 });
+  document.getElementById("view-grid").innerHTML = ICONS.grid({ size: 14 });
+  document.getElementById("view-list").innerHTML = ICONS.layers({ size: 14 });
+  document.getElementById("btn-new").addEventListener("click", () => location.href = "{{ url_for('pages.new_project') }}");
+
+  let projects = [];
+  let view = "grid";
+  let filter = "all";
+  let q = "";
+  let sort = "updated";
+
+  async function load() {
+    try {
+      const res = await fetchJSON("/api/projects");
+      projects = (res.data && res.data.projects) || [];
+    } catch { projects = []; }
+    document.getElementById("b-all").textContent = projects.length;
+    document.getElementById("b-recent").textContent = projects.filter(p => Date.now() - new Date(p.updated_at).getTime() < 7*86400_000).length;
+    document.getElementById("b-starred").textContent = projects.filter(p => p.starred).length;
+    document.getElementById("b-archived").textContent = projects.filter(p => p.archived).length;
+
+    const tagSet = new Map();
+    for (const p of projects) for (const t of p.tags || []) tagSet.set(t, (tagSet.get(t)||0)+1);
+    const tagList = document.getElementById("tag-list"); tagList.innerHTML = "";
+    if (!tagSet.size) tagList.innerHTML = `<div class="muted text-sm" style="padding:6px 12px">No tags yet.</div>`;
+    for (const [name, n] of tagSet) tagList.appendChild(el("div", { class: "side-link", "data-tag": name }, el("span", { class: "ico", html: ICONS.pin({ size:12 }) }), name, el("span", { class: "badge" }, String(n))));
+    render();
+  }
+
+  function visible() {
+    let xs = projects.slice();
+    if (filter === "recent")   xs = xs.filter(p => Date.now() - new Date(p.updated_at).getTime() < 7*86400_000);
+    if (filter === "starred")  xs = xs.filter(p => p.starred);
+    if (filter === "archived") xs = xs.filter(p => p.archived);
+    else                       xs = xs.filter(p => !p.archived);
+    if (q) xs = xs.filter(p => (p.name + " " + (p.description||"")).toLowerCase().includes(q));
+    xs.sort((a,b) => {
+      if (sort === "name")   return a.name.localeCompare(b.name);
+      if (sort === "created")return new Date(b.created_at) - new Date(a.created_at);
+      return new Date(b.updated_at) - new Date(a.updated_at);
+    });
+    return xs;
+  }
+
+  function render() {
+    const xs = visible();
+    document.getElementById("proj-count").textContent = `${xs.length} project${xs.length===1?"":"s"}`;
+    const host = document.getElementById("proj-host");
+    host.innerHTML = "";
+    if (!xs.length) {
+      host.appendChild(el("div", { class: "empty" }, el("h4", {}, "No projects yet"), el("p", {}, "Click New project, or open the home page to pick a use-case starter.")));
+      return;
+    }
+    if (view === "grid") {
+      const grid = el("div", { style:"display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:var(--s-4)" });
+      xs.forEach(p => grid.appendChild(card(p)));
+      host.appendChild(grid);
+    } else {
+      const list = el("div", { class: "panel" });
+      xs.forEach(p => list.appendChild(row(p)));
+      host.appendChild(list);
+    }
+  }
+
+  function card(p) {
+    const c = el("article", { class: "card interactive", style:"display:flex; flex-direction:column; gap:10px" },
+      el("div", { class: "row" },
+        el("span", { class: "chip solid" }, p.usecase || "Custom"),
+        el("span", { class: "spacer" }),
+        ...(p.starred ? [el("span", { class: "chip", style:"color:#ffd166", html: ICONS.star({size:12}) + " Starred" })] : [])
+      ),
+      el("div", { class: "card-title" }, p.name),
+      el("div", { class: "card-desc" }, p.description || "—"),
+      el("div", { class: "row", style:"margin-top:auto; justify-content:space-between" },
+        el("span", { class: "muted text-xs" }, "Updated " + timeAgo(p.updated_at)),
+        el("div", { class: "row" },
+          el("button", { class: "btn sm ghost", "data-act":"open", html: "Open" }),
+          el("button", { class: "btn sm ghost icon", "data-act":"more", html: ICONS.sliders({size:12}) })
+        )
+      )
+    );
+    c.addEventListener("click", e => {
+      const a = e.target.closest("[data-act]"); if (a && a.dataset.act === "more") { e.stopPropagation(); openMore(p); return; }
+      location.href = `/playground?project=${p.id}`;
+    });
+    return c;
+  }
+
+  function row(p) {
+    const r = el("div", { class: "row", style:"padding:10px 14px; border-bottom:1px solid var(--line-1); cursor:pointer" },
+      el("span", { class: "chip" }, p.usecase || "Custom"),
+      el("strong", {}, p.name),
+      el("span", { class: "muted text-sm" }, p.description || ""),
+      el("span", { class: "spacer" }),
+      el("span", { class: "muted text-xs" }, timeAgo(p.updated_at))
+    );
+    r.addEventListener("click", () => location.href = `/playground?project=${p.id}`);
+    return r;
+  }
+
+  function openMore(p) {
+    const body = `
+      <div class="col">
+        <button class="btn ghost block" data-x="rename">Rename…</button>
+        <button class="btn ghost block" data-x="dup">Duplicate</button>
+        <button class="btn ghost block" data-x="star">${p.starred ? "Unstar" : "Star"}</button>
+        <button class="btn ghost block" data-x="archive">${p.archived ? "Unarchive" : "Archive"}</button>
+        <button class="btn danger block" data-x="del">Delete project</button>
+      </div>`;
+    const m = modal(p.name, body);
+    m.el.querySelectorAll("[data-x]").forEach(b => b.addEventListener("click", async () => {
+      const k = b.dataset.x;
+      try {
+        if (k === "rename") {
+          const name = prompt("New name:", p.name); if (!name) return;
+          await fetchJSON(`/api/projects/${p.id}`, { method:"PATCH", body: { name } });
+        } else if (k === "dup") {
+          await fetchJSON(`/api/projects/${p.id}/duplicate`, { method:"POST" });
+        } else if (k === "star") {
+          await fetchJSON(`/api/projects/${p.id}`, { method:"PATCH", body: { starred: !p.starred } });
+        } else if (k === "archive") {
+          await fetchJSON(`/api/projects/${p.id}`, { method:"PATCH", body: { archived: !p.archived } });
+        } else if (k === "del") {
+          if (!confirm("Delete this project? This cannot be undone.")) return;
+          await fetchJSON(`/api/projects/${p.id}`, { method:"DELETE" });
+        }
+        m.close(); load(); toast("Done", "ok");
+      } catch (err) { toast(err.message, "err"); }
+    }));
+  }
+
+  document.getElementById("proj-search").addEventListener("input", debounce(e => { q = e.target.value.toLowerCase(); render(); }, 120));
+  document.getElementById("sort").addEventListener("change", e => { sort = e.target.value; render(); });
+  document.getElementById("view-grid").addEventListener("click", () => { view = "grid"; render(); });
+  document.getElementById("view-list").addEventListener("click", () => { view = "list"; render(); });
+  document.querySelector(".app-side").addEventListener("click", e => {
+    const link = e.target.closest("[data-filter]"); if (!link) return;
+    document.querySelectorAll("[data-filter]").forEach(n => n.classList.remove("active"));
+    link.classList.add("active"); filter = link.dataset.filter; render();
+  });
+  load();
+})();
+</script>
+{% endblock %}

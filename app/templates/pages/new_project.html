@@ -1,0 +1,342 @@
+{% extends "layout/base.html" %}
+{% block title %}NNStudio · New project{% endblock %}
+{% set active_section = "projects" %}
+{% set page_title = "New project" %}
+
+{% block topbar_actions %}
+  <a class="btn ghost sm" href="{{ url_for('pages.projects') }}">Cancel</a>
+{% endblock %}
+
+{% block content %}
+<section class="section" style="max-width:1100px; margin:0 auto">
+  <div class="row" style="margin-bottom:var(--s-5)">
+    <h2 style="margin:0">New project wizard</h2>
+    <span class="spacer"></span>
+    <div class="stepper" id="stepper"></div>
+  </div>
+
+  <!-- Step 1 — Scenario -->
+  <section class="step-pane" data-step="1">
+    <div class="row" style="margin-bottom:var(--s-3)">
+      <h3 style="margin:0">1 · Pick a scenario</h3>
+      <span class="spacer"></span>
+      <input class="input search-input" id="ws-search" placeholder="Search use cases…" style="max-width:280px"/>
+    </div>
+    <p class="muted">Choose a starter — it pre-fills the data source, architecture, and training defaults. You can customize anything later.</p>
+    <div id="ws-categories"></div>
+  </section>
+
+  <!-- Step 2 — Project meta -->
+  <section class="step-pane hidden" data-step="2">
+    <h3 style="margin:0 0 var(--s-3)">2 · Name your project</h3>
+    <div class="form-grid" style="max-width:760px">
+      <div class="field full">
+        <label>Project name</label>
+        <input class="input" id="meta-name" placeholder="e.g. Fashion-MNIST classifier"/>
+      </div>
+      <div class="field full">
+        <label>Description (optional)</label>
+        <textarea class="textarea" id="meta-desc" placeholder="What is this project for?"></textarea>
+      </div>
+      <div class="field full">
+        <label>Tags</label>
+        <input class="input" id="meta-tags" placeholder="comma, separated, tags"/>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 3 — Data source -->
+  <section class="step-pane hidden" data-step="3">
+    <h3 style="margin:0 0 var(--s-3)">3 · Where does your data come from?</h3>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:var(--s-3)" id="data-sources"></div>
+    <div class="divider"></div>
+    <div class="form-grid" style="max-width:760px">
+      <div class="field"><label>Train split</label><input class="input" id="ds-train" type="number" value="70" min="0" max="100"/></div>
+      <div class="field"><label>Val split</label><input class="input" id="ds-val" type="number" value="15" min="0" max="100"/></div>
+      <div class="field"><label>Test split</label><input class="input" id="ds-test" type="number" value="15" min="0" max="100"/></div>
+      <div class="field"><label>Random seed</label><input class="input" id="ds-seed" type="number" value="42"/></div>
+    </div>
+  </section>
+
+  <!-- Step 4 — Architecture -->
+  <section class="step-pane hidden" data-step="4">
+    <h3 style="margin:0 0 var(--s-3)">4 · Choose an architecture starter</h3>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:var(--s-3)" id="arch-list"></div>
+  </section>
+
+  <!-- Step 5 — Training config -->
+  <section class="step-pane hidden" data-step="5">
+    <h3 style="margin:0 0 var(--s-3)">5 · Training configuration</h3>
+    <div class="form-grid" style="max-width:880px">
+      <div class="field">
+        <label>Optimizer</label>
+        <select id="t-opt" class="select">
+          <option value="adam">Adam</option><option value="adamw">AdamW</option>
+          <option value="sgd">SGD</option><option value="momentum">SGD + Momentum</option>
+          <option value="rmsprop">RMSProp</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Loss</label>
+        <select id="t-loss" class="select">
+          <option value="ce">Cross-entropy</option>
+          <option value="bce">Binary cross-entropy</option>
+          <option value="mse">Mean squared error</option>
+          <option value="mae">Mean absolute error</option>
+        </select>
+      </div>
+      <div class="field"><label>Learning rate</label><input class="input" id="t-lr" type="number" step="0.0001" value="0.001"/></div>
+      <div class="field"><label>Batch size</label><input class="input" id="t-bs" type="number" value="32"/></div>
+      <div class="field"><label>Epochs</label><input class="input" id="t-epochs" type="number" value="20"/></div>
+      <div class="field"><label>Weight decay</label><input class="input" id="t-wd" type="number" step="0.0001" value="0"/></div>
+      <div class="field"><label>Dropout</label><input class="input" id="t-do" type="number" step="0.05" value="0.1"/></div>
+      <div class="field"><label>HPO mode</label>
+        <select id="t-hpo" class="select">
+          <option value="off">Off (single run)</option>
+          <option value="random">Random search</option>
+          <option value="grid">Grid search</option>
+          <option value="bayes">Bayesian</option>
+          <option value="hyperband">Hyperband</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 6 — Review -->
+  <section class="step-pane hidden" data-step="6">
+    <h3 style="margin:0 0 var(--s-3)">6 · Review &amp; create</h3>
+    <div id="review-panel" class="panel" style="max-width:880px"></div>
+  </section>
+
+  <div class="row" style="margin-top:var(--s-6)">
+    <button class="btn" id="btn-back" disabled>← Back</button>
+    <span class="spacer"></span>
+    <button class="btn primary" id="btn-next">Next →</button>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/usecases.js') }}"></script>
+<script>
+(function () {
+  const { $, el, fetchJSON, debounce, toast } = NN;
+  const STEPS = ["Scenario","Name","Data","Architecture","Training","Review"];
+  let step = 1;
+  const params = new URLSearchParams(location.search);
+
+  const state = {
+    usecase: params.get("usecase") || null,
+    category: null,
+    name: "",
+    description: "",
+    tags: [],
+    dataset: { source: "builtin", builtin: null, splits:[70,15,15], seed: 42 },
+    arch: { key: "mlp", layers: [] },
+    train: { optimizer:"adam", loss:"ce", lr:0.001, batch_size:32, epochs:20, weight_decay:0, dropout:0.1, hpo:"off" },
+  };
+
+  /* Stepper render */
+  const stepper = document.getElementById("stepper");
+  function paintStepper() {
+    stepper.innerHTML = "";
+    STEPS.forEach((label,i) => {
+      const n = i+1;
+      stepper.appendChild(el("div", { class:"step " + (n===step?"active":n<step?"done":"") },
+        el("div", { class:"dot" }, String(n)), label));
+    });
+  }
+  paintStepper();
+
+  function showStep(n) {
+    step = n;
+    document.querySelectorAll(".step-pane").forEach(p => p.classList.add("hidden"));
+    const pane = document.querySelector(`[data-step='${n}']`);
+    pane.classList.remove("hidden");
+    document.getElementById("btn-back").disabled = (n === 1);
+    document.getElementById("btn-next").textContent = (n === STEPS.length) ? "Create project" : "Next →";
+    paintStepper();
+    if (n === 6) renderReview();
+  }
+
+  /* Step 1 — scenarios */
+  function renderScenarios(query="") {
+    const host = document.getElementById("ws-categories");
+    host.innerHTML = "";
+    for (const c of NN_CATEGORIES) {
+      let items = NN_USECASES.filter(u => u.cat === c.key);
+      if (query) items = items.filter(u => (u.title+" "+u.desc).toLowerCase().includes(query));
+      if (!items.length) continue;
+      host.appendChild(el("div", { class:"cat-head", style:`--cat-color:${c.color}; margin-top:var(--s-5)` },
+        el("span", { class:"cat-dot" }), el("h2", {}, c.label)));
+      const grid = el("div", { style:"display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:var(--s-3)" });
+      for (const u of items) {
+        const card = el("article", { class:"usecase-card", "data-key":u.key, style:`--cat-color:${c.color}; padding:var(--s-4)` },
+          el("div", { class:"row" },
+            el("div", { class:"ucon", style:"width:38px; height:38px", html:ICONS[u.icon||c.icon]({ size:18 }) }),
+            el("div", {}, el("div", { class:"uc-title" }, u.title))
+          ),
+          el("p", { class:"uc-desc" }, u.desc)
+        );
+        if (state.usecase === u.key) card.style.outline = `2px solid var(--accent)`;
+        card.addEventListener("click", () => {
+          state.usecase = u.key; state.category = c.key;
+          if (!state.name) state.name = u.title;
+          renderScenarios(query);
+        });
+        grid.appendChild(card);
+      }
+      host.appendChild(grid);
+    }
+  }
+  renderScenarios();
+  document.getElementById("ws-search").addEventListener("input", debounce(e => renderScenarios(e.target.value.toLowerCase()), 120));
+
+  /* Step 3 — data sources */
+  const dataSources = [
+    { key:"upload",    title:"Upload file(s)",   icon:"upload", desc:"CSV, Parquet, images, audio, JSON. Drag & drop in the next step." },
+    { key:"url",       title:"From URL",         icon:"download", desc:"Fetch a remote file or zip." },
+    { key:"sql",       title:"SQL database",     icon:"db",     desc:"Query a SQLite or MySQL table." },
+    { key:"hf",        title:"Hugging Face dataset", icon:"package", desc:"Pull any HF datasets entry by name." },
+    { key:"torchvision", title:"torchvision",    icon:"image",  desc:"MNIST, CIFAR-10/100, ImageNet, etc." },
+    { key:"sklearn",   title:"scikit-learn",     icon:"flask",  desc:"Iris, digits, breast cancer, california housing." },
+    { key:"builtin",   title:"NNStudio built-in", icon:"flask", desc:"XOR, spiral, sine — 11 quick training tasks." },
+    { key:"custom",    title:"Custom Python",    icon:"code",   desc:"Write a generator function in the data studio." },
+  ];
+
+  function renderDataSources() {
+    const host = document.getElementById("data-sources"); host.innerHTML = "";
+    for (const s of dataSources) {
+      const card = el("article", { class:"card interactive" },
+        el("div", { class:"row" },
+          el("div", { class:"ucon", style:"width:34px; height:34px; --cat-color:var(--accent)", html:ICONS[s.icon]({ size:16 }) }),
+          el("strong", {}, s.title)
+        ),
+        el("p", { class:"card-desc", style:"margin-top:8px" }, s.desc)
+      );
+      if (state.dataset.source === s.key) card.style.outline = `2px solid var(--accent)`;
+      card.addEventListener("click", () => { state.dataset.source = s.key; renderDataSources(); });
+      host.appendChild(card);
+    }
+  }
+  renderDataSources();
+
+  /* Step 4 — arch */
+  const archStarters = [
+    { key:"mlp", title:"MLP", desc:"Fully-connected feed-forward network — tabular data, simple regression/classification." },
+    { key:"cnn", title:"CNN", desc:"Conv → pool → dense. Good default for images." },
+    { key:"resnet", title:"ResNet-style", desc:"Residual blocks with skip connections — deeper image models." },
+    { key:"unet", title:"UNet", desc:"Encoder-decoder with skip connections — segmentation, restoration." },
+    { key:"rnn", title:"RNN / LSTM", desc:"Recurrent backbone for sequence data." },
+    { key:"transformer", title:"Transformer", desc:"Self-attention encoder — text, sequences, time series." },
+    { key:"vit", title:"Vision Transformer", desc:"Patches + transformer — modern image classifier." },
+    { key:"autoencoder", title:"Autoencoder", desc:"Encoder–bottleneck–decoder — compression, anomaly." },
+    { key:"vae", title:"Variational Autoencoder", desc:"Latent-space generative model." },
+    { key:"gan", title:"GAN", desc:"Generator + discriminator pair — image generation." },
+    { key:"diffusion", title:"Diffusion", desc:"Iterative denoising — DDPM / Stable-Diffusion-style." },
+    { key:"blank", title:"Blank canvas", desc:"Empty playground. Drag layers in yourself." },
+  ];
+  function renderArch() {
+    const host = document.getElementById("arch-list"); host.innerHTML = "";
+    for (const a of archStarters) {
+      const card = el("article", { class:"card interactive", "data-key":a.key },
+        el("div", { class:"card-title" }, a.title),
+        el("p", { class:"card-desc" }, a.desc)
+      );
+      if (state.arch.key === a.key) card.style.outline = "2px solid var(--accent)";
+      card.addEventListener("click", () => { state.arch.key = a.key; renderArch(); });
+      host.appendChild(card);
+    }
+  }
+  renderArch();
+
+  /* Pre-fill from chosen scenario */
+  function applyUsecase() {
+    if (!state.usecase) return;
+    const uc = NN_USECASES.find(u => u.key === state.usecase); if (!uc) return;
+    state.category = uc.cat;
+    if (uc.starter && uc.starter.arch) state.arch.key = uc.starter.arch;
+    if (uc.starter && uc.starter.loss) state.train.loss = uc.starter.loss;
+    if (!state.name) state.name = uc.title;
+    document.getElementById("meta-name").value = state.name;
+    document.getElementById("t-loss").value = state.train.loss;
+    renderArch();
+  }
+  applyUsecase();
+
+  /* Review */
+  function renderReview() {
+    const uc = NN_USECASES.find(u => u.key === state.usecase);
+    state.name = document.getElementById("meta-name").value || state.name;
+    state.description = document.getElementById("meta-desc").value || "";
+    state.tags = document.getElementById("meta-tags").value.split(",").map(s=>s.trim()).filter(Boolean);
+    state.dataset.splits = [
+      Number(document.getElementById("ds-train").value),
+      Number(document.getElementById("ds-val").value),
+      Number(document.getElementById("ds-test").value),
+    ];
+    state.dataset.seed = Number(document.getElementById("ds-seed").value);
+    state.train.optimizer    = document.getElementById("t-opt").value;
+    state.train.loss         = document.getElementById("t-loss").value;
+    state.train.lr           = Number(document.getElementById("t-lr").value);
+    state.train.batch_size   = Number(document.getElementById("t-bs").value);
+    state.train.epochs       = Number(document.getElementById("t-epochs").value);
+    state.train.weight_decay = Number(document.getElementById("t-wd").value);
+    state.train.dropout      = Number(document.getElementById("t-do").value);
+    state.train.hpo          = document.getElementById("t-hpo").value;
+
+    const host = document.getElementById("review-panel");
+    host.innerHTML = "";
+    host.appendChild(el("div", { class:"panel-head" }, el("h3", {}, "Project summary")));
+    const body = el("div", { class:"panel-body", style:"display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:var(--s-4)" });
+    const row = (k,v) => el("div", { class:"col", style:"gap:2px" }, el("span",{class:"muted text-xs"},k), el("span",{},String(v)));
+    body.appendChild(row("Name", state.name || "(unnamed)"));
+    body.appendChild(row("Scenario", uc ? uc.title : "Custom"));
+    body.appendChild(row("Category", state.category || "tools"));
+    body.appendChild(row("Tags", state.tags.join(", ") || "—"));
+    body.appendChild(row("Data source", state.dataset.source));
+    body.appendChild(row("Splits (train/val/test)", state.dataset.splits.join("/")));
+    body.appendChild(row("Architecture", state.arch.key));
+    body.appendChild(row("Optimizer", state.train.optimizer));
+    body.appendChild(row("Loss", state.train.loss));
+    body.appendChild(row("Learning rate", state.train.lr));
+    body.appendChild(row("Batch size", state.train.batch_size));
+    body.appendChild(row("Epochs", state.train.epochs));
+    body.appendChild(row("HPO", state.train.hpo));
+    host.appendChild(body);
+  }
+
+  /* Nav */
+  document.getElementById("btn-back").addEventListener("click", () => { if (step > 1) showStep(step-1); });
+  document.getElementById("btn-next").addEventListener("click", async () => {
+    if (step === 1 && !state.usecase) { toast("Pick a scenario first.", "err"); return; }
+    if (step === 2) {
+      state.name = document.getElementById("meta-name").value.trim();
+      if (!state.name) { toast("Give your project a name.", "err"); return; }
+    }
+    if (step < STEPS.length) { showStep(step+1); return; }
+    /* Create */
+    try {
+      const body = {
+        name: state.name,
+        description: state.description,
+        tags: state.tags,
+        usecase: state.usecase || "custom",
+        category: state.category || "tools",
+        dataset_cfg: state.dataset,
+        train_cfg: state.train,
+        model_graph: { arch: state.arch.key, layers: [] },
+      };
+      const res = await fetchJSON("/api/projects", { method:"POST", body });
+      const id = res.data.project.id;
+      toast("Project created!", "ok");
+      setTimeout(() => location.href = `/playground?project=${id}`, 400);
+    } catch (e) { toast(e.message, "err"); }
+  });
+
+  /* Init meta if state has values */
+  if (state.usecase) document.getElementById("meta-name").value = state.name;
+  showStep(1);
+})();
+</script>
+{% endblock %}

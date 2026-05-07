@@ -15,11 +15,15 @@ login_manager = LoginManager()
 
 def create_app(config: dict | None = None) -> Flask:
     app = Flask(__name__, template_folder="templates", static_folder="static")
-    app.secret_key = "nn-trainer-dev-key"
+    app.secret_key = os.environ.get("SECRET_KEY", "nn-trainer-dev-key")
     
     # Database Configuration
     basedir = os.path.abspath(os.path.dirname(__file__))
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir, "..", "instance", "nnstudio.db")
+    db_path = os.environ.get(
+        "DATABASE_URL",
+        "sqlite:///" + os.path.join(basedir, "..", "instance", "nnstudio.db"),
+    )
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_path
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     # ── custom config overrides (e.g. from tests) ──

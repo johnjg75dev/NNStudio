@@ -1,0 +1,217 @@
+{% extends "layout/base.html" %}
+{% block title %}NNStudio · Home{% endblock %}
+{% set active_section = "home" %}
+{% set page_title = "Home" %}
+
+{% block topbar_actions %}
+  <button class="btn ghost sm" id="btn-import">{% raw %}{% endraw %}<span id="ic-import"></span>Import model</button>
+  <button class="btn primary sm" id="btn-newproject"><span id="ic-plus"></span>New project</button>
+{% endblock %}
+
+{% block sidebar %}
+<aside class="app-side">
+  <div class="side-section">
+    <input class="input search-input" type="search" id="cat-search" placeholder="Search use cases…"/>
+  </div>
+  <div class="side-section">
+    <div class="side-title">Categories</div>
+    <div id="cat-list"></div>
+  </div>
+  <div class="side-section">
+    <div class="side-title">Quick start</div>
+    <div class="side-link" data-quick="blank"><span class="ico" id="qs-1"></span>Blank playground</div>
+    <div class="side-link" data-quick="wizard"><span class="ico" id="qs-2"></span>New-project wizard</div>
+    <div class="side-link" data-quick="import"><span class="ico" id="qs-3"></span>Import model</div>
+    <div class="side-link" data-quick="layers"><span class="ico" id="qs-4"></span>Browse layers</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="side-section">
+    <div class="side-title">Tips</div>
+    <div class="card" style="padding:12px">
+      <div class="text-sm" style="color:var(--fg-1)">Press <span class="kbd">/</span> to search use cases. <span class="kbd">N</span> to start a new project. <span class="kbd">P</span> to open the playground.</div>
+    </div>
+  </div>
+</aside>
+{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="row" style="gap:var(--s-3); margin-bottom:8px">
+    <span class="chip solid">NNStudio</span>
+    <span class="chip">v2.0 redesign</span>
+  </div>
+  <h1>What do you want to build today?</h1>
+  <p>NNStudio is an end-to-end neural-network studio — pick a starter use case to scaffold a project, jump into the playground for free experimentation, or open an existing project. Every model stays visible, every layer inspectable, every weight tunable.</p>
+  <div class="row" style="margin-top:var(--s-5); gap:10px">
+    <button class="btn primary lg" id="cta-newproject"><span id="ic-cta-1"></span>Start a new project</button>
+    <a class="btn lg" href="{{ url_for('pages.playground') }}"><span id="ic-cta-2"></span>Open playground</a>
+    <a class="btn ghost lg" href="{{ url_for('pages.layer_library') }}"><span id="ic-cta-3"></span>Browse layer library</a>
+  </div>
+</section>
+
+<section class="section">
+  <div class="row" style="margin-bottom:var(--s-4)">
+    <h2 style="margin:0; font-size:var(--t-20)">Recent projects</h2>
+    <span class="spacer"></span>
+    <a class="btn ghost sm" href="{{ url_for('pages.projects') }}">See all →</a>
+  </div>
+  <div id="recent-projects" class="grid-recent" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:var(--s-4)">
+    <div class="empty" style="grid-column:1/-1"><h4>No recent projects yet</h4><p>Pick a use case below to scaffold one in seconds — or open the blank playground to start from scratch.</p></div>
+  </div>
+</section>
+
+<section class="section" id="usecase-gallery">
+  <div class="row" style="margin-bottom:var(--s-3)">
+    <h2 style="margin:0; font-size:var(--t-20)">Pick a use case</h2>
+    <span class="muted text-sm" style="margin-left:10px" id="uc-count">— scenarios</span>
+    <span class="spacer"></span>
+    <div class="row">
+      <span class="text-sm muted">Filter:</span>
+      <select id="uc-tag" class="select" style="width:auto">
+        <option value="">All deployment targets</option>
+        <option value="Local">Local only</option>
+        <option value="Cloud">Cloud-ready</option>
+        <option value="Preview">Preview features</option>
+      </select>
+    </div>
+  </div>
+  <div id="uc-host"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/usecases.js') }}"></script>
+<script>
+(function () {
+  const { $, $$, el, fetchJSON, debounce, timeAgo, toast } = NN;
+
+  /* Topbar + hero icon hydration */
+  document.getElementById("ic-import").innerHTML = ICONS.upload({ size: 14 });
+  document.getElementById("ic-plus").innerHTML = ICONS.plus({ size: 14 });
+  document.getElementById("ic-cta-1").innerHTML = ICONS.plus({ size: 16 });
+  document.getElementById("ic-cta-2").innerHTML = ICONS.workflow({ size: 16 });
+  document.getElementById("ic-cta-3").innerHTML = ICONS.layers({ size: 16 });
+  document.getElementById("qs-1").innerHTML = ICONS.workflow({ size: 14 });
+  document.getElementById("qs-2").innerHTML = ICONS.spark({ size: 14 });
+  document.getElementById("qs-3").innerHTML = ICONS.upload({ size: 14 });
+  document.getElementById("qs-4").innerHTML = ICONS.layers({ size: 14 });
+
+  document.getElementById("btn-newproject").addEventListener("click", () => location.href = "{{ url_for('pages.new_project') }}");
+  document.getElementById("cta-newproject").addEventListener("click", () => location.href = "{{ url_for('pages.new_project') }}");
+  document.getElementById("btn-import").addEventListener("click", () => toast("Use the playground 'Import' button to load a saved model.", "ok"));
+
+  /* Sidebar quick start */
+  document.querySelectorAll("[data-quick]").forEach(node => {
+    node.addEventListener("click", () => {
+      const k = node.dataset.quick;
+      if (k === "blank") location.href = "{{ url_for('pages.playground') }}?blank=1";
+      if (k === "wizard") location.href = "{{ url_for('pages.new_project') }}";
+      if (k === "import") toast("Open the playground and click Import to load a .json model.", "ok");
+      if (k === "layers") location.href = "{{ url_for('pages.layer_library') }}";
+    });
+  });
+
+  /* Build category sidebar */
+  const catList = document.getElementById("cat-list");
+  catList.appendChild(el("div", { class: "side-link active", "data-cat": "" }, el("span", { class: "ico", html: ICONS.grid({ size: 14 }) }), "All categories", el("span", { class: "badge" }, String(NN_USECASES.length))));
+  for (const c of NN_CATEGORIES) {
+    const count = NN_USECASES.filter(u => u.cat === c.key).length;
+    catList.appendChild(el("div",
+      { class: "side-link", "data-cat": c.key, style: `--cat-color:${c.color}` },
+      el("span", { class: "ico", style: `color:${c.color}`, html: ICONS[c.icon]({ size: 14 }) }),
+      c.label,
+      el("span", { class: "badge" }, String(count))
+    ));
+  }
+
+  let activeCat = "";
+  let activeTag = "";
+  let activeQuery = "";
+
+  catList.addEventListener("click", e => {
+    const link = e.target.closest(".side-link"); if (!link) return;
+    catList.querySelectorAll(".side-link").forEach(n => n.classList.remove("active"));
+    link.classList.add("active");
+    activeCat = link.dataset.cat || "";
+    render();
+  });
+
+  document.getElementById("uc-tag").addEventListener("change", e => { activeTag = e.target.value; render(); });
+  document.getElementById("cat-search").addEventListener("input", debounce(e => { activeQuery = e.target.value.toLowerCase().trim(); render(); }, 150));
+
+  /* Render gallery */
+  const host = document.getElementById("uc-host");
+  function render() {
+    host.innerHTML = "";
+    let total = 0;
+    const cats = activeCat ? NN_CATEGORIES.filter(c => c.key === activeCat) : NN_CATEGORIES;
+    for (const c of cats) {
+      let items = NN_USECASES.filter(u => u.cat === c.key);
+      if (activeTag) items = items.filter(u => (u.tags || []).includes(activeTag));
+      if (activeQuery) items = items.filter(u => (u.title + " " + u.desc).toLowerCase().includes(activeQuery));
+      if (!items.length) continue;
+      total += items.length;
+
+      const head = el("div", { class: "cat-head", style: `--cat-color:${c.color}` },
+        el("span", { class: "cat-dot" }),
+        el("div", {},
+          el("h2", {}, c.label),
+          el("p", {}, c.blurb)
+        )
+      );
+      host.appendChild(head);
+
+      const grid = el("div", { style: "display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:var(--s-4); margin-bottom:var(--s-6)" });
+      for (const u of items) {
+        const card = el("article", { class: "usecase-card", "data-key": u.key, style: `--cat-color:${c.color}` },
+          el("div", { class: "ucon", html: ICONS[u.icon || c.icon]({ size: 26, stroke: 1.6 }) }),
+          el("div", { class: "uc-title" }, u.title),
+          el("p", { class: "uc-desc" }, u.desc),
+          el("div", { class: "uc-acts" }, ...(u.tags || ["Local"]).map(t => el("span", { class: "chip" }, t)))
+        );
+        card.addEventListener("click", () => {
+          location.href = `{{ url_for('pages.new_project') }}?usecase=${encodeURIComponent(u.key)}`;
+        });
+        grid.appendChild(card);
+      }
+      host.appendChild(grid);
+    }
+    document.getElementById("uc-count").textContent = `${total} scenarios`;
+    if (total === 0) {
+      host.appendChild(el("div", { class: "empty" }, el("h4", {}, "No matches"), el("p", {}, "Try a different category, deployment target, or search term.")));
+    }
+  }
+  render();
+
+  /* Recent projects */
+  (async () => {
+    try {
+      const res = await fetchJSON("/api/projects?limit=6");
+      const items = (res.data && res.data.projects) || res.projects || [];
+      if (!items.length) return;
+      const host = document.getElementById("recent-projects");
+      host.innerHTML = "";
+      for (const p of items) {
+        const card = el("a", { class: "card interactive", href: `/playground?project=${p.id}`, style: "display:flex; flex-direction:column; gap:8px" },
+          el("div", { class: "row" },
+            el("span", { class: "chip", style: "background:var(--accent-soft); color:#d3d4ff; border-color:var(--accent-ring)" }, p.usecase || "Custom"),
+            el("span", { class: "muted text-xs" }, timeAgo(p.updated_at))
+          ),
+          el("div", { class: "card-title" }, p.name),
+          el("div", { class: "card-desc" }, p.description || "—")
+        );
+        host.appendChild(card);
+      }
+    } catch (_) { /* no projects API yet, leave empty state */ }
+  })();
+
+  /* Keyboard shortcuts */
+  window.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    if (e.key === "/") { e.preventDefault(); document.getElementById("cat-search").focus(); }
+    if (e.key === "n" || e.key === "N") location.href = "{{ url_for('pages.new_project') }}";
+    if (e.key === "p" || e.key === "P") location.href = "{{ url_for('pages.playground') }}";
+  });
+})();
+</script>
+{% endblock %}

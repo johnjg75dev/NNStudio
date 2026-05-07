@@ -22,7 +22,7 @@ class Project(db.Model):
     __tablename__ = "projects"
 
     id            = db.Column(db.Integer, primary_key=True)
-    user_id       = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    user_id       = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=True, index=True)
 
     name          = db.Column(db.String(160), nullable=False)
     slug          = db.Column(db.String(180), nullable=False, index=True)

@@ -2,7 +2,11 @@ flask>=3.0
 numpy>=1.26
 flask-sqlalchemy
 flask-login
-pytest>=7.4
-pytest-cov>=4.1
+werkzeug>=3.0
+gunicorn>=21.2
 safetensors>=0.4.0
 onnx>=1.14.0
+
+# Dev / Test (not needed in production)
+pytest>=7.4
+pytest-cov>=4.1

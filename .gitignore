@@ -6,9 +6,6 @@ __pycache__/
 
 *.py[codz]
 *$py.class
-*.html
-.github/
-docs/
 
 # Logs
 logs/
@@ -74,8 +71,7 @@ db.sqlite3
 db.sqlite3-journal
 
 # Flask stuff:
-instance/nnstudio.db
-instance/datasets/mnist/*
+instance/
 .webassets-cache
 
 # Scrapy stuff:
@@ -230,3 +226,6 @@ __marimo__/
 app/api/__pycache__/*
 *.zip
 app/api/__pycache__/session_routes.cpython-312.pyc
+
+# Gemini / AI tools
+.gemini/

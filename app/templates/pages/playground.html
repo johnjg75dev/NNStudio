@@ -1,0 +1,11 @@
+{% extends "layout/base.html" %}
+{% set active_section = "playground" %}
+{% block title %}Playground — NNStudio{% endblock %}
+{% block crumbs %}<span>NNStudio</span><span>Playground</span>{% endblock %}
+{% block content %}
+<div class="surface-card" style="padding:2rem;text-align:center;">
+  <h2>🧪 Model Playground</h2>
+  <p style="opacity:.7;">Build and visualize neural networks interactively.</p>
+  <a href="/classic" class="btn btn-primary" style="margin-top:1rem;">Open Classic Playground</a>
+</div>
+{% endblock %}
