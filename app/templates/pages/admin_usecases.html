@@ -1,0 +1,269 @@
+{% extends "layout/base.html" %}
+{% block title %}NNStudio · Admin · Use Cases{% endblock %}
+{% set active_section = "admin" %}
+{% set page_title = "Admin: Use Cases" %}
+
+{% block sidebar %}
+<aside class="app-side">
+  <div class="side-section">
+    <div class="side-title">Admin</div>
+    <div class="side-link"><span class="ico" id="ic-admin"></span>Use Cases</div>
+  </div>
+  <div class="side-section">
+    <button class="btn primary sm" id="btn-new-usecase">
+      <span id="ic-plus-btn"></span>New Use Case
+    </button>
+  </div>
+</aside>
+{% endblock %}
+
+{% block content %}
+<section class="section">
+  <h2>Use Cases Management</h2>
+  <p class="text-sm muted">Manage use-case catalog. Changes are persisted to the database.</p>
+  
+  <div style="margin-top: var(--s-5)">
+    <div class="row" style="margin-bottom: var(--s-4)">
+      <span>Filter by category:</span>
+      <select id="cat-filter" class="select" style="width: auto">
+        <option value="">All Categories</option>
+      </select>
+      <span class="spacer"></span>
+      <input type="search" id="search-uc" class="input" placeholder="Search by key or title..." style="width: 250px">
+    </div>
+
+    <div id="uc-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--s-4);">
+      <div style="grid-column: 1/-1; text-align: center; padding: var(--s-5); color: var(--fg-2);">Loading...</div>
+    </div>
+  </div>
+</section>
+
+<!-- Edit Modal -->
+<div id="modal-edit" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+  <div style="background:var(--bg-2); border-radius:var(--r-lg); padding:var(--s-5); width:90%; max-width:500px; max-height:90vh; overflow-y:auto;">
+    <h3>Edit Use Case</h3>
+    <form id="form-edit-uc" style="display: grid; gap: var(--s-3); margin-top: var(--s-4);">
+      <div>
+        <label style="display: block; margin-bottom: var(--s-2); font-weight: 500;">Key</label>
+        <input type="text" id="field-key" class="input" readonly>
+        <div style="font-size: var(--t-12); color: var(--fg-2); margin-top: var(--s-1);">Cannot change after creation</div>
+      </div>
+      <div>
+        <label style="display: block; margin-bottom: var(--s-2); font-weight: 500;">Title</label>
+        <input type="text" id="field-title" class="input" required>
+      </div>
+      <div>
+        <label style="display: block; margin-bottom: var(--s-2); font-weight: 500;">Description</label>
+        <textarea id="field-desc" class="input" rows="3" required></textarea>
+      </div>
+      <div>
+        <label style="display: block; margin-bottom: var(--s-2); font-weight: 500;">Icon</label>
+        <input type="text" id="field-icon" class="input" required>
+        <div style="font-size: var(--t-12); color: var(--fg-2); margin-top: var(--s-1);">Icon name from ICONS dict</div>
+      </div>
+      <div>
+        <label style="display: block; margin-bottom: var(--s-2); font-weight: 500;">Tags (comma-separated)</label>
+        <input type="text" id="field-tags" class="input" value="Local">
+      </div>
+      <div>
+        <label style="display: flex; align-items: center; gap: var(--s-2); cursor: pointer;">
+          <input type="checkbox" id="field-active">
+          <span>Active</span>
+        </label>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3);">
+        <button type="button" class="btn ghost" id="btn-cancel-edit">Cancel</button>
+        <button type="submit" class="btn primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const { $, $$, el, fetchJSON } = NN;
+  const modal = document.getElementById("modal-edit");
+  const form = document.getElementById("form-edit-uc");
+  let editingId = null;
+  let allUsecases = [];
+  let allCategories = [];
+
+  document.getElementById("ic-admin").innerHTML = ICONS.settings({ size: 14 });
+  document.getElementById("ic-plus-btn").innerHTML = ICONS.plus({ size: 14 });
+
+  // Load categories and usecases
+  async function load() {
+    try {
+      const res = await fetchJSON("/api/usecases/admin");
+      if (res.ok) {
+        allUsecases = res.data.usecases || [];
+        
+        const catRes = await fetchJSON("/api/usecases/categories");
+        if (catRes.ok) {
+          allCategories = catRes.data.categories || [];
+          populateCategoryFilter();
+          render();
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load usecases:", e);
+    }
+  }
+
+  function populateCategoryFilter() {
+    const filter = document.getElementById("cat-filter");
+    for (const cat of allCategories) {
+      filter.appendChild(el("option", { value: cat.key }, cat.label));
+    }
+  }
+
+  function render() {
+    const catFilter = document.getElementById("cat-filter").value;
+    const search = document.getElementById("search-uc").value.toLowerCase();
+
+    let filtered = allUsecases;
+    if (catFilter) {
+      filtered = filtered.filter(u => u.cat === catFilter);
+    }
+    if (search) {
+      filtered = filtered.filter(u => 
+        u.key.toLowerCase().includes(search) || 
+        u.title.toLowerCase().includes(search)
+      );
+    }
+
+    const host = document.getElementById("uc-list");
+    host.innerHTML = "";
+
+    for (const uc of filtered) {
+      const cat = allCategories.find(c => c.key === uc.cat);
+      const catLabel = cat ? cat.label : uc.cat;
+      const statusBadge = uc.is_active 
+        ? el("span", { class: "chip" }, "Active")
+        : el("span", { class: "chip", style: "background: var(--err); color: white; border: none;" }, "Archived");
+
+      const card = el("div", { class: "card", style: "padding: var(--s-3); display: grid; gap: var(--s-3);" },
+        el("div", { class: "row" },
+          el("div", {},
+            el("div", { style: "font-weight: 500;" }, uc.title),
+            el("div", { style: "font-size: var(--t-12); color: var(--fg-2);" }, uc.key)
+          ),
+          el("span", { class: "spacer" }),
+          statusBadge
+        ),
+        el("div", { style: "font-size: var(--t-12); color: var(--fg-2); line-height: 1.4;" }, uc.desc),
+        el("div", { class: "row", style: "gap: var(--s-2);" },
+          el("span", { class: "chip" }, catLabel),
+          el("span", { class: "chip" }, (uc.tags || ["Local"]).join(", "))
+        ),
+        el("div", { class: "row", style: "gap: var(--s-2);" },
+          el("button", { class: "btn ghost sm", "data-id": uc.id }, "Edit"),
+          el("button", { class: "btn ghost sm", "data-delete": uc.id }, uc.is_active ? "Archive" : "Restore")
+        )
+      );
+
+      card.querySelector(`[data-id="${uc.id}"]`).addEventListener("click", () => openEdit(uc));
+      card.querySelector(`[data-delete="${uc.id}"]`).addEventListener("click", () => toggleActive(uc));
+
+      host.appendChild(card);
+    }
+
+    if (filtered.length === 0) {
+      host.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: var(--s-5); color: var(--fg-2);">No use cases found</div>';
+    }
+  }
+
+  function openEdit(uc) {
+    editingId = uc.id;
+    document.getElementById("field-key").value = uc.key;
+    document.getElementById("field-title").value = uc.title;
+    document.getElementById("field-desc").value = uc.desc;
+    document.getElementById("field-icon").value = uc.icon;
+    document.getElementById("field-tags").value = (uc.tags || ["Local"]).join(", ");
+    document.getElementById("field-active").checked = uc.is_active;
+    modal.style.display = "flex";
+  }
+
+  function closeEdit() {
+    modal.style.display = "none";
+    editingId = null;
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+
+    const tags = document.getElementById("field-tags").value
+      .split(",")
+      .map(t => t.trim())
+      .join(",");
+
+    try {
+      const res = await fetchJSON(`/api/usecases/admin/${editingId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          title: document.getElementById("field-title").value,
+          description: document.getElementById("field-desc").value,
+          icon: document.getElementById("field-icon").value,
+          tags: tags,
+          is_active: document.getElementById("field-active").checked,
+        }),
+      });
+
+      if (res.ok) {
+        closeEdit();
+        load();
+      } else {
+        alert("Error: " + (res.error || "Unknown error"));
+      }
+    } catch (e) {
+      alert("Error saving: " + e.message);
+    }
+  }
+
+  async function toggleActive(uc) {
+    const action = uc.is_active ? "Archive" : "Activate";
+    if (!confirm(`${action} this use case?`)) return;
+
+    try {
+      const endpoint = uc.is_active 
+        ? `/api/usecases/admin/${uc.id}` 
+        : `/api/usecases/admin/${uc.id}/activate`;
+      
+      const method = uc.is_active ? "DELETE" : "POST";
+      const res = await fetchJSON(endpoint, { method });
+
+      if (res.ok) {
+        load();
+      } else {
+        alert("Error: " + (res.error || "Unknown error"));
+      }
+    } catch (e) {
+      alert("Error: " + e.message);
+    }
+  }
+
+  document.getElementById("btn-cancel-edit").addEventListener("click", closeEdit);
+  document.getElementById("btn-new-usecase").addEventListener("click", () => {
+    alert("New use case creation coming soon");
+  });
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    saveEdit();
+  });
+
+  document.getElementById("cat-filter").addEventListener("change", render);
+  document.getElementById("search-uc").addEventListener("input", render);
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closeEdit();
+  });
+
+  // Initial load
+  load();
+})();
+</script>
+{% endblock %}

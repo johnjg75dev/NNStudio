@@ -57,6 +57,7 @@ def create_app(config: dict | None = None) -> Flask:
     from .api.admin_routes import admin_bp
     from .api.project_routes import project_bp
     from .api.studio_routes import studio_bp
+    from .api.usecase_routes import usecase_bp
 
     app.register_blueprint(page_bp)
     app.register_blueprint(session_bp, url_prefix="/api/session")
@@ -70,6 +71,7 @@ def create_app(config: dict | None = None) -> Flask:
     app.register_blueprint(admin_bp)
     app.register_blueprint(project_bp, url_prefix="/api/projects")
     app.register_blueprint(studio_bp,  url_prefix="/api/studio")
+    app.register_blueprint(usecase_bp)
 
     # User loader
     from .models import User, Preset

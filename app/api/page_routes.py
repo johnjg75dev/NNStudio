@@ -88,6 +88,12 @@ def settings():
     return render_template("pages/settings.html")
 
 
+@page_bp.get("/admin/usecases")
+@login_required
+def admin_usecases():
+    return render_template("pages/admin_usecases.html")
+
+
 # Legacy SPA shell — kept available for direct access while the redesign
 # is rolled out.  Redirects do NOT happen from "/" because the new home
 # IS the new "/", per the IA in design.
