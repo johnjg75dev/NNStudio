@@ -2,9 +2,277 @@
 {% set active_section = "quant" %}
 {% block title %}Export &amp; Quantize — NNStudio{% endblock %}
 {% block crumbs %}<span>NNStudio</span><span>Export &amp; Quantize</span>{% endblock %}
+
+{% block head %}
+<style>
+  .qs-shell { display: flex; flex-direction: column; height: 100%; }
+  .qs-body { flex: 1; overflow-y: auto; padding: var(--s-5); display: flex; flex-direction: column; gap: var(--s-4); max-width: 800px; }
+
+  .qs-card { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-md); }
+  .qs-card-head { padding: 12px 16px; border-bottom: 1px solid var(--line-1); font-weight: 600; font-size: var(--t-13); color: var(--fg-0); display: flex; align-items: center; gap: 8px; }
+  .qs-card-body { padding: var(--s-4); display: flex; flex-direction: column; gap: var(--s-3); }
+
+  .qs-model-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: var(--s-3); margin-bottom: var(--s-2); }
+  .qs-model-info .qs-mi { text-align: center; }
+  .qs-model-info .qs-mi .val { font-size: var(--t-20); font-weight: 700; font-family: var(--font-mono); color: var(--fg-0); }
+  .qs-model-info .qs-mi .label { font-size: var(--t-11); color: var(--fg-3); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  .qs-format-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--s-3); }
+  .qs-format-card { background: var(--bg-1); border: 1px solid var(--line-2); border-radius: var(--r-sm); padding: var(--s-3); cursor: pointer; transition: border-color var(--t-fast), background var(--t-fast); text-align: center; }
+  .qs-format-card:hover { border-color: var(--accent); background: var(--bg-2); }
+  .qs-format-card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .qs-format-card .fc-icon { font-size: 24px; margin-bottom: 6px; }
+  .qs-format-card .fc-name { font-weight: 600; font-size: var(--t-13); color: var(--fg-0); }
+  .qs-format-card .fc-desc { font-size: var(--t-11); color: var(--fg-2); margin-top: 4px; }
+
+  .qs-quant-row { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) 0; border-bottom: 1px solid var(--line-1); }
+  .qs-quant-row:last-child { border-bottom: none; }
+  .qs-quant-row label { flex: 1; font-size: var(--t-13); color: var(--fg-1); }
+  .qs-quant-row input, .qs-quant-row select { width: 140px; }
+
+  .qs-table-wrap { max-height: 300px; overflow-y: auto; }
+  .qs-table-wrap table { width: 100%; border-collapse: collapse; font-size: var(--t-12); }
+  .qs-table-wrap th, .qs-table-wrap td { padding: 6px 10px; text-align: left; border-bottom: 1px solid var(--line-1); }
+  .qs-table-wrap th { color: var(--fg-2); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; position: sticky; top: 0; background: var(--bg-2); }
+  .qs-table-wrap td { color: var(--fg-0); }
+  .qs-table-wrap tr:hover td { background: rgba(255,255,255,0.03); }
+
+  .qs-empty { padding: var(--s-8); text-align: center; color: var(--fg-2); }
+  .qs-empty h3 { color: var(--fg-0); margin: 0 0 8px; }
+  .qs-empty p { margin: 0; font-size: var(--t-13); }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="surface-card" style="padding:2rem;text-align:center;">
-  <h2>📦 Export &amp; Quantization Studio</h2>
-  <p style="opacity:.7;">Export models to ONNX, SafeTensors, GGUF, and more.</p>
+<div class="qs-shell">
+  <div class="qs-body">
+    <!-- Session Model -->
+    <div class="qs-card" id="qs-session-card">
+      <div class="qs-card-head"><span id="qs-ic-session"></span> Current Session Model</div>
+      <div class="qs-card-body">
+        <div id="qs-no-model" class="qs-empty">
+          <h3>No Model in Session</h3>
+          <p>Build a model in the Playground or load a saved model to export.</p>
+        </div>
+        <div id="qs-model-info" style="display:none;">
+          <div class="qs-model-info">
+            <div class="qs-mi"><div class="val" id="qs-params">—</div><div class="label">Parameters</div></div>
+            <div class="qs-mi"><div class="val" id="qs-layers">—</div><div class="label">Layers</div></div>
+            <div class="qs-mi"><div class="val" id="qs-epochs">—</div><div class="label">Epochs</div></div>
+            <div class="qs-mi"><div class="val" id="qs-loss">—</div><div class="label">Loss</div></div>
+          </div>
+
+          <div class="field"><label>Model Name</label><input class="input" id="qs-export-name" value="nnstudio-model" placeholder="My Model"></div>
+          <div class="field"><label>Description</label><textarea class="input" id="qs-export-desc" rows="2" placeholder="Optional description"></textarea></div>
+
+          <label style="font-size:var(--t-12);color:var(--fg-2);font-weight:600;">Export Format</label>
+          <div class="qs-format-grid" id="qs-formats"></div>
+
+          <div class="qs-card" id="qs-quant-options" style="display:none;">
+            <div class="qs-card-head">Quantization Options</div>
+            <div class="qs-card-body">
+              <div class="qs-quant-row"><label>Weight Precision</label>
+                <select class="select" id="qs-quant-precision"><option value="fp32">FP32 (Full)</option><option value="fp16">FP16 (Half)</option><option value="int8">INT8 (Quantized)</option><option value="int4">INT4 (Ultra-low)</option></select>
+              </div>
+              <div class="qs-quant-row"><label>Pruning Threshold</label>
+                <input class="input" type="number" id="qs-quant-prune" value="0.001" min="0" step="0.0001">
+              </div>
+              <div class="qs-quant-row"><label>Strip Training-only Ops</label>
+                <label class="switch"><input type="checkbox" id="qs-quant-strip" checked><span class="slider"></span></label>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:var(--s-2);">
+            <button class="btn primary sm" id="qs-btn-export"><span id="qs-ic-export"></span> Export &amp; Download</button>
+            <button class="btn sm" id="qs-btn-refresh"><span id="qs-ic-ref"></span> Refresh</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Saved Models -->
+    <div class="qs-card" id="qs-saved-card">
+      <div class="qs-card-head"><span id="qs-ic-saved"></span> Saved Models</div>
+      <div class="qs-card-body">
+        <div class="qs-table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Architecture</th><th>Epochs</th><th>Loss</th><th>Created</th><th></th></tr></thead>
+            <tbody id="qs-saved-body"></tbody>
+          </table>
+        </div>
+        <div id="qs-no-saved" class="qs-empty" style="display:none;">
+          <p style="font-size:var(--t-13);">No saved models yet. Train a model and save it from the Playground.</p>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  const { $, $$, el, fetchJSON, toast, modal } = window.NN;
+  const I = window.ICONS;
+
+  /* Hydrate icons */
+  const qi = {
+    "qs-ic-session": "package",
+    "qs-ic-saved": "archive",
+    "qs-ic-export": "download",
+    "qs-ic-ref": "refresh",
+  };
+  for (const [id, name] of Object.entries(qi)) {
+    const e = document.getElementById(id);
+    if (e) e.innerHTML = I[name]({ size: 14 });
+  }
+
+  const FORMATS = [
+    { id: "json", icon: "{ }", name: "JSON", desc: "Plain JSON, full serialization", quant: false },
+    { id: "safetensors", icon: "🔒", name: "SafeTensors", desc: "Hugging Face efficient format", quant: false },
+    { id: "gguf", icon: "⚡", name: "GGUF", desc: "GGML quantized inference format", quant: true },
+    { id: "onnx", icon: "🔷", name: "ONNX", desc: "Cross-platform model interchange", quant: true },
+    { id: "zip", icon: "📦", name: "ZIP Archive", desc: "Compressed model + weights + metadata", quant: false },
+  ];
+
+  let selectedFormat = "json";
+
+  /* Format grid */
+  const fmtGrid = document.getElementById("qs-formats");
+  function renderFormats() {
+    fmtGrid.innerHTML = "";
+    FORMATS.forEach(f => {
+      const card = el("div", {
+        class: "qs-format-card" + (f.id === selectedFormat ? " selected" : ""),
+        "data-format": f.id,
+      });
+      card.innerHTML = `<div class="fc-icon">${f.icon}</div><div class="fc-name">${f.name}</div><div class="fc-desc">${f.desc}</div>`;
+      card.addEventListener("click", () => {
+        selectedFormat = f.id;
+        fmtGrid.querySelectorAll(".qs-format-card").forEach(c => c.classList.remove("selected"));
+        card.classList.add("selected");
+        document.getElementById("qs-quant-options").style.display = f.quant ? "" : "none";
+      });
+      fmtGrid.appendChild(card);
+    });
+  }
+  renderFormats();
+
+  /* Refresh session model info */
+  async function refreshSession() {
+    try {
+      const snap = await API.getSnapshot();
+      const info = document.getElementById("qs-model-info");
+      const noModel = document.getElementById("qs-no-model");
+      if (!snap || !snap.built) {
+        info.style.display = "none";
+        noModel.style.display = "";
+        return;
+      }
+      info.style.display = "";
+      noModel.style.display = "none";
+      document.getElementById("qs-params").textContent = (snap.param_count || 0).toLocaleString();
+      document.getElementById("qs-layers").textContent = (snap.layers ? snap.layers.length : 0);
+      document.getElementById("qs-epochs").textContent = snap.epoch || 0;
+      document.getElementById("qs-loss").textContent = snap.loss_history && snap.loss_history.length > 0
+        ? snap.loss_history[snap.loss_history.length - 1].toFixed(4) : "—";
+    } catch (_) {
+      document.getElementById("qs-model-info").style.display = "none";
+      document.getElementById("qs-no-model").style.display = "";
+    }
+  }
+
+  /* Export current session */
+  document.getElementById("qs-btn-export").addEventListener("click", async function () {
+    const name = document.getElementById("qs-export-name").value.trim() || "nnstudio-model";
+    const desc = document.getElementById("qs-export-desc").value.trim();
+    try {
+      const resp = await fetch("/api/studio/session/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ format: selectedFormat, name, description: desc }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json();
+        throw new Error(err.error || "Export failed");
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${name.replace(/\s+/g, '_')}.${selectedFormat === "safetensors" ? "safetensors" : selectedFormat}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast(`Model exported as ${selectedFormat.toUpperCase()}`);
+    } catch (err) {
+      toast(err.message || "Export failed", "err");
+    }
+  });
+
+  document.getElementById("qs-btn-refresh").addEventListener("click", refreshSession);
+
+  /* Load saved models */
+  async function loadSavedModels() {
+    try {
+      const res = await API.listDbModels();
+      const models = res.models || [];
+      const body = document.getElementById("qs-saved-body");
+      const noSaved = document.getElementById("qs-no-saved");
+      if (models.length === 0) {
+        body.innerHTML = "";
+        noSaved.style.display = "";
+        return;
+      }
+      noSaved.style.display = "none";
+      body.innerHTML = "";
+      models.forEach(m => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td><strong>${m.name}</strong></td>
+          <td>${m.architecture_name || '—'}</td>
+          <td>${m.epochs_trained || 0}</td>
+          <td>${m.final_loss != null ? m.final_loss.toFixed(4) : '—'}</td>
+          <td>${m.created_at ? new Date(m.created_at).toLocaleDateString() : '—'}</td>
+          <td><button class="btn sm" data-model-id="${m.id}" data-model-name="${m.name}">${I.download({size:14})}</button></td>`;
+        const btn = tr.querySelector("button");
+        btn.addEventListener("click", async function () {
+          const mid = this.dataset.modelId;
+          const mname = this.dataset.modelName;
+          try {
+            const resp = await fetch(`/api/models/${mid}/export`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ format: "zip" }),
+            });
+            const data = await resp.json();
+            if (data.success) {
+              const dlResp = await fetch(data.download_url);
+              const blob = await dlResp.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `${mname.replace(/\s+/g, '_')}.zip`;
+              a.click();
+              URL.revokeObjectURL(url);
+              toast(`Exported "${mname}" as ZIP`);
+            } else {
+              toast(data.error || "Export failed", "err");
+            }
+          } catch (e) {
+            toast("Export failed: " + e.message, "err");
+          }
+        });
+        body.appendChild(tr);
+      });
+    } catch (_) {
+      document.getElementById("qs-no-saved").style.display = "";
+    }
+  }
+
+  refreshSession();
+  loadSavedModels();
+})();
+</script>
 {% endblock %}

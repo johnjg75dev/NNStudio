@@ -1,1 +1,581 @@
-placeholder
+{% extends "layout/base.html" %}
+{% set active_section = "eval" %}
+{% block title %}Evaluate — NNStudio{% endblock %}
+{% block crumbs %}<span>NNStudio</span><span>Evaluate</span>{% endblock %}
+
+{% block head %}
+<style>
+  .es-shell { display: flex; flex-direction: column; height: 100%; }
+  .es-top { padding: var(--s-4) var(--s-5) var(--s-3); border-bottom: 1px solid var(--line-1); display: flex; align-items: center; gap: var(--s-4); flex-wrap: wrap; }
+  .es-top select { width: 260px; }
+
+  .es-body { flex: 1; display: grid; grid-template-columns: 300px 1fr; overflow: hidden; }
+  .es-config { background: var(--bg-1); border-right: 1px solid var(--line-1); overflow-y: auto; padding: var(--s-4); display: flex; flex-direction: column; gap: var(--s-4); }
+  .es-main { overflow-y: auto; padding: var(--s-4); display: flex; flex-direction: column; gap: var(--s-4); }
+
+  .es-section { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-md); }
+  .es-section-head { padding: 10px 14px; border-bottom: 1px solid var(--line-1); cursor: pointer; display: flex; align-items: center; gap: var(--s-2); font-size: var(--t-13); font-weight: 600; user-select: none; }
+  .es-section-head:hover { background: var(--bg-3); }
+  .es-section-head .chev { transition: transform var(--t-fast); }
+  .es-section.collapsed .chev { transform: rotate(-90deg); }
+  .es-section-body { padding: var(--s-3); display: flex; flex-direction: column; gap: var(--s-3); }
+  .es-section.collapsed .es-section-body { display: none; }
+
+  .es-param-row { display: flex; align-items: center; gap: var(--s-2); }
+  .es-param-row label { font-size: var(--t-12); color: var(--fg-2); min-width: 100px; flex-shrink: 0; }
+  .es-param-row input, .es-param-row select { flex: 1; min-width: 0; }
+  .es-sub-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); margin-top: var(--s-1); }
+
+  /* Results */
+  .es-results { display: flex; flex-direction: column; gap: var(--s-4); }
+  .es-metrics-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--s-3); }
+  .es-metric-card { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-md); padding: var(--s-3); text-align: center; }
+  .es-metric-card .mc-val { font-size: var(--t-24); font-weight: 700; font-family: var(--font-mono); color: var(--fg-0); }
+  .es-metric-card .mc-label { font-size: var(--t-11); color: var(--fg-3); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px; }
+
+  .es-plot-container { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-md); padding: var(--s-4); }
+  .es-plot-title { font-size: var(--t-12); color: var(--fg-2); margin-bottom: var(--s-2); text-transform: uppercase; letter-spacing: 0.06em; }
+  .es-plot-container canvas { width: 100%; height: 280px; display: block; border-radius: var(--r-sm); }
+
+  .es-table-wrap { max-height: 400px; overflow-y: auto; background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-md); }
+  .es-table-wrap table { width: 100%; border-collapse: collapse; font-size: var(--t-12); }
+  .es-table-wrap th, .es-table-wrap td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--line-1); }
+  .es-table-wrap th { color: var(--fg-2); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; position: sticky; top: 0; background: var(--bg-2); }
+  .es-table-wrap td { font-family: var(--font-mono); color: var(--fg-0); }
+  .es-table-wrap tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+
+  .es-controls { display: flex; gap: var(--s-2); align-items: center; flex-wrap: wrap; }
+  .es-empty { padding: var(--s-8); text-align: center; color: var(--fg-2); flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .es-empty h3 { color: var(--fg-0); margin: 0 0 8px; }
+  .es-empty p { margin: 0; font-size: var(--t-13); }
+
+  .es-status { font-size: var(--t-12); color: var(--fg-2); display: flex; align-items: center; gap: var(--s-2); }
+
+  .es-range-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: var(--s-2); align-items: end; }
+  .es-range-row .field { gap: 3px; }
+  .es-range-row .field label { font-size: 11px; color: var(--fg-3); }
+
+  .es-cm { display: inline-grid; gap: 2px; margin: var(--s-2) auto; }
+  .es-cm-cell { width: 40px; height: 40px; display: grid; place-items: center; font-size: var(--t-12); font-family: var(--font-mono); border-radius: var(--r-sm); }
+  .es-cm-cell.true-pos { background: rgba(60, 180, 75, 0.3); color: #3cb44b; }
+  .es-cm-cell.false-pos { background: rgba(200, 50, 50, 0.3); color: #e03232; }
+  .es-cm-cell.true-neg { background: rgba(60, 180, 75, 0.15); color: #5dd39e; }
+  .es-cm-cell.false-neg { background: rgba(200, 50, 50, 0.15); color: #ff6b8a; }
+
+  .es-latent { display: flex; flex-direction: column; gap: var(--s-2); }
+  .es-latent svg { width: 100%; height: 120px; display: block; }
+
+  @media (max-width: 900px) { .es-body { grid-template-columns: 1fr; } .es-config { border-right: none; border-bottom: 1px solid var(--line-1); max-height: 40vh; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="es-shell">
+  <div class="es-top">
+    <div class="field" style="margin:0; width:260px;">
+      <label>Project</label>
+      <select class="select" id="es-project">
+        <option value="">— Select a project —</option>
+      </select>
+    </div>
+    <span class="chip" id="es-status-chip" style="display:none;"></span>
+  </div>
+
+  <div class="es-body">
+    <div class="es-config scroll-y">
+      <!-- Evaluate Mode -->
+      <div class="es-section" id="es-sec-mode">
+        <div class="es-section-head" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev" style="display:inline-block;">&#9660;</span> Evaluate Mode
+        </div>
+        <div class="es-section-body">
+          <div class="es-param-row">
+            <label>Mode</label>
+            <select class="select" id="es-mode">
+              <option value="dataset">Evaluate on Dataset</option>
+              <option value="sweep">Grid Sweep</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dataset Evaluate Options (shown in dataset mode) -->
+      <div class="es-section" id="es-sec-data">
+        <div class="es-section-head" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev" style="display:inline-block;">&#9660;</span> Dataset Options
+        </div>
+        <div class="es-section-body">
+          <div class="es-param-row"><label>Dataset</label>
+            <select class="select" id="es-dataset">
+              <option value="session">Current Session</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sweep Options (shown in sweep mode) -->
+      <div class="es-section" id="es-sec-sweep">
+        <div class="es-section-head" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev" style="display:inline-block;">&#9660;</span> Sweep Ranges
+        </div>
+        <div class="es-section-body">
+          <div class="es-param-row"><label>Dimensions</label>
+            <input class="input" type="number" id="es-sweep-dims" value="2" min="1" max="8">
+          </div>
+          <div id="es-sweep-ranges"></div>
+        </div>
+      </div>
+
+      <!-- Layer Range -->
+      <div class="es-section" id="es-sec-layers">
+        <div class="es-section-head" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev" style="display:inline-block;">&#9660;</span> Layer Range
+        </div>
+        <div class="es-section-body">
+          <div class="es-sub-row">
+            <div class="field"><label>Start Layer</label><input class="input" type="number" id="es-start-layer" value="0" min="0"></div>
+            <div class="field"><label>End Layer</label><input class="input" type="number" id="es-end-layer" value="" placeholder="all"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Latent Sweep -->
+      <div class="es-section" id="es-sec-latent">
+        <div class="es-section-head" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev" style="display:inline-block;">&#9660;</span> Latent Manipulation
+        </div>
+        <div class="es-section-body">
+          <div class="es-param-row"><label>Input X</label>
+            <input class="input" type="text" id="es-latent-x" value="[0.5, 0.5]" placeholder="[0.5, 0.5]">
+          </div>
+          <div class="es-sub-row">
+            <div class="field"><label>Layer</label><input class="input" type="number" id="es-latent-layer" value="1" min="0"></div>
+            <div class="field"><label>Neuron</label><input class="input" type="number" id="es-latent-node" value="0" min="0"></div>
+          </div>
+          <div class="es-sub-row">
+            <div class="field"><label>Range Min</label><input class="input" type="number" id="es-latent-min" value="-2" step="0.1"></div>
+            <div class="field"><label>Range Max</label><input class="input" type="number" id="es-latent-max" value="2" step="0.1"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="es-main scroll-y">
+      <!-- Controls -->
+      <div class="es-controls" id="es-controls">
+        <button class="btn primary sm" id="es-btn-evaluate"><span id="es-ic-eval"></span> Evaluate</button>
+        <button class="btn sm" id="es-btn-latent"><span id="es-ic-latent"></span> Latent Sweep</button>
+        <div class="spacer"></div>
+        <span class="es-status" id="es-status-msg">Ready</span>
+      </div>
+
+      <!-- Results -->
+      <div id="es-results" class="es-results" style="display:none;">
+        <!-- Metrics -->
+        <div class="es-metrics-row" id="es-metrics"></div>
+
+        <!-- 2D Decision Boundary / 1D Function Plot -->
+        <div class="es-plot-container" id="es-plot-container" style="display:none;">
+          <div class="es-plot-title">Decision Boundary / Function Plot</div>
+          <div class="es-plot-title" style="font-weight:400;text-transform:none;font-size:var(--t-11);color:var(--fg-3);">Shows model predictions across the input space. Blue = class 1, Red = class 0.</div>
+          <canvas id="es-plot-canvas"></canvas>
+        </div>
+
+        <!-- Confusion Matrix -->
+        <div class="es-plot-container" id="es-cm-container" style="display:none;">
+          <div class="es-plot-title" style="display:flex;align-items:center;gap:var(--s-2);">Confusion Matrix <span id="es-cm-stats" style="font-weight:400;text-transform:none;font-size:var(--t-11);color:var(--fg-3);"></span></div>
+          <div id="es-cm-grid" style="display:flex;justify-content:center;"></div>
+        </div>
+
+        <!-- Latent Sweep Plot -->
+        <div class="es-plot-container" id="es-latent-container" style="display:none;">
+          <div class="es-plot-title">Latent Sweep <span id="es-latent-label" style="font-weight:400;text-transform:none;font-size:var(--t-11);color:var(--fg-3);"></span></div>
+          <div id="es-latent-plot"></div>
+        </div>
+
+        <!-- Predictions Table -->
+        <div class="es-plot-container">
+          <div class="es-plot-title">Predictions <span id="es-table-count" style="font-weight:400;text-transform:none;font-size:var(--t-11);color:var(--fg-3);"></span></div>
+          <div class="es-table-wrap" id="es-table-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Input (x)</th><th>Target (y)</th><th>Prediction</th><th>Correct</th></tr></thead>
+              <tbody id="es-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div class="es-empty" id="es-empty-state">
+        <h3>Evaluate</h3>
+        <p>Select a project or build a model in the playground, configure evaluation, and click Evaluate.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/plot2d.js') }}"></script>
+<script>
+(function () {
+  "use strict";
+
+  const { $, $$, el, fetchJSON, toast } = window.NN;
+  const I = window.ICONS;
+
+  /* Hydrate icons */
+  const ei = {
+    "es-ic-eval": "play",
+    "es-ic-latent": "zap",
+  };
+  for (const [id, name] of Object.entries(ei)) {
+    const e = document.getElementById(id);
+    if (e) e.innerHTML = I[name]({ size: 14 });
+  }
+
+  /* ── State ────────────────────────────────── */
+  const state = {
+    projectId: null,
+    evaluating: false,
+    snapshot: null,
+    metrics: null,
+    samples: [],
+    latentData: null,
+    plotRenderer: null,
+  };
+
+  /* ── DOM refs ─────────────────────────────── */
+  const emptyEl = document.getElementById("es-empty-state");
+  const resultsEl = document.getElementById("es-results");
+  const statusMsg = document.getElementById("es-status-msg");
+  const plotCanvas = document.getElementById("es-plot-canvas");
+  const metricsEl = document.getElementById("es-metrics");
+  const tableBody = document.getElementById("es-table-body");
+  const tableCount = document.getElementById("es-table-count");
+  const cmGrid = document.getElementById("es-cm-grid");
+  const cmStats = document.getElementById("es-cm-stats");
+  const cmContainer = document.getElementById("es-cm-container");
+  const plotContainer = document.getElementById("es-plot-container");
+  const latentContainer = document.getElementById("es-latent-container");
+  const latentLabel = document.getElementById("es-latent-label");
+  const latentPlot = document.getElementById("es-latent-plot");
+  const chip = document.getElementById("es-status-chip");
+
+  /* ── Mode toggle ──────────────────────────── */
+  const modeSel = document.getElementById("es-mode");
+  const secData = document.getElementById("es-sec-data");
+  const secSweep = document.getElementById("es-sec-sweep");
+
+  modeSel.addEventListener("change", function () {
+    const mode = this.value;
+    secData.style.display = mode === "dataset" ? "" : "none";
+    secSweep.style.display = mode === "sweep" ? "" : "none";
+  });
+  modeSel.dispatchEvent(new Event("change"));
+
+  /* ── Sweep range builders ─────────────────── */
+  function buildSweepRanges() {
+    const dims = parseInt(document.getElementById("es-sweep-dims").value) || 2;
+    const container = document.getElementById("es-sweep-ranges");
+    container.innerHTML = "";
+    for (let i = 0; i < dims; i++) {
+      const g = el("div", { class: "es-range-row" });
+      g.innerHTML = `<div class="field"><label>Dim ${i} Min</label><input class="input es-smin" type="number" value="0" step="0.1"></div>
+        <div class="field"><label>Max</label><input class="input es-smax" type="number" value="1" step="0.1"></div>
+        <div class="field"><label>Step</label><input class="input es-sstep" type="number" value="0.2" step="0.05" min="0.01"></div>`;
+      container.appendChild(g);
+    }
+  }
+
+  document.getElementById("es-sweep-dims").addEventListener("change", buildSweepRanges);
+  buildSweepRanges();
+
+  /* ── Load projects ──────────────────────── */
+  async function loadProjects() {
+    try {
+      const res = await fetchJSON("/api/projects");
+      const projs = (res.data && res.data.projects) || res || [];
+      const sel = document.getElementById("es-project");
+      projs.forEach(p => {
+        const opt = document.createElement("option");
+        opt.value = p.id;
+        opt.textContent = p.name;
+        sel.appendChild(opt);
+      });
+    } catch (e) { toast("Failed to load projects", "err"); }
+  }
+
+  /* ── Snapshot refresh ───────────────────── */
+  async function refreshSnapshot() {
+    try {
+      const snap = await API.getSnapshot();
+      state.snapshot = snap;
+      if (snap && snap.built) {
+        chip.style.display = "";
+        chip.textContent = "Model ready";
+        chip.className = "chip ok";
+        statusMsg.textContent = "Model loaded, ready to evaluate";
+        return true;
+      } else {
+        chip.style.display = "";
+        chip.textContent = "No model built";
+        chip.className = "chip";
+        statusMsg.textContent = "Build a model in Playground first";
+        return false;
+      }
+    } catch (_) {
+      chip.style.display = "";
+      chip.textContent = "No session";
+      chip.className = "chip";
+      statusMsg.textContent = "No active training session";
+      return false;
+    }
+  }
+
+  /* ── Load project ────────────────────────── */
+  async function loadProject(pid) {
+    if (!pid) { chip.style.display = "none"; return; }
+    try {
+      const data = await fetchJSON(`/api/projects/${pid}`);
+      const proj = data.project || data;
+      if (proj && proj.model_graph && proj.model_graph.layers && proj.model_graph.layers.length > 0) {
+        await API.buildNetwork({ layers: proj.model_graph.layers, func_key: "xor" });
+        await API.trainStep(0);
+        await refreshSnapshot();
+        chip.style.display = "";
+        chip.textContent = "Project loaded";
+        chip.className = "chip ok";
+      } else {
+        await refreshSnapshot();
+      }
+    } catch (e) {
+      toast("Failed to load project: " + e.message, "err");
+    }
+  }
+
+  document.getElementById("es-project").addEventListener("change", function () {
+    state.projectId = this.value;
+    loadProject(this.value);
+  });
+
+  /* ── Evaluate ─────────────────────────────── */
+  async function runEvaluate() {
+    const mode = modeSel.value;
+    statusMsg.textContent = "Evaluating...";
+
+    const sl = parseInt(document.getElementById("es-start-layer").value) || 0;
+    const elRaw = document.getElementById("es-end-layer").value;
+    const el = elRaw ? parseInt(elRaw) : undefined;
+
+    try {
+      let result;
+      if (mode === "sweep") {
+        const dims = parseInt(document.getElementById("es-sweep-dims").value) || 2;
+        const ranges = [];
+        const smins = document.querySelectorAll(".es-smin");
+        const smaxes = document.querySelectorAll(".es-smax");
+        const ssteps = document.querySelectorAll(".es-sstep");
+        for (let i = 0; i < dims && i < smins.length; i++) {
+          ranges.push({
+            min: parseFloat(smins[i].value) || 0,
+            max: parseFloat(smaxes[i].value) || 1,
+            step: parseFloat(ssteps[i].value) || 0.2,
+          });
+        }
+        result = await API.evaluate(ranges, sl, el);
+      } else {
+        result = await API.evaluate(null, sl, el);
+      }
+
+      const samples = result.samples || [];
+      state.samples = samples;
+      state.metrics = { loss: result.loss, accuracy: result.accuracy };
+
+      showResults(samples, result);
+      statusMsg.textContent = `Evaluated ${samples.length} samples`;
+    } catch (err) {
+      toast(err.message || "Evaluate failed", "err");
+      statusMsg.textContent = "Evaluate failed: " + (err.message || "unknown error");
+    }
+  }
+
+  function showResults(samples, result) {
+    emptyEl.style.display = "none";
+    resultsEl.style.display = "flex";
+
+    /* Metrics */
+    const loss = result.loss != null ? result.loss : (state.metrics ? state.metrics.loss : 0);
+    const acc = result.accuracy != null ? result.accuracy : (state.metrics ? state.metrics.accuracy : 0);
+    metricsEl.innerHTML = `
+      <div class="es-metric-card"><div class="mc-val">${loss.toFixed(4)}</div><div class="mc-label">Loss</div></div>
+      <div class="es-metric-card"><div class="mc-val">${(acc * 100).toFixed(1)}%</div><div class="mc-label">Accuracy</div></div>
+      <div class="es-metric-card"><div class="mc-val">${samples.length}</div><div class="mc-label">Samples</div></div>
+    `;
+
+    /* Decision boundary / function plot using Plot2DRenderer */
+    const snap = state.snapshot;
+    if (snap && snap.built && snap.topology && snap.topology.length >= 2) {
+      plotContainer.style.display = "";
+      if (state.plotRenderer) {
+        state.plotRenderer.draw(snap, samples, { showBoundary: true, showPoints: true });
+      }
+    } else {
+      plotContainer.style.display = "none";
+    }
+
+    /* Confusion matrix (for binary classification) */
+    if (samples.length > 0 && samples[0].y && samples[0].y.length === 1) {
+      let tp = 0, fp = 0, tn = 0, fn = 0;
+      for (const s of samples) {
+        const actual = s.y[0] > 0.5;
+        const predicted = s.pred[0] > 0.5;
+        if (actual && predicted) tp++;
+        else if (!actual && predicted) fp++;
+        else if (!actual && !predicted) tn++;
+        else fn++;
+      }
+      const precision = tp + fp > 0 ? tp / (tp + fp) : 0;
+      const recall = tp + fn > 0 ? tp / (tp + fn) : 0;
+      const f1 = precision + recall > 0 ? 2 * precision * recall / (precision + recall) : 0;
+
+      cmContainer.style.display = "";
+      cmStats.textContent = `Precision: ${(precision * 100).toFixed(1)}%  Recall: ${(recall * 100).toFixed(1)}%  F1: ${(f1 * 100).toFixed(1)}%`;
+      cmGrid.innerHTML = `
+        <div class="es-cm" style="grid-template-columns: auto auto auto;">
+          <div></div><div style="color:var(--fg-3);font-size:11px;">Pred: 1</div><div style="color:var(--fg-3);font-size:11px;">Pred: 0</div>
+          <div style="color:var(--fg-3);font-size:11px;text-align:right;padding-right:6px;">Actual: 1</div>
+          <div class="es-cm-cell true-pos">${tp}</div>
+          <div class="es-cm-cell false-neg">${fn}</div>
+          <div style="color:var(--fg-3);font-size:11px;text-align:right;padding-right:6px;">Actual: 0</div>
+          <div class="es-cm-cell false-pos">${fp}</div>
+          <div class="es-cm-cell true-neg">${tn}</div>
+        </div>`;
+    } else {
+      cmContainer.style.display = "none";
+    }
+
+    /* Prediction table */
+    tableCount.textContent = `(${samples.length} rows)`;
+    tableBody.innerHTML = "";
+    for (let i = 0; i < samples.length; i++) {
+      const s = samples[i];
+      const xStr = Array.isArray(s.x) ? s.x.map(v => v.toFixed(3)).join(", ") : String(s.x);
+      const yStr = s.y ? (Array.isArray(s.y) ? s.y.map(v => v.toFixed(3)).join(", ") : String(s.y)) : "—";
+      const pStr = s.pred ? (Array.isArray(s.pred) ? s.pred.map(v => v.toFixed(3)).join(", ") : String(s.pred)) : "—";
+      let correct = "";
+      if (s.y && s.y.length === 1 && s.pred && s.pred.length === 1) {
+        correct = (s.y[0] > 0.5) === (s.pred[0] > 0.5) ? "✅" : "❌";
+      }
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${i + 1}</td><td style="text-align:left;font-size:11px;">${xStr}</td><td style="text-align:left;font-size:11px;">${yStr}</td><td style="text-align:left;font-size:11px;">${pStr}</td><td>${correct}</td>`;
+      tableBody.appendChild(tr);
+    }
+  }
+
+  document.getElementById("es-btn-evaluate").addEventListener("click", runEvaluate);
+
+  /* ── Latent Sweep ──────────────────────────── */
+  async function runLatentSweep() {
+    const xRaw = document.getElementById("es-latent-x").value;
+    let x;
+    try { x = JSON.parse(xRaw); } catch (_) { x = [0.5, 0.5]; }
+    const layer = parseInt(document.getElementById("es-latent-layer").value) || 1;
+    const node = parseInt(document.getElementById("es-latent-node").value) || 0;
+    const rMin = parseFloat(document.getElementById("es-latent-min").value) || -2;
+    const rMax = parseFloat(document.getElementById("es-latent-max").value) || 2;
+
+    try {
+      const result = await API.latentSweep({ x, layer, node, range: [rMin, rMax, 0.2] });
+      const data = result.sweep_data || [];
+      state.latentData = data;
+      showLatentSweep(data, layer, node);
+      statusMsg.textContent = `Latent sweep: ${data.length} points`;
+    } catch (err) {
+      toast(err.message || "Latent sweep failed", "err");
+    }
+  }
+
+  function showLatentSweep(data, layer, node) {
+    latentContainer.style.display = "";
+    latentLabel.textContent = `Layer ${layer}, Neuron ${node}`;
+
+    const w = 600, h = 120, pad = { t: 8, r: 8, b: 24, l: 48 };
+    const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+    const vals = data.map(d => d.result);
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const range = max - min || 1;
+
+    let pts = "";
+    for (let i = 0; i < data.length; i++) {
+      const px = pad.l + (i / (data.length - 1 || 1)) * pw;
+      const py = pad.t + ph - ((data[i].result - min) / range) * ph;
+      pts += `${px},${py} `;
+    }
+
+    let xTicks = "";
+    const n = data.length;
+    const steps = Math.min(6, n);
+    for (let i = 0; i < steps; i++) {
+      const idx = Math.round((i / (steps - 1 || 1)) * (n - 1));
+      if (data[idx]) {
+        const x = pad.l + (idx / (n - 1 || 1)) * pw;
+        xTicks += `<text x="${x}" y="${h - 4}" fill="var(--fg-3)" text-anchor="middle" font-size="9">${data[idx].val.toFixed(1)}</text>`;
+      }
+    }
+
+    const yTicks = 4;
+    let yAxis = "";
+    for (let i = 0; i <= yTicks; i++) {
+      const val = min + (range * i / yTicks);
+      const y = pad.t + ph - (val - min) / range * ph;
+      yAxis += `<line x1="${pad.l - 4}" y1="${y}" x2="${pad.l}" y2="${y}" stroke="var(--line-2)" stroke-width="1"/><text x="${pad.l - 6}" y="${y + 3}" fill="var(--fg-3)" text-anchor="end" font-size="9">${val.toFixed(2)}</text>`;
+    }
+
+    const dotRadius = 2;
+    let dots = "";
+    for (let i = 0; i < data.length; i++) {
+      const px = pad.l + (i / (data.length - 1 || 1)) * pw;
+      const py = pad.t + ph - ((data[i].result - min) / range) * ph;
+      dots += `<circle cx="${px}" cy="${py}" r="${dotRadius}" fill="var(--accent)"/>`;
+    }
+
+    latentPlot.innerHTML = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:100%;">
+      <line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${pad.t + ph}" stroke="var(--line-1)" stroke-width="1"/>
+      <line x1="${pad.l}" y1="${pad.t + ph}" x2="${pad.l + pw}" y2="${pad.t + ph}" stroke="var(--line-1)" stroke-width="1"/>
+      <text x="${pad.l - 4}" y="${pad.t - 6}" fill="var(--fg-3)" text-anchor="end" font-size="9" transform="rotate(-90,${pad.l - 4},${pad.t - 6})">Output</text>
+      ${yAxis} ${xTicks} ${dots}
+      <polyline points="${pts.trim()}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/>
+    </svg>`;
+  }
+
+  document.getElementById("es-btn-latent").addEventListener("click", runLatentSweep);
+
+  /* ── Init plot renderer ──────────────────── */
+  function initPlot() {
+    if (!state.plotRenderer) {
+      state.plotRenderer = new Plot2DRenderer("es-plot-canvas");
+    }
+    const snap = state.snapshot;
+    if (snap && snap.built && state.samples.length > 0) {
+      state.plotRenderer.draw(snap, state.samples, { showBoundary: true, showPoints: true });
+    }
+  }
+
+  /* Resize observer for canvas */
+  if (plotCanvas) {
+    const ro = new ResizeObserver(() => {
+      const snap = state.snapshot;
+      if (snap && snap.built && state.plotRenderer && state.samples.length > 0) {
+        state.plotRenderer.draw(snap, state.samples, { showBoundary: true, showPoints: true });
+      }
+    });
+    ro.observe(plotCanvas.parentElement);
+  }
+
+  /* ── Init ────────────────────────────────── */
+  loadProjects();
+  refreshSnapshot();
+})();
+</script>
+{% endblock %}

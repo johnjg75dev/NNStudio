@@ -338,7 +338,8 @@
       if (!items.length) return;
       host.innerHTML = "";
       for (const p of items) {
-        const isActive = true; // placeholder; API may expose status
+        const graph = p.model_graph || {};
+        const isActive = graph.layers && graph.layers.length > 0;
         const card = el("a", { class: "rp-card", href: `/playground?project=${p.id}`, style: `--cat-color:var(--accent)` },
           el("div", { class: "rp-meta" },
             el("span", { class: "chip", style: "background:var(--accent-soft); color:#d3d4ff; border-color:var(--accent-ring)" }, p.usecase || "Custom"),

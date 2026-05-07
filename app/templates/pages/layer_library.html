@@ -2,9 +2,190 @@
 {% set active_section = "layers" %}
 {% block title %}Layer Library — NNStudio{% endblock %}
 {% block crumbs %}<span>NNStudio</span><span>Layer Library</span>{% endblock %}
+
+{% block head %}
+<style>
+  .ll-shell { display: flex; flex-direction: column; height: 100%; overflow-y: auto; }
+  .ll-body { max-width: 900px; padding: var(--s-5); display: flex; flex-direction: column; gap: var(--s-4); }
+
+  .ll-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--s-3); }
+
+  .ll-card { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-md); padding: var(--s-4); transition: border-color var(--t-fast); }
+  .ll-card:hover { border-color: var(--accent); }
+  .ll-card .llc-head { display: flex; align-items: center; gap: 10px; margin-bottom: var(--s-2); }
+  .ll-card .llc-icon { width: 36px; height: 36px; border-radius: var(--r-sm); display: grid; place-items: center; color: white; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+  .ll-card .llc-icon.dense  { background: linear-gradient(135deg, #8b8cff, #6f72ff); }
+  .ll-card .llc-icon.conv   { background: linear-gradient(135deg, #6cd2ff, #3ea8d8); }
+  .ll-card .llc-icon.drop   { background: linear-gradient(135deg, #ff7eb6, #e65a8e); }
+  .ll-card .llc-icon.norm   { background: linear-gradient(135deg, #b88dff, #9b6fff); }
+  .ll-card .llc-icon.pool   { background: linear-gradient(135deg, #5dd39e, #3ead7a); }
+  .ll-card .llc-icon.shape  { background: linear-gradient(135deg, #ffb86b, #e09a48); }
+  .ll-card .llc-icon.rnn    { background: linear-gradient(135deg, #ff6b8a, #d94a66); }
+  .ll-card .llc-icon.embed  { background: linear-gradient(135deg, #88e1f2, #5eb8c8); }
+  .ll-card .llc-icon.attn   { background: linear-gradient(135deg, #ffcb6b, #e0a83a); }
+  .ll-card .llc-name { font-weight: 600; font-size: var(--t-14); color: var(--fg-0); }
+  .ll-card .llc-desc { font-size: var(--t-12); color: var(--fg-2); margin-bottom: var(--s-2); line-height: 1.5; }
+  .ll-card .llc-params { font-size: var(--t-11); color: var(--fg-3); font-family: var(--font-mono); background: var(--bg-1); padding: var(--s-2); border-radius: var(--r-sm); margin-top: var(--s-2); }
+  .ll-card .llc-params code { display: block; margin: 2px 0; }
+  .ll-card .llc-formula { font-size: var(--t-12); color: var(--fg-1); margin-top: var(--s-2); padding: var(--s-2); background: var(--bg-1); border-radius: var(--r-sm); font-family: var(--font-mono); }
+
+  .ll-section { margin-bottom: var(--s-2); }
+  .ll-section h2 { font-size: var(--t-16); color: var(--fg-0); margin: 0 0 var(--s-3); display: flex; align-items: center; gap: 8px; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="surface-card" style="padding:2rem;text-align:center;">
-  <h2>🧱 Layer Library</h2>
-  <p style="opacity:.7;">Browse available layer types and their configurations.</p>
+<div class="ll-shell">
+  <div class="ll-body">
+    <h2 style="margin:0;font-size:var(--t-20);color:var(--fg-0;">Layer Library</h2>
+    <p style="margin:0;font-size:var(--t-13);color:var(--fg-2);">Reference documentation for all available layer types.</p>
+
+    {% macro layer_card(cat, icon_cls, letter, name, desc, params, formula) %}
+    <div class="ll-card">
+      <div class="llc-head">
+        <div class="llc-icon {{ icon_cls }}">{{ letter }}</div>
+        <div class="llc-name">{{ name }}</div>
+      </div>
+      <div class="llc-desc">{{ desc }}</div>
+      {% if params %}
+      <div class="llc-params">
+        {% for p in params %}<code>{{ p }}</code>{% endfor %}
+      </div>
+      {% endif %}
+      {% if formula %}
+      <div class="llc-formula">{{ formula }}</div>
+      {% endif %}
+    </div>
+    {% endmacro %}
+
+    <!-- Dense -->
+    <div class="ll-section">
+      <h2>Dense</h2>
+      <div class="ll-grid">
+        {{ layer_card("Dense", "dense", "D", "Dense / Fully Connected",
+          "Standard fully-connected layer. Each input is connected to every output neuron with a learnable weight.",
+          ["neurons: int — Number of output neurons", "activation: str — Activation function (relu, tanh, sigmoid, etc.)"],
+          "z = W·x + b,  a = activation(z)") }}
+      </div>
+    </div>
+
+    <!-- Convolutional -->
+    <div class="ll-section">
+      <h2>Convolutional</h2>
+      <div class="ll-grid">
+        {{ layer_card("Conv", "conv", "C1", "Conv1D",
+          "1D convolution. Applies sliding filters along one spatial dimension.",
+          ["filters: int — Number of output filters", "kernel_size: int — Filter width", "activation: str — Activation function"],
+          "y = conv(W, x) + b,  a = activation(y)") }}
+        {{ layer_card("Conv", "conv", "C2", "Conv2D",
+          "2D convolution. Applies sliding filters along two spatial dimensions (height, width).",
+          ["filters: int — Number of output filters", "kernel_size: int — Filter size (square)", "activation: str — Activation function"],
+          "y = conv(W, x) + b,  a = activation(y)") }}
+        {{ layer_card("Conv", "conv", "C3", "Conv3D",
+          "3D convolution. Applies filters along three dimensions (depth, height, width).",
+          ["filters: int — Number of output filters", "kernel_size: int — Filter size", "activation: str — Activation function"],
+          "y = conv(W, x) + b,  a = activation(y)") }}
+      </div>
+    </div>
+
+    <!-- Regularization -->
+    <div class="ll-section">
+      <h2>Regularization</h2>
+      <div class="ll-grid">
+        {{ layer_card("Dropout", "drop", "D", "Dropout",
+          "Randomly sets a fraction of input units to 0 during training to prevent overfitting.",
+          ["rate: float (0-1) — Fraction of units to drop (default: 0.5)"],
+          "train: x * mask / (1-rate),  eval: x") }}
+        {{ layer_card("Norm", "norm", "BN", "BatchNorm",
+          "Normalizes layer inputs to have zero mean and unit variance. Accelerates training and improves stability.",
+          ["momentum: float (0-1) — Running average momentum (default: 0.9)", "eps: float — Numerical stability constant (default: 1e-8)"],
+          "y = gamma * (x - mu) / sqrt(sigma² + eps) + beta") }}
+        {{ layer_card("Norm", "norm", "LN", "LayerNorm",
+          "Normalizes across all features for each sample independently. Common in transformer architectures.",
+          ["normalized_shape: int — Feature dimension to normalize over", "eps: float — Numerical stability constant"],
+          "y = gamma * (x - mu) / sqrt(sigma² + eps) + beta") }}
+      </div>
+    </div>
+
+    <!-- Pooling -->
+    <div class="ll-section">
+      <h2>Pooling</h2>
+      <div class="ll-grid">
+        {{ layer_card("Pool", "pool", "P1", "MaxPool1D",
+          "1D max pooling. Downsamples by taking the maximum value in each window.",
+          ["pool_size: int — Window size", "stride: int — Step size (default: pool_size)"],
+          "y = max(x[i*stride : i*stride + pool_size])") }}
+        {{ layer_card("Pool", "pool", "P2", "MaxPool2D",
+          "2D max pooling. Downsamples each feature map by taking the maximum in each window.",
+          ["pool_size: int — Window size", "stride: int — Step size (default: pool_size)"],
+          "y = max(x[i*stride:i*stride+ps, j*stride:j*stride+ps])") }}
+        {{ layer_card("Pool", "pool", "P3", "MaxPool3D",
+          "3D max pooling along three spatial dimensions.",
+          ["pool_size: int — Window size", "stride: int — Step size (default: pool_size)"],
+          "y = max(x over 3D window)") }}
+        {{ layer_card("Pool", "pool", "A1", "AvgPool1D",
+          "1D average pooling. Downsamples by averaging values in each window.",
+          ["pool_size: int — Window size", "stride: int — Step size (default: pool_size)"],
+          "y = avg(x[i*stride : i*stride + pool_size])") }}
+        {{ layer_card("Pool", "pool", "A2", "AvgPool2D",
+          "2D average pooling. Downsamples by averaging values in each window.",
+          ["pool_size: int — Window size", "stride: int — Step size (default: pool_size)"],
+          "y = avg(x over 2D window)") }}
+        {{ layer_card("Pool", "pool", "A3", "AvgPool3D",
+          "3D average pooling along three spatial dimensions.",
+          ["pool_size: int — Window size", "stride: int — Step size (default: pool_size)"],
+          "y = avg(x over 3D window)") }}
+      </div>
+    </div>
+
+    <!-- Shape -->
+    <div class="ll-section">
+      <h2>Shape Operations</h2>
+      <div class="ll-grid">
+        {{ layer_card("Shape", "shape", "F", "Flatten",
+          "Flattens multi-dimensional input into a 1D vector. Used between convolutional and dense layers.",
+          [],
+          "y = x.reshape(-1)") }}
+        {{ layer_card("Shape", "shape", "R", "Reshape",
+          "Reshapes input tensor to a specified shape.",
+          ["shape: list[int] — Target shape (use -1 for inferred dim)"],
+          "y = x.reshape(shape)") }}
+      </div>
+    </div>
+
+    <!-- Recurrent -->
+    <div class="ll-section">
+      <h2>Recurrent</h2>
+      <div class="ll-grid">
+        {{ layer_card("RNN", "rnn", "RN", "Simple RNN",
+          "Basic recurrent layer. Maintains a hidden state that updates at each timestep.",
+          ["units: int — Hidden state size", "activation: str — Hidden activation (default: tanh)", "return_sequences: bool — Return full sequence or last step"],
+          "h_t = tanh(W_xh·x_t + W_hh·h_{t-1} + b)") }}
+        {{ layer_card("RNN", "rnn", "LS", "LSTM",
+          "Long Short-Term Memory. Uses input, forget, and output gates to control information flow.",
+          ["units: int — Hidden state size", "return_sequences: bool — Return full sequence or last step"],
+          "i,f,o,g = gates(x_t, h_{t-1});  c_t = f⊙c_{t-1} + i⊙g;  h_t = o⊙tanh(c_t)") }}
+        {{ layer_card("RNN", "rnn", "GR", "GRU",
+          "Gated Recurrent Unit. Simpler than LSTM with reset and update gates.",
+          ["units: int — Hidden state size", "return_sequences: bool — Return full sequence or last step"],
+          "z,r = gates(x_t, h_{t-1});  h̃ = tanh(W·[r⊙h_{t-1}, x_t]);  h_t = (1-z)⊙h_{t-1} + z⊙h̃") }}
+      </div>
+    </div>
+
+    <!-- Embedding & Attention -->
+    <div class="ll-section">
+      <h2>Embedding &amp; Attention</h2>
+      <div class="ll-grid">
+        {{ layer_card("Embed", "embed", "E", "Embedding",
+          "Maps discrete tokens (indices) to dense vector representations.",
+          ["input_dim: int — Vocabulary size", "output_dim: int — Embedding dimension"],
+          "y = W[x]  (lookup table)") }}
+        {{ layer_card("Attn", "attn", "A", "Multi-Head Attention",
+          "Computes scaled dot-product attention across multiple heads simultaneously.",
+          ["heads: int — Number of attention heads", "dim: int — Total embedding dimension"],
+          "head_i = softmax(Q·K/sqrt(d_k))·V;  y = concat(heads)·W_o") }}
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

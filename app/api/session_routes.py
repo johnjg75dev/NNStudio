@@ -21,31 +21,78 @@ def build():
     """
     Build a new network for this session.
     Body: { func_key, ds_id, arch_key, layers, inputs, outputs, activation, optimizer, lr, loss, weight_decay }
+
+    Supports both flat layer format (type + params at same level) and
+    playground format where params are nested under a "params" key.
+    When func_key is omitted and layers are provided, auto-detects
+    inputs/outputs from the layer config and uses a generic "xor" default.
     """
+    import math
     body = request.get_json(force=True)
     registry = get_registry()
 
-    from ..models import Dataset, CustomTrainingFunction
+    from ..models import Dataset
     from ..modules.functions.custom_function_wrapper import DynamicCustomFunction
 
     ds_id = body.get("ds_id")
-    func_key = body.get("func_key", "xor")
+    func_key = body.get("func_key")
 
     dataset = []
     fn_mod = None
 
+    # Normalize layers: flatten "params" key if present (playground format)
+    # and map display names to internal builder type names
+    TYPE_ALIASES = {
+        "dense": "dense", "fc": "dense", "fullyconnected": "dense",
+        "conv1d": "conv2d", "conv2d": "conv2d", "conv3d": "conv2d",
+        "maxpool1d": "maxpool2d", "maxpool2d": "maxpool2d", "maxpool3d": "maxpool2d",
+        "avgpool1d": "maxpool2d", "avgpool2d": "maxpool2d", "avgpool3d": "maxpool2d",
+        "dropout": "dropout", "batchnorm": "batchnorm", "layernorm": "layernorm",
+        "flatten": "flatten", "reshape": "flatten",
+        "rnn": "simple_rnn", "lstm": "lstm", "gru": "simple_rnn",
+        "embedding": "embedding", "attention": "multihead_attention",
+    }
+
+    raw_layers = body.get("layers", [])
+    layers = []
+    for lc in raw_layers:
+        raw_type = lc.get("type", "dense").lower().replace(" ", "").replace("-", "").replace("_", "")
+        mapped = TYPE_ALIASES.get(raw_type, "dense")
+        entry = {"type": mapped}
+        params = lc.get("params", {})
+        if isinstance(params, dict) and len(params) > 0:
+            entry.update(params)
+        else:
+            for k, v in lc.items():
+                if k != "type":
+                    entry[k] = v
+        layers.append(entry)
+
+    # Auto-detect inputs/outputs from layers when not explicitly provided.
+    # Inputs are a property of the data, not the architecture, so only infer
+    # if we also have a dataset or function. Outputs can be inferred from the
+    # last layer's neuron/filter count.
+    inputs = body.get("inputs")
+    outputs = body.get("outputs")
+    if outputs is None and layers:
+        last = layers[-1]
+        t = last.get("type", "dense")
+        if t == "dense":
+            outputs = last.get("neurons", 1)
+        elif t in ("conv2d",):
+            outputs = last.get("filters", 1)
+        else:
+            outputs = 1
+    # inputs remain None — will be resolved by fn_mod or defaulted later
+
     if ds_id:
-        # Safely get user ID, default to None for anonymous users
         user_id = getattr(current_user, "id", None)
         ds = Dataset.query.filter_by(id=ds_id, user_id=user_id).first()
         if ds:
             dataset = ds.data or []
-
-            # Create a mock fn_mod from dataset metadata
             class DatasetMock:
                 inputs = ds.num_inputs
                 outputs = ds.num_outputs or 1
-
                 def to_dict(self):
                     return {
                         "key": f"ds_{ds.id}",
@@ -53,29 +100,43 @@ def build():
                         "inputs": self.inputs,
                         "outputs": self.outputs,
                     }
-
             fn_mod = DatasetMock()
+            if inputs is None:
+                inputs = fn_mod.inputs
+            if outputs is None:
+                outputs = fn_mod.outputs
 
-    if not fn_mod:
-        # Safely get user ID, default to None for anonymous users
+    if not fn_mod and func_key:
         user_id = getattr(current_user, "id", None)
         fn_mod = registry.get_with_custom(func_key, user_id)
         if fn_mod:
             dataset = fn_mod.generate_dataset()
+            if inputs is None:
+                inputs = fn_mod.inputs
+            if outputs is None:
+                outputs = fn_mod.outputs
         else:
             return err(f"Unknown function key: {func_key!r}", 404)
 
-    # Use user-specified inputs/outputs or fall back to function defaults
+    if not fn_mod:
+        if inputs is None:
+            inputs = 2
+        if outputs is None:
+            outputs = 1
+        fn_mod = registry.get("xor")
+        if fn_mod:
+            dataset = fn_mod.generate_dataset()
+
     config = {
-        "inputs": body.get("inputs", fn_mod.inputs),
-        "outputs": body.get("outputs", fn_mod.outputs),
-        "layers": body.get("layers", []),
+        "inputs": inputs or fn_mod.inputs,
+        "outputs": outputs or fn_mod.outputs,
+        "layers": layers,
         "activation": body.get("activation", "tanh"),
         "optimizer": body.get("optimizer", "adam"),
         "lr": float(body.get("lr", 0.01)),
         "loss": body.get("loss", "bce"),
         "weight_decay": float(body.get("weight_decay", 0.0)),
-        "func_key": func_key,
+        "func_key": func_key or "xor",
         "arch_key": body.get("arch_key", "mlp"),
     }
 
@@ -87,8 +148,9 @@ def build():
         {
             "topology": net.topology,
             "param_count": net.param_count,
+            "total_params": net.param_count,
             "epoch": net.epoch,
-            "func": fn_mod.to_dict(),
+            "func": fn_mod.to_dict() if fn_mod else {},
         }
     )
 

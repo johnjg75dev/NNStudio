@@ -2,9 +2,118 @@
 {% set active_section = "settings" %}
 {% block title %}Settings — NNStudio{% endblock %}
 {% block crumbs %}<span>NNStudio</span><span>Settings</span>{% endblock %}
+
+{% block head %}
+<style>
+  .st-shell { display: flex; flex-direction: column; height: 100%; overflow-y: auto; }
+  .st-body { max-width: 700px; padding: var(--s-5); display: flex; flex-direction: column; gap: var(--s-4); }
+
+  .st-card { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-md); }
+  .st-card-head { padding: 12px 16px; border-bottom: 1px solid var(--line-1); font-weight: 600; font-size: var(--t-13); color: var(--fg-0); display: flex; align-items: center; gap: 8px; }
+  .st-card-body { padding: var(--s-4); display: flex; flex-direction: column; gap: var(--s-3); }
+
+  .st-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line-1); }
+  .st-row:last-child { border-bottom: none; }
+  .st-row .st-label { font-size: var(--t-13); color: var(--fg-0); }
+  .st-row .st-desc { font-size: var(--t-11); color: var(--fg-2); margin-top: 2px; }
+  .st-row .st-control { flex-shrink: 0; }
+
+  .st-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3); }
+  .st-info-item { background: var(--bg-1); border: 1px solid var(--line-2); border-radius: var(--r-sm); padding: var(--s-3); text-align: center; }
+  .st-info-item .si-val { font-size: var(--t-16); font-weight: 700; font-family: var(--font-mono); color: var(--fg-0); }
+  .st-info-item .si-label { font-size: var(--t-11); color: var(--fg-3); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 4px; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="surface-card" style="padding:2rem;text-align:center;">
-  <h2>⚙️ Settings</h2>
-  <p style="opacity:.7;">Application settings and preferences.</p>
+<div class="st-shell">
+  <div class="st-body">
+    <h2 style="margin:0;font-size:var(--t-20);color:var(--fg-0);">Settings</h2>
+    <p style="margin:0;font-size:var(--t-13);color:var(--fg-2);">Application preferences and account information.</p>
+
+    <!-- Account -->
+    <div class="st-card">
+      <div class="st-card-head"><span id="st-ic-user"></span> Account</div>
+      <div class="st-card-body">
+        <div class="st-row">
+          <div><div class="st-label">Username</div><div class="st-desc">{{ current_user.username if current_user.is_authenticated else 'Guest' }}</div></div>
+          <div class="st-control"></div>
+        </div>
+        <div class="st-row">
+          <div><div class="st-label">Email</div><div class="st-desc">{{ current_user.email if current_user.is_authenticated and current_user.email else 'Not set' }}</div></div>
+          <div class="st-control"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Appearance -->
+    <div class="st-card">
+      <div class="st-card-head"><span id="st-ic-theme"></span> Appearance</div>
+      <div class="st-card-body">
+        <div class="st-row">
+          <div><div class="st-label">Theme</div><div class="st-desc">Dark theme (only theme available)</div></div>
+          <div class="st-control"><span class="chip">Dark</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data -->
+    <div class="st-card">
+      <div class="st-card-head"><span id="st-ic-data"></span> Application Info</div>
+      <div class="st-card-body">
+        <div class="st-info-grid">
+          <div class="st-info-item"><div class="si-val" id="st-ver-projects">—</div><div class="si-label">Projects</div></div>
+          <div class="st-info-item"><div class="si-val" id="st-ver-datasets">—</div><div class="si-label">Datasets</div></div>
+          <div class="st-info-item"><div class="si-val" id="st-ver-models">—</div><div class="si-label">Saved Models</div></div>
+          <div class="st-info-item"><div class="si-val" id="st-ver-presets">—</div><div class="si-label">Presets</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Danger Zone -->
+    <div class="st-card" style="border-color:rgba(200,50,50,0.3);">
+      <div class="st-card-head" style="color:#e03232;"><span id="st-ic-danger"></span> Danger Zone</div>
+      <div class="st-card-body">
+        <div class="st-row">
+          <div><div class="st-label">Sign Out</div><div class="st-desc">End your current session</div></div>
+          <div class="st-control"><a class="btn sm danger" href="{{ url_for('auth.logout') }}">Sign Out</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  const I = window.ICONS;
+  const { fetchJSON } = window.NN;
+  const icons = { "st-ic-user": "user", "st-ic-theme": "eye", "st-ic-data": "db", "st-ic-danger": "alert" };
+  for (const [id, name] of Object.entries(icons)) {
+    const e = document.getElementById(id);
+    if (e && I[name]) e.innerHTML = I[name]({ size: 14 });
+  }
+
+  async function loadStats() {
+    try {
+      const [pRes, dRes, mRes, prRes] = await Promise.all([
+        fetchJSON("/api/projects"),
+        fetchJSON("/api/datasets"),
+        fetchJSON("/api/models"),
+        fetchJSON("/api/presets"),
+      ]);
+      const projects = (pRes.data && pRes.data.projects) || pRes || [];
+      const datasets = (dRes.data && dRes.data.datasets) || dRes || [];
+      const models = mRes.models || [];
+      const presets = prRes.presets || [];
+      document.getElementById("st-ver-projects").textContent = projects.length;
+      document.getElementById("st-ver-datasets").textContent = datasets.length;
+      document.getElementById("st-ver-models").textContent = models.length;
+      document.getElementById("st-ver-presets").textContent = presets.length;
+    } catch (_) {}
+  }
+  loadStats();
+})();
+</script>
 {% endblock %}
