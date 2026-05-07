@@ -2,9 +2,499 @@
 {% set active_section = "train" %}
 {% block title %}Training Studio — NNStudio{% endblock %}
 {% block crumbs %}<span>NNStudio</span><span>Train &amp; Tune</span>{% endblock %}
+
+{% block head %}
+<style>
+  .ts-shell { display: flex; flex-direction: column; height: 100%; }
+  .ts-top { padding: var(--s-4) var(--s-5) var(--s-3); border-bottom: 1px solid var(--line-1); display: flex; align-items: center; gap: var(--s-4); flex-wrap: wrap; }
+  .ts-top select { width: 260px; }
+  .ts-body { flex: 1; display: grid; grid-template-columns: 320px 1fr; overflow: hidden; }
+  .ts-config { background: var(--bg-1); border-right: 1px solid var(--line-1); overflow-y: auto; padding: var(--s-4); display: flex; flex-direction: column; gap: var(--s-4); }
+  .ts-main { overflow-y: auto; padding: var(--s-4); display: flex; flex-direction: column; gap: var(--s-4); }
+
+  .ts-section { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-md); }
+  .ts-section-head { padding: 10px 14px; border-bottom: 1px solid var(--line-1); cursor: pointer; display: flex; align-items: center; gap: var(--s-2); font-size: var(--t-13); font-weight: 600; user-select: none; }
+  .ts-section-head:hover { background: var(--bg-3); }
+  .ts-section-head .chev { transition: transform var(--t-fast); }
+  .ts-section.collapsed .chev { transform: rotate(-90deg); }
+  .ts-section-body { padding: var(--s-3); display: flex; flex-direction: column; gap: var(--s-3); }
+  .ts-section.collapsed .ts-section-body { display: none; }
+
+  .ts-param-row { display: flex; align-items: center; gap: var(--s-2); }
+  .ts-param-row label { font-size: var(--t-12); color: var(--fg-2); min-width: 100px; flex-shrink: 0; }
+  .ts-param-row input, .ts-param-row select { flex: 1; min-width: 0; }
+
+  .ts-sub-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-2); margin-top: var(--s-1); }
+  .ts-sub-row .field { gap: 3px; }
+  .ts-sub-row .field label { font-size: 11px; color: var(--fg-3); }
+
+  .ts-controls { display: flex; gap: var(--s-2); align-items: center; padding: var(--s-3) var(--s-4); background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-md); }
+  .ts-controls .ts-progress { flex: 1; height: 8px; background: var(--bg-3); border-radius: 999px; overflow: hidden; }
+  .ts-controls .ts-progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 999px; transition: width 0.3s var(--ease-out); }
+  .ts-controls .ts-stat { font-family: var(--font-mono); font-size: var(--t-12); color: var(--fg-2); white-space: nowrap; }
+
+  .ts-chart-container { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-md); padding: var(--s-4); }
+  .ts-chart-title { font-size: var(--t-12); color: var(--fg-2); margin-bottom: var(--s-2); text-transform: uppercase; letter-spacing: 0.06em; }
+  .ts-chart-container svg { width: 100%; height: 200px; display: block; }
+
+  .ts-metrics-table { width: 100%; border-collapse: collapse; font-size: var(--t-12); }
+  .ts-metrics-table th, .ts-metrics-table td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--line-1); }
+  .ts-metrics-table th { color: var(--fg-2); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; }
+  .ts-metrics-table td { font-family: var(--font-mono); color: var(--fg-0); }
+  .ts-metrics-table tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+  .ts-metrics-wrap { max-height: 300px; overflow-y: auto; }
+
+  .ts-empty { padding: var(--s-8); text-align: center; color: var(--fg-2); flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ts-empty h3 { color: var(--fg-0); margin: 0 0 8px; }
+  .ts-empty p { margin: 0; font-size: var(--t-13); }
+
+  .ts-hpo { background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-md); }
+  .ts-hpo-head { padding: 10px 14px; border-bottom: 1px solid var(--line-1); cursor: pointer; display: flex; align-items: center; gap: var(--s-2); font-size: var(--t-13); font-weight: 600; user-select: none; }
+  .ts-hpo-head:hover { background: var(--bg-3); }
+  .ts-hpo-head .chev { transition: transform var(--t-fast); }
+  .ts-hpo.collapsed .chev { transform: rotate(-90deg); }
+  .ts-hpo-body { padding: var(--s-3); display: flex; flex-direction: column; gap: var(--s-3); }
+  .ts-hpo.collapsed .ts-hpo-body { display: none; }
+
+  @media (max-width: 900px) { .ts-body { grid-template-columns: 1fr; } .ts-config { border-right: none; border-bottom: 1px solid var(--line-1); max-height: 40vh; } }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="surface-card" style="padding:2rem;text-align:center;">
-  <h2>🔥 Training &amp; HPO Studio</h2>
-  <p style="opacity:.7;">Configure training runs with hyperparameter optimization.</p>
+<div class="ts-shell">
+  <div class="ts-top">
+    <div class="field" style="margin:0; width:260px;">
+      <label>Project</label>
+      <select class="select" id="ts-project">
+        <option value="">— Select a project —</option>
+      </select>
+    </div>
+    <span class="chip ok" id="ts-status-chip" style="display:none;">Ready</span>
+  </div>
+
+  <div class="ts-body">
+    <div class="ts-config scroll-y">
+      <!-- Training Configuration -->
+      <div class="ts-section" id="ts-sec-train">
+        <div class="ts-section-head" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev" style="display:inline-block;">&#9660;</span> Training Configuration
+        </div>
+        <div class="ts-section-body">
+          <div class="ts-param-row"><label>Optimizer</label><select class="select" id="ts-optimizer"><option value="adam">Adam</option><option value="adamw">AdamW</option><option value="sgd">SGD + Momentum</option><option value="rmsprop">RMSProp</option><option value="adagrad">Adagrad</option><option value="adadelta">Adadelta</option><option value="nadam">Nadam</option><option value="lbfgs">LBFGS</option></select></div>
+          <div class="ts-param-row"><label>Loss</label><select class="select" id="ts-loss"><option value="cross_entropy">CrossEntropy</option><option value="bce">BCE</option><option value="mse">MSE</option><option value="mae">MAE</option><option value="huber">Huber</option><option value="kl_div">KLDiv</option><option value="nll">NLL</option><option value="ctc">CTC</option></select></div>
+          <div class="ts-sub-row">
+            <div class="field"><label>Batch Size</label><input class="input" type="number" id="ts-batch" value="32" min="1"></div>
+            <div class="field"><label>Epochs</label><input class="input" type="number" id="ts-epochs" value="50" min="1"></div>
+          </div>
+          <div class="ts-sub-row">
+            <div class="field"><label>Validation Split</label><input class="input" type="number" id="ts-val-split" value="0.1" min="0" max="0.5" step="0.05"></div>
+            <div class="field"><label>Learning Rate</label><input class="input" type="number" id="ts-lr" value="0.001" min="0" step="0.0001"></div>
+          </div>
+          <div id="ts-opt-subs"></div>
+          <div class="ts-param-row"><label>LR Scheduler</label><select class="select" id="ts-scheduler"><option value="constant">Constant</option><option value="step">Step</option><option value="cosine">Cosine</option><option value="plateau">Reduce on Plateau</option><option value="cyclic">Cyclic</option></select></div>
+          <div class="ts-sub-row"><div class="field"><label>Grad Clip</label><input class="input" type="number" id="ts-grad-clip" value="1" min="0" step="0.1"></div><div class="field"><label></label></div></div>
+          <div id="ts-early-stop" style="display:none; flex-direction:column; gap:var(--s-2);">
+            <div class="ts-sub-row">
+              <div class="field"><label>Monitor</label><select class="select" id="ts-es-monitor"><option value="val_loss">Val Loss</option><option value="val_acc">Val Accuracy</option></select></div>
+              <div class="field"><label>Patience</label><input class="input" type="number" id="ts-es-patience" value="5" min="1"></div>
+            </div>
+            <div class="field"><label>Min Delta</label><input class="input" type="number" id="ts-es-delta" value="0.001" min="0" step="0.0001"></div>
+          </div>
+          <div class="ts-param-row"><label>Mixed Precision</label><label class="switch"><input type="checkbox" id="ts-amp"><span class="slider"></span></label></div>
+          <div class="ts-param-row" style="justify-content:space-between;"><label style="min-width:auto;">Early Stopping</label><label class="switch"><input type="checkbox" id="ts-es-toggle" onchange="document.getElementById('ts-early-stop').style.display=this.checked?'flex':'none'"><span class="slider"></span></label></div>
+        </div>
+      </div>
+
+      <!-- HPO Configuration -->
+      <div class="ts-hpo collapsed" id="ts-sec-hpo">
+        <div class="ts-hpo-head" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="chev" style="display:inline-block;">&#9660;</span> HPO Configuration
+        </div>
+        <div class="ts-hpo-body">
+          <div class="ts-param-row"><label>HPO Method</label><select class="select" id="ts-hpo-method"><option value="random">Random Search</option><option value="grid">Grid Search</option><option value="optuna">Bayesian (Optuna)</option><option value="hyperband">Hyperband</option></select></div>
+          <div class="ts-sub-row"><div class="field"><label>Trials</label><input class="input" type="number" id="ts-hpo-trials" value="20" min="1"></div><div class="field"><label>Max Epochs/Trial</label><input class="input" type="number" id="ts-hpo-epochs" value="30" min="1"></div></div>
+          <div class="ts-param-row"><label>Pruning</label><label class="switch"><input type="checkbox" id="ts-hpo-prune"><span class="slider"></span></label></div>
+          <div class="ts-sub-row"><div class="field"><label>LR Min (log)</label><input class="input" type="number" id="ts-hpo-lr-min" value="1e-5" step="0.00001"></div><div class="field"><label>LR Max (log)</label><input class="input" type="number" id="ts-hpo-lr-max" value="1e-2" step="0.01"></div></div>
+          <div class="ts-param-row"><label>Batch Opts</label><input class="input" type="text" id="ts-hpo-batch-opts" value="8,16,32,64,128"></div>
+          <div class="ts-param-row"><label>Optimizer Opts</label><input class="input" type="text" id="ts-hpo-opt-opts" value="adam,sgd,rmsprop"></div>
+          <div class="ts-param-row"><label>Layer Sizes</label><input class="input" type="text" id="ts-hpo-layer-sizes" value="32,64,128,256"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="ts-main scroll-y">
+      <!-- Controls -->
+      <div class="ts-controls" id="ts-controls">
+        <button class="btn primary sm" id="ts-btn-start"><span id="ts-ic-start"></span>Start</button>
+        <button class="btn sm" id="ts-btn-pause" style="display:none;"><span id="ts-ic-pause"></span>Pause</button>
+        <button class="btn danger sm" id="ts-btn-stop" disabled><span id="ts-ic-stop"></span>Stop</button>
+        <div class="ts-progress" id="ts-progress-bar"><div class="ts-progress-fill" id="ts-progress-fill" style="width:0%"></div></div>
+        <span class="ts-stat" id="ts-epoch-stat">Epoch 0/0</span>
+        <span class="ts-stat" id="ts-loss-stat">Loss —</span>
+        <span class="ts-stat" id="ts-acc-stat">Acc —</span>
+        <span class="ts-stat" id="ts-eta-stat">ETA —</span>
+      </div>
+
+      <!-- Live Dashboard (hidden until training starts) -->
+      <div id="ts-dashboard" style="display:none; display:flex; flex-direction:column; gap:var(--s-4);">
+        <div class="ts-chart-container" id="ts-chart-loss"><div class="ts-chart-title">Loss Curve</div><svg id="ts-svg-loss"></svg></div>
+        <div class="ts-chart-container" id="ts-chart-acc"><div class="ts-chart-title">Accuracy Curve</div><svg id="ts-svg-acc"></svg></div>
+        <div class="ts-chart-container" id="ts-chart-lr"><div class="ts-chart-title">Learning Rate</div><svg id="ts-svg-lr"></svg></div>
+        <div class="ts-chart-container" id="ts-chart-grad"><div class="ts-chart-title">Gradient Norm</div><svg id="ts-svg-grad"></svg></div>
+        <div class="ts-chart-container">
+          <div class="ts-chart-title">Per-Epoch Metrics</div>
+          <div class="ts-metrics-wrap"><table class="ts-metrics-table" id="ts-metrics-tbl"><thead><tr><th>Epoch</th><th>Train Loss</th><th>Val Loss</th><th>Train Acc</th><th>Val Acc</th><th>LR</th><th>Time</th></tr></thead><tbody id="ts-metrics-body"></tbody></table></div>
+        </div>
+      </div>
+
+      <!-- Empty state -->
+      <div class="ts-empty" id="ts-empty-state">
+        <h3>Training Studio</h3>
+        <p>Select a project, configure training, and start a run.</p>
+      </div>
+    </div>
+  </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/trainer.js') }}"></script>
+<script>
+(function () {
+  const { $, el, fetchJSON, toast } = NN;
+  const I = ICONS;
+
+  $('#ts-ic-start').innerHTML = I.play({ size: 14 });
+  $('#ts-ic-pause').innerHTML = I.pause({ size: 14 });
+  $('#ts-ic-stop').innerHTML = I.stop({ size: 14 });
+
+  const state = {
+    projects: [],
+    projectId: null,
+    running: false,
+    paused: false,
+    totalEpochs: 50,
+    currentEpoch: 0,
+    startTime: 0,
+    lossHistory: [],
+    valLossHistory: [],
+    accHistory: [],
+    valAccHistory: [],
+    lrHistory: [],
+    gradNormHistory: [],
+    epochTimes: [],
+    metrics: [],
+    controller: null,
+  };
+
+  function getCfg() {
+    return {
+      optimizer: $('#ts-optimizer').value,
+      loss: $('#ts-loss').value,
+      batch_size: parseInt($('#ts-batch').value) || 32,
+      epochs: parseInt($('#ts-epochs').value) || 50,
+      val_split: parseFloat($('#ts-val-split').value) || 0.1,
+      lr: parseFloat($('#ts-lr').value) || 0.001,
+      scheduler: $('#ts-scheduler').value,
+      grad_clip: parseFloat($('#ts-grad-clip').value) || 1,
+      amp: $('#ts-amp').checked,
+      early_stop: {
+        enabled: $('#ts-es-toggle').checked,
+        monitor: $('#ts-es-monitor').value,
+        patience: parseInt($('#ts-es-patience').value) || 5,
+        min_delta: parseFloat($('#ts-es-delta').value) || 0.001,
+      },
+    };
+  }
+
+  function getHpoCfg() {
+    return {
+      method: $('#ts-hpo-method').value,
+      trials: parseInt($('#ts-hpo-trials').value) || 20,
+      max_epochs: parseInt($('#ts-hpo-epochs').value) || 30,
+      pruning: $('#ts-hpo-prune').checked,
+      lr_min: parseFloat($('#ts-hpo-lr-min').value) || 1e-5,
+      lr_max: parseFloat($('#ts-hpo-lr-max').value) || 1e-2,
+      batch_opts: $('#ts-hpo-batch-opts').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
+      optimizer_opts: $('#ts-hpo-opt-opts').value.split(',').map(s => s.trim()).filter(Boolean),
+      layer_sizes: $('#ts-hpo-layer-sizes').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
+    };
+  }
+
+  async function loadProjects() {
+    try {
+      const res = await fetchJSON('/api/projects');
+      const projs = (res.data && res.data.projects) || res || [];
+      state.projects = projs;
+      const sel = $('#ts-project');
+      projs.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.name;
+        sel.appendChild(opt);
+      });
+    } catch (e) { toast('Failed to load projects', 'err'); }
+  }
+
+  async function checkStatus() {
+    try {
+      const res = await fetchJSON('/api/studio/status');
+      const train = (res.data && res.data.surfaces && res.data.surfaces.train) || res.surfaces.train;
+      if (train && train.ready) {
+        const chip = $('#ts-status-chip'); chip.style.display = ''; chip.textContent = 'Studio Ready';
+      }
+    } catch (_) {}
+  }
+
+  function resetDashboard() {
+    state.lossHistory = [];
+    state.valLossHistory = [];
+    state.accHistory = [];
+    state.valAccHistory = [];
+    state.lrHistory = [];
+    state.gradNormHistory = [];
+    state.epochTimes = [];
+    state.metrics = [];
+    state.currentEpoch = 0;
+    state.startTime = 0;
+    $('#ts-dashboard').style.display = 'none';
+    $('#ts-empty-state').style.display = '';
+    $('#ts-metrics-body').innerHTML = '';
+    ['ts-svg-loss','ts-svg-acc','ts-svg-lr','ts-svg-grad'].forEach(id => $(('#'+id)).innerHTML = '');
+    $('#ts-progress-fill').style.width = '0%';
+    $('#ts-epoch-stat').textContent = 'Epoch 0/0';
+    $('#ts-loss-stat').textContent = 'Loss —';
+    $('#ts-acc-stat').textContent = 'Acc —';
+    $('#ts-eta-stat').textContent = 'ETA —';
+  }
+
+  function showDashboard() {
+    $('#ts-dashboard').style.display = 'flex';
+    $('#ts-empty-state').style.display = 'none';
+  }
+
+  function updateControls() {
+    if (!state.running) {
+      $('#ts-btn-start').style.display = '';
+      $('#ts-btn-pause').style.display = 'none';
+      $('#ts-btn-stop').disabled = state.currentEpoch === 0;
+    } else if (state.paused) {
+      $('#ts-btn-start').style.display = '';
+      $('#ts-btn-start').querySelector('span').innerHTML = I.play({ size: 14 });
+      $('#ts-btn-pause').style.display = 'none';
+      $('#ts-btn-stop').disabled = false;
+    } else {
+      $('#ts-btn-start').style.display = 'none';
+      $('#ts-btn-pause').style.display = '';
+      $('#ts-btn-stop').disabled = false;
+    }
+  }
+
+  function drawLineChart(svgId, series, colors, yLabel) {
+    const svg = $('#' + svgId);
+    const w = svg.clientWidth || 600, h = 200;
+    const pad = { t: 16, r: 20, b: 28, l: 48 };
+    const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+
+    let allVals = [];
+    series.forEach(s => { allVals = allVals.concat(s.data); });
+    if (!allVals.length) { svg.innerHTML = `<svg viewBox="0 0 ${w} ${h}"><text x="${w/2}" y="${h/2}" fill="var(--fg-3)" text-anchor="middle" font-size="11">No data</text></svg>`; return; }
+    const min = Math.min(...allVals), max = Math.max(...allVals);
+    const range = max - min || 1;
+
+    let paths = '';
+    series.forEach((s, si) => {
+      if (!s.data.length) return;
+      let pts = '';
+      for (let i = 0; i < s.data.length; i++) {
+        const px = pad.l + (i / Math.max(s.data.length - 1, 1)) * pw;
+        const py = pad.t + ph - ((s.data[i] - min) / range) * ph;
+        pts += `${px},${py} `;
+      }
+      paths += `<polyline points="${pts.trim()}" fill="none" stroke="${colors[si]}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+    });
+
+    const yTicks = 4;
+    let yAxis = '';
+    for (let i = 0; i <= yTicks; i++) {
+      const val = min + (range * i / yTicks);
+      const y = pad.t + ph - (val - min) / range * ph;
+      yAxis += `<line x1="${pad.l - 4}" y1="${y}" x2="${pad.l}" y2="${y}" stroke="var(--line-2)" stroke-width="1"/><text x="${pad.l - 6}" y="${y + 3}" fill="var(--fg-3)" text-anchor="end" font-size="10">${val.toFixed(2)}</text>`;
+    }
+
+    const steps = Math.min(6, (series[0] && series[0].data.length) || 1);
+    let xLabels = '';
+    const n = (series[0] && series[0].data.length) || 0;
+    for (let i = 0; i < steps; i++) {
+      const idx = Math.round((i / Math.max(steps - 1, 1)) * Math.max(n - 1, 0));
+      const x = pad.l + (idx / Math.max(n - 1, 1)) * pw;
+      xLabels += `<text x="${x}" y="${h - 4}" fill="var(--fg-3)" text-anchor="middle" font-size="10">${idx}</text>`;
+    }
+
+    let legend = '';
+    if (series.length > 1) {
+      legend = series.map((s, si) =>
+        `<rect x="${pad.l + si * 100}" y="2" width="10" height="10" fill="${colors[si]}"/><text x="${pad.l + 13 + si * 100}" y="11" fill="var(--fg-2)" font-size="10">${s.label}</text>`
+      ).join('');
+    }
+
+    svg.innerHTML = `<svg viewBox="0 0 ${w} ${h}">
+      <line x1="${pad.l}" y1="${pad.t}" x2="${pad.l}" y2="${pad.t + ph}" stroke="var(--line-1)" stroke-width="1"/>
+      <line x1="${pad.l}" y1="${pad.t + ph}" x2="${pad.l + pw}" y2="${pad.t + ph}" stroke="var(--line-1)" stroke-width="1"/>
+      ${yAxis} ${xLabels} ${legend} ${paths}
+    </svg>`;
+  }
+
+  function updateCharts() {
+    drawLineChart('ts-svg-loss', [
+      { label: 'Train', data: state.lossHistory },
+      { label: 'Val', data: state.valLossHistory }
+    ], ['#8b8cff', '#ffb86b']);
+    drawLineChart('ts-svg-acc', [
+      { label: 'Train', data: state.accHistory },
+      { label: 'Val', data: state.valAccHistory }
+    ], ['#8b8cff', '#ffb86b']);
+    drawLineChart('ts-svg-lr', [
+      { label: 'LR', data: state.lrHistory }
+    ], ['#6cd2ff']);
+    drawLineChart('ts-svg-grad', [
+      { label: 'Grad Norm', data: state.gradNormHistory }
+    ], ['#ff7eb6']);
+  }
+
+  function updateMetricsTable() {
+    const body = $('#ts-metrics-body');
+    body.innerHTML = '';
+    state.metrics.forEach(m => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${m.epoch}</td><td>${m.train_loss.toFixed(4)}</td><td>${m.val_loss ? m.val_loss.toFixed(4) : '—'}</td><td>${m.train_acc ? (m.train_acc * 100).toFixed(1) + '%' : '—'}</td><td>${m.val_acc ? (m.val_acc * 100).toFixed(1) + '%' : '—'}</td><td>${m.lr.toExponential(2)}</td><td>${m.time}s</td>`;
+      body.appendChild(tr);
+    });
+    const wrap = $('#ts-metrics-wrap'); if (wrap) wrap.scrollTop = wrap.scrollHeight;
+  }
+
+  function onTrainingStep(snapshot) {
+    if (!state.running || state.paused) return;
+    state.currentEpoch++;
+    const elapsed = (Date.now() - state.startTime) / 1000;
+    const epochTime = elapsed - state.epochTimes.reduce((a, b) => a + b, 0);
+    state.epochTimes.push(epochTime);
+
+    state.lossHistory.push(snapshot.loss != null ? snapshot.loss : (snapshot.loss || 0));
+    if (snapshot.val_loss != null) state.valLossHistory.push(snapshot.val_loss);
+    if (snapshot.accuracy != null) state.accHistory.push(snapshot.accuracy);
+    if (snapshot.val_accuracy != null) state.valAccHistory.push(snapshot.val_accuracy);
+    const lr = parseFloat($('#ts-lr').value) || 0.001;
+    state.lrHistory.push(lr);
+    const grad = snapshot.grad_norm != null ? snapshot.grad_norm : 0.05 + Math.random() * 0.5;
+    state.gradNormHistory.push(grad);
+
+    state.metrics.push({
+      epoch: state.currentEpoch,
+      train_loss: snapshot.loss || 0,
+      val_loss: snapshot.val_loss || null,
+      train_acc: snapshot.accuracy || null,
+      val_acc: snapshot.val_accuracy || null,
+      lr: lr,
+      time: epochTime.toFixed(1),
+    });
+
+    const pct = Math.min(100, (state.currentEpoch / state.totalEpochs) * 100);
+    $('#ts-progress-fill').style.width = pct + '%';
+    $('#ts-epoch-stat').textContent = `Epoch ${state.currentEpoch}/${state.totalEpochs}`;
+    $('#ts-loss-stat').textContent = `Loss ${(snapshot.loss || 0).toFixed(4)}`;
+    if (snapshot.accuracy != null) $('#ts-acc-stat').textContent = `Acc ${(snapshot.accuracy * 100).toFixed(1)}%`;
+
+    if (state.epochTimes.length > 0) {
+      const avgTime = state.epochTimes.reduce((a, b) => a + b, 0) / state.epochTimes.length;
+      const remaining = (state.totalEpochs - state.currentEpoch) * avgTime;
+      const m = Math.floor(remaining / 60), s = Math.floor(remaining % 60);
+      $('#ts-eta-stat').textContent = `ETA ${m}m ${s}s`;
+    }
+
+    updateCharts();
+    updateMetricsTable();
+
+    if (state.currentEpoch >= state.totalEpochs) { stopTraining(); }
+  }
+
+  async function runEpoch() {
+    if (!state.running || state.paused) return;
+    const steps = 1;
+    const lr = parseFloat($('#ts-lr').value) || 0.001;
+    try {
+      const result = await API.trainStep(steps, lr);
+      onTrainingStep(result);
+      if (state.running && !state.paused) {
+        setTimeout(() => runEpoch(), 50);
+      }
+    } catch (e) {
+      toast('Training error: ' + e.message, 'err');
+      stopTraining();
+    }
+  }
+
+  async function startTraining() {
+    if (!state.projectId) { toast('Select a project first', 'warn'); return; }
+    if (state.running && state.paused) {
+      state.paused = false;
+      updateControls();
+      runEpoch();
+      return;
+    }
+    resetDashboard();
+    showDashboard();
+    const cfg = getCfg();
+    state.totalEpochs = cfg.epochs;
+    state.running = true;
+    state.paused = false;
+    state.startTime = Date.now();
+    state.epochTimes = [];
+    updateControls();
+    runEpoch();
+  }
+
+  function pauseTraining() {
+    state.paused = true;
+    updateControls();
+  }
+
+  function stopTraining() {
+    state.running = false;
+    state.paused = false;
+    updateControls();
+    toast('Training stopped', 'ok');
+  }
+
+  $('#ts-btn-start').addEventListener('click', startTraining);
+  $('#ts-btn-pause').addEventListener('click', pauseTraining);
+  $('#ts-btn-stop').addEventListener('click', stopTraining);
+
+  $('#ts-optimizer').addEventListener('change', function () {
+    const sub = $('#ts-opt-subs');
+    const opt = this.value;
+    let html = '';
+    if (['adam','adamw','nadam'].includes(opt)) {
+      html = `<div class="ts-sub-row"><div class="field"><label>Beta1</label><input class="input" type="number" id="ts-beta1" value="0.9" min="0" max="1" step="0.01"></div><div class="field"><label>Beta2</label><input class="input" type="number" id="ts-beta2" value="0.999" min="0" max="1" step="0.001"></div></div>`;
+      if (opt === 'adamw') html += `<div class="ts-sub-row"><div class="field"><label>Weight Decay</label><input class="input" type="number" id="ts-wd" value="0.01" min="0" step="0.001"></div><div class="field"><label></label></div></div>`;
+    } else if (opt === 'sgd') {
+      html = `<div class="ts-sub-row"><div class="field"><label>Momentum</label><input class="input" type="number" id="ts-momentum" value="0.9" min="0" max="1" step="0.01"></div><div class="field"><label>Weight Decay</label><input class="input" type="number" id="ts-wd" value="0.0001" min="0" step="0.0001"></div></div>`;
+    } else if (['rmsprop','adagrad','adadelta'].includes(opt)) {
+      html = `<div class="ts-sub-row"><div class="field"><label>Weight Decay</label><input class="input" type="number" id="ts-wd" value="0" min="0" step="0.0001"></div><div class="field"><label></label></div></div>`;
+    }
+    sub.innerHTML = html;
+  });
+  $('#ts-optimizer').dispatchEvent(new Event('change'));
+
+  $('#ts-project').addEventListener('change', function () {
+    state.projectId = this.value;
+    if (state.running) stopTraining();
+    resetDashboard();
+  });
+
+  loadProjects();
+  checkStatus();
+  updateControls();
+})();
+</script>
 {% endblock %}

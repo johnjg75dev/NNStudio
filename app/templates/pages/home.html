@@ -3,8 +3,133 @@
 {% set active_section = "home" %}
 {% set page_title = "Home" %}
 
+{% block head %}
+<style>
+  /* ── Hero ──────────────────────────────────────────────────────────────── */
+  .hero {
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(900px 300px at 20% -10%, rgba(139,140,255,0.12), transparent 60%),
+      radial-gradient(700px 250px at 85% 10%, rgba(108,210,255,0.10), transparent 60%),
+      linear-gradient(180deg, rgba(139,140,255,0.04), transparent 60%);
+    animation: heroFadeIn 0.8s var(--ease-out) both;
+  }
+  @keyframes heroFadeIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+
+  /* Animated mesh gradient background */
+  .hero::before {
+    content: ""; position: absolute; inset: -40% 0 0; z-index: 0; pointer-events: none;
+    background:
+      radial-gradient(800px 400px at 15% 20%, rgba(139,140,255,0.18), transparent 55%),
+      radial-gradient(700px 350px at 85% 30%, rgba(108,210,255,0.12), transparent 55%),
+      radial-gradient(600px 300px at 50% 80%, rgba(184,141,255,0.10), transparent 55%);
+    animation: heroMesh 10s ease-in-out infinite alternate;
+  }
+  @keyframes heroMesh { 0% { transform: scale(1) translate(0,0); } 100% { transform: scale(1.06) translate(-1.5%,-1%); } }
+
+  .hero .hero-inner { position: relative; z-index: 1; animation: heroFadeIn 0.9s var(--ease-out) both; animation-delay: 0.08s; }
+  .hero h1 {
+    font-size: clamp(var(--t-24), 3vw, var(--t-40)); margin: 0 0 10px; letter-spacing: -0.025em;
+    background: linear-gradient(90deg, var(--fg-0), var(--accent-2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .hero p { color: var(--fg-1); margin: 0; max-width: 860px; font-size: var(--t-15); line-height: 1.65; }
+  .hero .row { flex-wrap: wrap; }
+
+  /* ── Recent Projects ────────────────────────────────────────────────────── */
+  .grid-recent {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: var(--s-4);
+  }
+  .rp-card {
+    display: flex; flex-direction: column; gap: 10px;
+    background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-lg);
+    padding: var(--s-5); transition: transform var(--t-base) var(--ease-out), box-shadow var(--t-base), border-color var(--t-base);
+    position: relative; overflow: hidden; animation: rpEntrance 0.55s var(--ease-out) both;
+  }
+  .rp-card:nth-child(1) { animation-delay: 0.05s; } .rp-card:nth-child(2) { animation-delay: 0.12s; }
+  .rp-card:nth-child(3) { animation-delay: 0.19s; } .rp-card:nth-child(4) { animation-delay: 0.26s; }
+  .rp-card:nth-child(5) { animation-delay: 0.33s; } .rp-card:nth-child(6) { animation-delay: 0.40s; }
+  @keyframes rpEntrance { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
+
+  .rp-card:hover { transform: translateY(-4px); border-color: var(--line-3); box-shadow: var(--shadow-md); background: var(--bg-3); }
+  .rp-card::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(220px 60px at 100% 0%, color-mix(in oklab, var(--cat-color, var(--accent)) 35%, transparent), transparent 65%);
+    opacity: 0.06; transition: opacity var(--t-base);
+  }
+  .rp-card:hover::before { opacity: 0.12; }
+  .rp-card .rp-meta { display: flex; align-items: center; gap: var(--s-3); }
+  .rp-card .rp-title { font-size: var(--t-15); font-weight: 600; margin: 0; }
+  .rp-card .rp-desc { color: var(--fg-2); font-size: var(--t-13); margin: 0; line-height: 1.5; flex: 1; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .rp-card .rp-footer { display: flex; align-items: center; gap: 8px; font-size: var(--t-12); color: var(--fg-2); margin-top: 2px; }
+  .rp-card .rp-status { width: 6px; height: 6px; border-radius: 50%; }
+  .rp-card .rp-status.active { background: var(--ok); box-shadow: 0 0 0 3px rgba(93,211,158,0.22); }
+  .rp-card .rp-status.inactive { background: var(--fg-3); box-shadow: 0 0 0 3px rgba(82,90,109,0.22); }
+
+  /* Empty state graphic */
+  .rp-empty { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; text-align: center; padding: var(--s-8); color: var(--fg-2); }
+  .rp-empty svg { width: 96px; height: 96px; opacity: 0.25; margin-bottom: var(--s-4); }
+  .rp-empty h4 { color: var(--fg-0); margin: 0 0 6px; font-size: var(--t-16); }
+  .rp-empty p { margin: 0; font-size: var(--t-13); max-width: 420px; line-height: 1.55; }
+
+  /* Use-case gallery cards (rich card styling) */
+  .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--s-4); margin-bottom: var(--s-6); }
+
+  .uc-card {
+    position: relative; overflow: hidden;
+    background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--r-lg);
+    padding: var(--s-4); display: flex; flex-direction: column; gap: 10px;
+    cursor: pointer;
+    transition: transform var(--t-base) var(--ease-out), border-color var(--t-base), background var(--t-base), box-shadow var(--t-base);
+    animation: ucFadeIn 0.55s var(--ease-out) both;
+  }
+  .uc-card:hover { transform: translateY(-6px); border-color: var(--line-3); background: var(--bg-3); box-shadow: var(--shadow-md); }
+  .uc-card::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(240px 90px at 100% 0%, var(--cat-color, var(--accent)), transparent 65%);
+    opacity: 0.08; transition: opacity var(--t-base);
+  }
+  .uc-card:hover::before { opacity: 0.18; }
+
+  /* Card visual (SVG pattern) */
+  .uc-visual {
+    width: 52px; height: 52px; border-radius: var(--r-md); flex-shrink: 0;
+    background: linear-gradient(135deg, color-mix(in oklab, var(--cat-color, var(--accent)) 80%, #fff), color-mix(in oklab, var(--cat-color, var(--accent)) 60%, var(--accent-3)));
+    display: grid; place-items: center; color: white;
+    box-shadow: 0 6px 18px color-mix(in oklab, var(--cat-color, var(--accent)) 28%, transparent);
+  }
+  .uc-visual svg { display: block; }
+
+  .uc-title { font-size: var(--t-15); font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .uc-desc { color: var(--fg-2); font-size: var(--t-13); line-height: 1.55; flex: 1; margin: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .uc-acts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 2px; }
+  .uc-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 2px; }
+  .uc-actions a, .uc-actions button { text-decoration: none; }
+
+  .cat-head { display: flex; align-items: center; gap: 12px; margin: var(--s-7) 0 var(--s-3); animation: catHeadIn 0.5s var(--ease-out) both; }
+  .cat-head .cat-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--cat-color, var(--accent)); box-shadow: 0 0 0 5px color-mix(in oklab, var(--cat-color, var(--accent)) 20%, transparent); }
+  .cat-head h2 { margin: 0; font-size: var(--t-20); font-weight: 600; }
+  .cat-head p { margin: 2px 0 0; color: var(--fg-2); font-size: var(--t-13); max-width: 720px; }
+
+  @keyframes ucFadeIn { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:none; } }
+  @keyframes catHeadIn { from { opacity:0; transform:translateX(-6px); } to { opacity:1; transform:none; } }
+
+  /* Smooth filtering transitions */
+  #uc-host { transition: opacity 0.2s ease; }
+  #uc-host.is-filtering { opacity: 0.35; transform: translateY(2px); transition: opacity 0.18s ease, transform 0.18s ease; }
+
+  /* Responsive sidebar collapse */
+  @media (max-width: 860px) {
+    .hero { padding: var(--s-7) var(--s-5) var(--s-6); }
+    .section { padding: var(--s-5); }
+    .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+    .grid-recent { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
 {% block topbar_actions %}
-  <button class="btn ghost sm" id="btn-import">{% raw %}{% endraw %}<span id="ic-import"></span>Import model</button>
+  <button class="btn ghost sm" id="btn-import"><span id="ic-import"></span>Import model</button>
   <button class="btn primary sm" id="btn-newproject"><span id="ic-plus"></span>New project</button>
 {% endblock %}
 
@@ -36,16 +161,18 @@
 
 {% block content %}
 <section class="hero">
-  <div class="row" style="gap:var(--s-3); margin-bottom:8px">
-    <span class="chip solid">NNStudio</span>
-    <span class="chip">v2.0 redesign</span>
-  </div>
-  <h1>What do you want to build today?</h1>
-  <p>NNStudio is an end-to-end neural-network studio — pick a starter use case to scaffold a project, jump into the playground for free experimentation, or open an existing project. Every model stays visible, every layer inspectable, every weight tunable.</p>
-  <div class="row" style="margin-top:var(--s-5); gap:10px">
-    <button class="btn primary lg" id="cta-newproject"><span id="ic-cta-1"></span>Start a new project</button>
-    <a class="btn lg" href="{{ url_for('pages.playground') }}"><span id="ic-cta-2"></span>Open playground</a>
-    <a class="btn ghost lg" href="{{ url_for('pages.layer_library') }}"><span id="ic-cta-3"></span>Browse layer library</a>
+  <div class="hero-inner">
+    <div class="row" style="gap:var(--s-3); margin-bottom:8px">
+      <span class="chip solid">NNStudio</span>
+      <span class="chip">v2.0 redesign</span>
+    </div>
+    <h1>What do you want to build today?</h1>
+    <p>NNStudio is an end-to-end neural-network studio — pick a starter use case to scaffold a project, jump into the playground for free experimentation, or open an existing project. Every model stays visible, every layer inspectable, every weight tunable.</p>
+    <div class="row" style="margin-top:var(--s-5); gap:10px">
+      <button class="btn primary lg" id="cta-newproject"><span id="ic-cta-1"></span>Start a new project</button>
+      <a class="btn lg" href="{{ url_for('pages.playground') }}"><span id="ic-cta-2"></span>Open playground</a>
+      <a class="btn ghost lg" href="{{ url_for('pages.layer_library') }}"><span id="ic-cta-3"></span>Browse layer library</a>
+    </div>
   </div>
 </section>
 
@@ -55,8 +182,17 @@
     <span class="spacer"></span>
     <a class="btn ghost sm" href="{{ url_for('pages.projects') }}">See all →</a>
   </div>
-  <div id="recent-projects" class="grid-recent" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:var(--s-4)">
-    <div class="empty" style="grid-column:1/-1"><h4>No recent projects yet</h4><p>Pick a use case below to scaffold one in seconds — or open the blank playground to start from scratch.</p></div>
+  <div id="recent-projects" class="grid-recent">
+    <div class="rp-empty">
+      <svg viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="8" y="16" width="48" height="36" rx="4" />
+        <path d="M20 28h24M20 36h16M20 44h10" stroke-linecap="round" />
+        <circle cx="48" cy="12" r="4" />
+        <path d="M52 16l4 4" stroke-linecap="round" />
+      </svg>
+      <h4>No recent projects yet</h4>
+      <p>Pick a use case below to scaffold one in seconds — or open the blank playground to start from scratch.</p>
+    </div>
   </div>
 </section>
 
@@ -113,11 +249,11 @@
 
   /* Build category sidebar */
   const catList = document.getElementById("cat-list");
-  catList.appendChild(el("div", { class: "side-link active", "data-cat": "" }, el("span", { class: "ico", html: ICONS.grid({ size: 14 }) }), "All categories", el("span", { class: "badge" }, String(NN_USECASES.length))));
+  catList.appendChild(el("div", { class: "side-link active", "data-cat": "", style: `--cat-color:var(--accent)` }, el("span", { class: "ico", html: ICONS.grid({ size: 14 }) }), "All categories", el("span", { class: "badge" }, String(NN_USECASES.length))));
   for (const c of NN_CATEGORIES) {
     const count = NN_USECASES.filter(u => u.cat === c.key).length;
     catList.appendChild(el("div",
-      { class: "side-link", "data-cat": c.key, style: `--cat-color:${c.color}` },
+      { class: "side-link", "data-cat": c.key, style: `color:${c.color}` },
       el("span", { class: "ico", style: `color:${c.color}`, html: ICONS[c.icon]({ size: 14 }) }),
       c.label,
       el("span", { class: "badge" }, String(count))
@@ -141,45 +277,55 @@
 
   /* Render gallery */
   const host = document.getElementById("uc-host");
+  let filterTimeout;
   function render() {
-    host.innerHTML = "";
-    let total = 0;
-    const cats = activeCat ? NN_CATEGORIES.filter(c => c.key === activeCat) : NN_CATEGORIES;
-    for (const c of cats) {
-      let items = NN_USECASES.filter(u => u.cat === c.key);
-      if (activeTag) items = items.filter(u => (u.tags || []).includes(activeTag));
-      if (activeQuery) items = items.filter(u => (u.title + " " + u.desc).toLowerCase().includes(activeQuery));
-      if (!items.length) continue;
-      total += items.length;
+    host.classList.add("is-filtering");
+    if (filterTimeout) clearTimeout(filterTimeout);
+    filterTimeout = setTimeout(() => {
+      host.innerHTML = "";
+      host.classList.remove("is-filtering");
+      let total = 0;
+      const cats = activeCat ? NN_CATEGORIES.filter(c => c.key === activeCat) : NN_CATEGORIES;
+      for (const c of cats) {
+        let items = NN_USECASES.filter(u => u.cat === c.key);
+        if (activeTag) items = items.filter(u => (u.tags || []).includes(activeTag));
+        if (activeQuery) items = items.filter(u => (u.title + " " + u.desc).toLowerCase().includes(activeQuery));
+        if (!items.length) continue;
+        total += items.length;
 
-      const head = el("div", { class: "cat-head", style: `--cat-color:${c.color}` },
-        el("span", { class: "cat-dot" }),
-        el("div", {},
-          el("h2", {}, c.label),
-          el("p", {}, c.blurb)
-        )
-      );
-      host.appendChild(head);
-
-      const grid = el("div", { style: "display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:var(--s-4); margin-bottom:var(--s-6)" });
-      for (const u of items) {
-        const card = el("article", { class: "usecase-card", "data-key": u.key, style: `--cat-color:${c.color}` },
-          el("div", { class: "ucon", html: ICONS[u.icon || c.icon]({ size: 26, stroke: 1.6 }) }),
-          el("div", { class: "uc-title" }, u.title),
-          el("p", { class: "uc-desc" }, u.desc),
-          el("div", { class: "uc-acts" }, ...(u.tags || ["Local"]).map(t => el("span", { class: "chip" }, t)))
+        const head = el("div", { class: "cat-head", style: `--cat-color:${c.color}` },
+          el("span", { class: "cat-dot" }),
+          el("div", {},
+            el("h2", {}, c.label),
+            el("p", {}, c.blurb)
+          )
         );
-        card.addEventListener("click", () => {
-          location.href = `{{ url_for('pages.new_project') }}?usecase=${encodeURIComponent(u.key)}`;
-        });
-        grid.appendChild(card);
+        host.appendChild(head);
+
+        const grid = el("div", { class: "gallery-grid" });
+        for (const u of items) {
+          const card = el("article", { class: "uc-card", "data-key": u.key, style: `--cat-color:${c.color}` },
+            el("div", { class: "uc-visual", html: ICONS[u.icon || c.icon]({ size: 26, stroke: 1.6 }) }),
+            el("div", { class: "uc-title" }, u.title),
+            el("p", { class: "uc-desc" }, u.desc),
+            el("div", { class: "uc-acts" },
+              ...(u.tags || ["Local"]).map(t => el("span", { class: "chip" }, t)),
+              el("a", { class: "chip solid", href: `{{ url_for('pages.new_project') }}?usecase=${encodeURIComponent(u.key)}`, style: "margin-left:auto" }, "Start")
+            )
+          );
+          card.addEventListener("click", (e) => {
+            if (e.target.closest("a")) return;
+            location.href = `{{ url_for('pages.new_project') }}?usecase=${encodeURIComponent(u.key)}`;
+          });
+          grid.appendChild(card);
+        }
+        host.appendChild(grid);
       }
-      host.appendChild(grid);
-    }
-    document.getElementById("uc-count").textContent = `${total} scenarios`;
-    if (total === 0) {
-      host.appendChild(el("div", { class: "empty" }, el("h4", {}, "No matches"), el("p", {}, "Try a different category, deployment target, or search term.")));
-    }
+      document.getElementById("uc-count").textContent = `${total} scenarios`;
+      if (total === 0) {
+        host.appendChild(el("div", { class: "empty" }, el("h4", {}, "No matches"), el("p", {}, "Try a different category, deployment target, or search term.")));
+      }
+    }, 120);
   }
   render();
 
@@ -188,17 +334,22 @@
     try {
       const res = await fetchJSON("/api/projects?limit=6");
       const items = (res.data && res.data.projects) || res.projects || [];
-      if (!items.length) return;
       const host = document.getElementById("recent-projects");
+      if (!items.length) return;
       host.innerHTML = "";
       for (const p of items) {
-        const card = el("a", { class: "card interactive", href: `/playground?project=${p.id}`, style: "display:flex; flex-direction:column; gap:8px" },
-          el("div", { class: "row" },
+        const isActive = true; // placeholder; API may expose status
+        const card = el("a", { class: "rp-card", href: `/playground?project=${p.id}`, style: `--cat-color:var(--accent)` },
+          el("div", { class: "rp-meta" },
             el("span", { class: "chip", style: "background:var(--accent-soft); color:#d3d4ff; border-color:var(--accent-ring)" }, p.usecase || "Custom"),
             el("span", { class: "muted text-xs" }, timeAgo(p.updated_at))
           ),
-          el("div", { class: "card-title" }, p.name),
-          el("div", { class: "card-desc" }, p.description || "—")
+          el("div", { class: "rp-title" }, p.name),
+          el("div", { class: "rp-desc" }, p.description || "—"),
+          el("div", { class: "rp-footer" },
+            el("span", { class: `rp-status ${isActive ? 'active' : 'inactive'}` }),
+            el("span", isActive ? "Active" : "Inactive")
+          )
         );
         host.appendChild(card);
       }

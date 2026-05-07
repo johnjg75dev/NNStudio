@@ -31,8 +31,9 @@
     <h3 style="margin:0 0 var(--s-3)">2 · Name your project</h3>
     <div class="form-grid" style="max-width:760px">
       <div class="field full">
-        <label>Project name</label>
+        <label>Project name <span style="color:var(--err)">*</span></label>
         <input class="input" id="meta-name" placeholder="e.g. Fashion-MNIST classifier"/>
+        <span class="muted text-xs" id="meta-name-err" style="color:var(--err); min-height:16px; display:block"></span>
       </div>
       <div class="field full">
         <label>Description (optional)</label>
@@ -49,6 +50,13 @@
   <section class="step-pane hidden" data-step="3">
     <h3 style="margin:0 0 var(--s-3)">3 · Where does your data come from?</h3>
     <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:var(--s-3)" id="data-sources"></div>
+    <!-- Built-in dataset selector (shown only when source == builtin) -->
+    <div id="builtin-chooser" class="hidden" style="margin-top:var(--s-4)">
+      <div class="field" style="max-width:480px">
+        <label>Select a built-in dataset</label>
+        <select class="select" id="builtin-select"></select>
+      </div>
+    </div>
     <div class="divider"></div>
     <div class="form-grid" style="max-width:760px">
       <div class="field"><label>Train split</label><input class="input" id="ds-train" type="number" value="70" min="0" max="100"/></div>
@@ -159,6 +167,33 @@
     if (n === 6) renderReview();
   }
 
+  /* Validation helpers */
+  function validateStep(s) {
+    if (s === 1) {
+      if (!state.usecase) { toast("Pick a scenario first.", "err"); return false; }
+      return true;
+    }
+    if (s === 2) {
+      const name = document.getElementById("meta-name").value.trim();
+      const errEl = document.getElementById("meta-name-err");
+      if (!name) {
+        errEl.textContent = "Project name is required.";
+        toast("Give your project a name.", "err");
+        return false;
+      }
+      errEl.textContent = "";
+      return true;
+    }
+    if (s === 3) {
+      if (state.dataset.source === "builtin" && !state.dataset.builtin) {
+        toast("Select a built-in dataset.", "err");
+        return false;
+      }
+      return true;
+    }
+    return true;
+  }
+
   /* Step 1 — scenarios */
   function renderScenarios(query="") {
     const host = document.getElementById("ws-categories");
@@ -200,7 +235,7 @@
     { key:"hf",        title:"Hugging Face dataset", icon:"package", desc:"Pull any HF datasets entry by name." },
     { key:"torchvision", title:"torchvision",    icon:"image",  desc:"MNIST, CIFAR-10/100, ImageNet, etc." },
     { key:"sklearn",   title:"scikit-learn",     icon:"flask",  desc:"Iris, digits, breast cancer, california housing." },
-    { key:"builtin",   title:"NNStudio built-in", icon:"flask", desc:"XOR, spiral, sine — 11 quick training tasks." },
+    { key:"builtin",   title:"NNStudio built-in", icon:"flask", desc:"XOR, spiral, sine — quick training tasks." },
     { key:"custom",    title:"Custom Python",    icon:"code",   desc:"Write a generator function in the data studio." },
   ];
 
@@ -215,11 +250,46 @@
         el("p", { class:"card-desc", style:"margin-top:8px" }, s.desc)
       );
       if (state.dataset.source === s.key) card.style.outline = `2px solid var(--accent)`;
-      card.addEventListener("click", () => { state.dataset.source = s.key; renderDataSources(); });
+      card.addEventListener("click", () => { state.dataset.source = s.key; renderDataSources(); updateBuiltinVisibility(); });
       host.appendChild(card);
     }
   }
   renderDataSources();
+
+  /* Built-in dataset dropdown */
+  const GLOBAL_DATASETS = [
+    { name: "XOR Gate", ds_type: "tabular", num_inputs: 2, num_outputs: 1 },
+    { name: "Iris (3-class)", ds_type: "tabular", num_inputs: 4, num_outputs: 3 },
+    { name: "Circles (2-class)", ds_type: "tabular", num_inputs: 2, num_outputs: 1 },
+    { name: "MNIST (Handwritten Digits)", ds_type: "mnist", num_inputs: 784, num_outputs: 10 },
+    { name: "Fashion-MNIST", ds_type: "fashion_mnist", num_inputs: 784, num_outputs: 10 },
+  ];
+
+  function renderBuiltinSelect() {
+    const sel = document.getElementById("builtin-select");
+    sel.innerHTML = "";
+    const placeholder = el("option", { value: "" }, "— Select a dataset —");
+    sel.appendChild(placeholder);
+    for (const ds of GLOBAL_DATASETS) {
+      const opt = el("option", { value: ds.name }, `${ds.name} (${ds.ds_type})`);
+      sel.appendChild(opt);
+    }
+    if (state.dataset.builtin) sel.value = state.dataset.builtin;
+    sel.addEventListener("change", () => {
+      state.dataset.builtin = sel.value || null;
+    });
+  }
+  renderBuiltinSelect();
+
+  function updateBuiltinVisibility() {
+    const chooser = document.getElementById("builtin-chooser");
+    if (state.dataset.source === "builtin") {
+      chooser.classList.remove("hidden");
+    } else {
+      chooser.classList.add("hidden");
+    }
+  }
+  updateBuiltinVisibility();
 
   /* Step 4 — arch */
   const archStarters = [
@@ -295,6 +365,9 @@
     body.appendChild(row("Category", state.category || "tools"));
     body.appendChild(row("Tags", state.tags.join(", ") || "—"));
     body.appendChild(row("Data source", state.dataset.source));
+    if (state.dataset.source === "builtin") {
+      body.appendChild(row("Built-in dataset", state.dataset.builtin || "—"));
+    }
     body.appendChild(row("Splits (train/val/test)", state.dataset.splits.join("/")));
     body.appendChild(row("Architecture", state.arch.key));
     body.appendChild(row("Optimizer", state.train.optimizer));
@@ -309,11 +382,7 @@
   /* Nav */
   document.getElementById("btn-back").addEventListener("click", () => { if (step > 1) showStep(step-1); });
   document.getElementById("btn-next").addEventListener("click", async () => {
-    if (step === 1 && !state.usecase) { toast("Pick a scenario first.", "err"); return; }
-    if (step === 2) {
-      state.name = document.getElementById("meta-name").value.trim();
-      if (!state.name) { toast("Give your project a name.", "err"); return; }
-    }
+    if (!validateStep(step)) return;
     if (step < STEPS.length) { showStep(step+1); return; }
     /* Create */
     try {

@@ -2,10 +2,1027 @@
 {% set active_section = "playground" %}
 {% block title %}Playground — NNStudio{% endblock %}
 {% block crumbs %}<span>NNStudio</span><span>Playground</span>{% endblock %}
+{% block shell_class %}playground-shell no-sidebar{% endblock %}
+
+{% block head %}
+<style>
+  .playground-shell { --side-w: 260px; --inspector-w: 300px; }
+
+  /* Override grid for 3-panel layout (left rail + left side + canvas + right side) */
+  .playground-shell .app-shell {
+    grid-template-columns: var(--rail-w) var(--side-w) 1fr var(--inspector-w);
+    grid-template-areas:
+      "rail side main insp"
+      "rail side bottom bottom";
+    grid-template-rows: 1fr 48px;
+  }
+  .playground-shell .app-main { display: none; }
+
+  /* Left panel — layer library */
+  .pg-left {
+    grid-area: side;
+    background: var(--bg-1);
+    border-right: 1px solid var(--line-1);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    z-index: 2;
+  }
+  .pg-left-head {
+    padding: 12px 14px; border-bottom: 1px solid var(--line-1);
+    font-weight: 600; font-size: var(--t-13); color: var(--fg-0);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pg-left-list {
+    flex: 1; overflow-y: auto; padding: 6px;
+  }
+  .pg-left-list::-webkit-scrollbar { width: 6px; }
+  .pg-left-list::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 999px; }
+  .pg-layer-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; margin: 2px 0; border-radius: var(--r-sm);
+    cursor: grab; user-select: none;
+    color: var(--fg-1); font-size: var(--t-13);
+    border: 1px solid transparent;
+    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+  }
+  .pg-layer-item:hover { background: var(--bg-2); color: var(--fg-0); border-color: var(--line-2); }
+  .pg-layer-item:active { cursor: grabbing; }
+  .pg-layer-item .lico { width: 28px; height: 28px; border-radius: var(--r-sm); display: grid; place-items: center; color: white; font-size: 11px; font-weight: 600; }
+  .pg-layer-item .lico.dense  { background: linear-gradient(135deg, #8b8cff, #6f72ff); }
+  .pg-layer-item .lico.conv   { background: linear-gradient(135deg, #6cd2ff, #3ea8d8); }
+  .pg-layer-item .lico.drop   { background: linear-gradient(135deg, #ff7eb6, #e65a8e); }
+  .pg-layer-item .lico.norm   { background: linear-gradient(135deg, #b88dff, #9b6fff); }
+  .pg-layer-item .lico.pool   { background: linear-gradient(135deg, #5dd39e, #3ead7a); }
+  .pg-layer-item .lico.shape  { background: linear-gradient(135deg, #ffb86b, #e09a48); }
+  .pg-layer-item .lico.rnn    { background: linear-gradient(135deg, #ff6b8a, #d94a66); }
+  .pg-layer-item .lico.embed  { background: linear-gradient(135deg, #88e1f2, #5eb8c8); }
+  .pg-layer-item .lico.attn   { background: linear-gradient(135deg, #ffcb6b, #e0a83a); }
+  .pg-cat-label {
+    font-size: var(--t-11); color: var(--fg-3); text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 10px 10px 4px; font-weight: 600;
+  }
+
+  /* Canvas area */
+  .pg-canvas-wrap {
+    grid-area: main;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-0);
+    background-image:
+      radial-gradient(circle, var(--line-1) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .pg-canvas-wrap.drag-over { box-shadow: inset 0 0 0 2px var(--accent); }
+  .pg-canvas {
+    width: 100%; height: 100%;
+    display: block;
+  }
+  .pg-empty {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    color: var(--fg-2); pointer-events: none;
+  }
+  .pg-empty h3 { font-size: var(--t-18); color: var(--fg-0); margin: 0 0 8px; }
+  .pg-empty p { margin: 0; font-size: var(--t-13); }
+
+  /* Node rendering on canvas */
+  .pg-node {
+    position: absolute;
+    background: var(--bg-2); border: 1px solid var(--line-2);
+    border-radius: var(--r-md); padding: 10px 14px;
+    cursor: pointer; user-select: none;
+    font-size: var(--t-12);
+    min-width: 130px;
+    transition: border-color var(--t-fast), box-shadow var(--t-fast);
+    box-shadow: var(--shadow-sm);
+  }
+  .pg-node:hover { border-color: var(--line-3); }
+  .pg-node.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft), var(--shadow-sm); }
+  .pg-node .nhead { font-weight: 600; font-size: var(--t-13); margin-bottom: 4px; color: var(--fg-0); }
+  .pg-node .ninfo { color: var(--fg-2); font-size: var(--t-11); font-family: var(--font-mono); }
+  .pg-node .nstrip {
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    border-radius: var(--r-md) var(--r-md) 0 0;
+  }
+  .pg-node .nstrip.dense  { background: #8b8cff; }
+  .pg-node .nstrip.conv   { background: #6cd2ff; }
+  .pg-node .nstrip.drop   { background: #ff7eb6; }
+  .pg-node .nstrip.norm   { background: #b88dff; }
+  .pg-node .nstrip.pool   { background: #5dd39e; }
+  .pg-node .nstrip.shape  { background: #ffb86b; }
+  .pg-node .nstrip.rnn    { background: #ff6b8a; }
+  .pg-node .nstrip.embed  { background: #88e1f2; }
+  .pg-node .nstrip.attn   { background: #ffcb6b; }
+
+  /* Connection ports */
+  .pg-port { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--bg-4); border: 2px solid var(--line-2); transition: background var(--t-fast), border-color var(--t-fast); cursor: crosshair; }
+  .pg-port:hover { background: var(--accent); border-color: var(--accent); }
+  .pg-port.in  { top: -5px; left: 50%; transform: translateX(-50%); }
+  .pg-port.out { bottom: -5px; left: 50%; transform: translateX(-50%); }
+
+  /* Canvas SVG lines */
+  .pg-lines {
+    position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  }
+
+  /* Right panel — inspector */
+  .pg-right {
+    grid-area: insp;
+    background: var(--bg-1);
+    border-left: 1px solid var(--line-1);
+    display: flex; flex-direction: column;
+    overflow: hidden; z-index: 2;
+  }
+  .pg-right-head {
+    padding: 12px 14px; border-bottom: 1px solid var(--line-1);
+    font-weight: 600; font-size: var(--t-13); color: var(--fg-0);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pg-right-body { flex: 1; overflow-y: auto; padding: 14px; }
+  .pg-right-body::-webkit-scrollbar { width: 6px; }
+  .pg-right-body::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 999px; }
+  .pg-right-empty { color: var(--fg-2); text-align: center; padding: 40px 20px; font-size: var(--t-13); }
+  .pg-prop-group { margin-bottom: 16px; }
+  .pg-prop-group h4 { font-size: var(--t-11); text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-3); margin: 0 0 8px; }
+  .pg-prop-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 0; font-size: var(--t-13); border-bottom: 1px solid var(--line-1);
+  }
+  .pg-prop-row .pr-label { color: var(--fg-1); }
+  .pg-prop-row .pr-value { color: var(--fg-0); font-family: var(--font-mono); font-size: var(--t-12); }
+  .pg-prop-input { margin-top: 6px; }
+  .pg-prop-input input, .pg-prop-input select {
+    width: 100%; background: var(--bg-2); border: 1px solid var(--line-2);
+    border-radius: var(--r-sm); padding: 6px 10px; color: var(--fg-0);
+    font-size: var(--t-13); font-family: var(--font-mono);
+  }
+  .pg-prop-input input:focus, .pg-prop-input select:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .pg-prop-input label { display: block; font-size: var(--t-11); color: var(--fg-2); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .pg-w-delete { margin-top: 12px; }
+
+  /* Mini vis inside inspector */
+  .pg-mini-vis {
+    background: var(--bg-0); border: 1px solid var(--line-1);
+    border-radius: var(--r-sm); padding: 6px; margin-top: 8px;
+  }
+  .pg-mini-vis svg { width: 100%; height: 64px; display: block; }
+
+  /* Bottom bar */
+  .pg-bottom {
+    grid-area: bottom;
+    background: var(--bg-1); border-top: 1px solid var(--line-1);
+    display: flex; align-items: center; padding: 0 16px;
+    font-size: var(--t-12); gap: 20px; z-index: 2;
+  }
+  .pg-bottom .bstat { color: var(--fg-2); }
+  .pg-bottom .bstat span { color: var(--fg-0); font-weight: 600; font-family: var(--font-mono); margin-left: 4px; }
+  .pg-bottom .bstat .status-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+  .pg-bottom .bstat .status-dot.idle { background: var(--fg-3); }
+  .pg-bottom .bstat .status-dot.training { background: var(--warn); animation: pulse 0.8s ease-in-out infinite; }
+  .pg-bottom .bstat .status-dot.built { background: var(--ok); }
+
+  /* Loss chart */
+  .pg-loss-chart {
+    width: 200px; height: 32px;
+    margin-left: auto;
+  }
+  .pg-loss-chart svg { width: 100%; height: 100%; }
+
+  /* Toolbar (custom topbar for playground) */
+  .pg-toolbar {
+    grid-area: topbar;
+    background: var(--bg-1); border-bottom: 1px solid var(--line-1);
+    display: flex; align-items: center; padding: 0 12px; gap: 6px;
+  }
+  .pg-toolbar .btn { font-size: var(--t-12); padding: 6px 10px; gap: 6px; }
+  .pg-toolbar .vdivider { margin: 0 4px; }
+  .pg-toolbar .pg-train-steps { width: 56px; text-align: center; }
+  .pg-toolbar .btn svg { width: 14px; height: 14px; }
+
+  /* Hide default topbar in playground shell */
+  .playground-shell .app-topbar { display: none; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="surface-card" style="padding:2rem;text-align:center;">
-  <h2>🧪 Model Playground</h2>
-  <p style="opacity:.7;">Build and visualize neural networks interactively.</p>
-  <a href="/classic" class="btn btn-primary" style="margin-top:1rem;">Open Classic Playground</a>
+<!-- Top toolbar -->
+<div class="pg-toolbar">
+  <button class="btn primary sm" id="pg-btn-build" title="Build network">
+    <span id="pg-btn-build-icon"></span> Build
+  </button>
+  <button class="btn sm" id="pg-btn-train" title="Train one step">
+    <span id="pg-btn-train-icon"></span> Step
+  </button>
+  <input type="number" class="input pg-train-steps" id="pg-train-steps" value="1" min="1" max="10000" title="Training steps">
+  <div class="vdivider"></div>
+  <button class="btn sm" id="pg-btn-reset" title="Reset weights">
+    <span id="pg-btn-reset-icon"></span> Reset
+  </button>
+  <button class="btn sm" id="pg-btn-import" title="Import JSON model">
+    <span id="pg-btn-import-icon"></span> Import
+  </button>
+  <button class="btn sm" id="pg-btn-export" title="Export JSON model">
+    <span id="pg-btn-export-icon"></span> Export
+  </button>
+  <button class="btn sm" id="pg-btn-save" title="Save to project">
+    <span id="pg-btn-save-icon"></span> Save
+  </button>
 </div>
+
+<!-- Left panel — Layer Library -->
+<div class="pg-left">
+  <div class="pg-left-head">
+    <span id="pg-lib-icon"></span> Layer Library
+  </div>
+  <div class="pg-left-list" id="pg-layer-list">
+  </div>
+</div>
+
+<!-- Canvas -->
+<div class="pg-canvas-wrap" id="pg-canvas-wrap">
+  <svg class="pg-lines" id="pg-lines"></svg>
+  <div id="pg-nodes"></div>
+  <div class="pg-empty" id="pg-empty">
+    <h3>Build Your Network</h3>
+    <p>Drag layers from the library onto the canvas</p>
+  </div>
+</div>
+
+<!-- Right panel — Inspector -->
+<div class="pg-right">
+  <div class="pg-right-head">
+    <span id="pg-insp-icon"></span> Inspector
+  </div>
+  <div class="pg-right-body scroll-y" id="pg-inspector">
+  </div>
+</div>
+
+<!-- Bottom bar -->
+<div class="pg-bottom">
+  <div class="bstat">Params: <span id="pg-stat-params">—</span></div>
+  <div class="bstat">Layers: <span id="pg-stat-layers">0</span></div>
+  <div class="bstat">Status:
+    <span class="status-dot idle" id="pg-status-dot"></span>
+    <span id="pg-stat-status">idle</span>
+  </div>
+  <div class="bstat" id="pg-stat-loss" style="display:none">Loss: <span id="pg-stat-loss-val">—</span></div>
+  <div class="bstat" id="pg-stat-acc" style="display:none">Acc: <span id="pg-stat-acc-val">—</span></div>
+  <div class="pg-loss-chart" id="pg-loss-chart-wrap"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  const { $, $$, el, fetchJSON, toast } = window.NN;
+  const I = window.ICONS;
+
+  /* ── Hydrate toolbar icons ─────────────────────── */
+  const ti = {
+    "pg-btn-build-icon": "play",
+    "pg-btn-train-icon": "zap",
+    "pg-btn-reset-icon": "refresh",
+    "pg-btn-import-icon": "upload",
+    "pg-btn-export-icon": "download",
+    "pg-btn-save-icon": "save",
+    "pg-lib-icon": "layers",
+    "pg-insp-icon": "eye",
+  };
+  for (const [id, name] of Object.entries(ti)) {
+    const e = document.getElementById(id);
+    if (e) e.innerHTML = I[name]({ size: 16 });
+  }
+
+  /* ── State ───────────────────────────────────────── */
+  const state = {
+    nodes: [],           // { id, type, params, x, y, el, colorClass }
+    selectedId: null,
+    projectId: null,
+    built: false,
+    training: false,
+    lossHistory: [],
+    totalParams: 0,
+    nextId: 1,
+  };
+
+  const ACTIONS = ["relu","sigmoid","tanh","swish","elu","selu","softmax","linear","leaky_relu"];
+
+  /* Layer definitions */
+  const LAYERS = [
+    { cat: "Dense", items: [
+      { type: "Dense",     label: "Dense (Fully Connected)", icon: "D", colorClass: "dense",
+        params: { neurons: 64, activation: "relu" } },
+    ]},
+    { cat: "Convolutional", items: [
+      { type: "Conv1D",    label: "Conv1D", icon: "C1", colorClass: "conv",
+        params: { filters: 32, kernel_size: 3, activation: "relu" } },
+      { type: "Conv2D",    label: "Conv2D", icon: "C2", colorClass: "conv",
+        params: { filters: 32, kernel_size: 3, activation: "relu" } },
+      { type: "Conv3D",    label: "Conv3D", icon: "C3", colorClass: "conv",
+        params: { filters: 16, kernel_size: 3, activation: "relu" } },
+    ]},
+    { cat: "Regularization", items: [
+      { type: "Dropout",    label: "Dropout", icon: "D", colorClass: "drop",
+        params: { rate: 0.5 } },
+      { type: "BatchNorm",  label: "BatchNorm", icon: "BN", colorClass: "norm",
+        params: {} },
+      { type: "LayerNorm",  label: "LayerNorm", icon: "LN", colorClass: "norm",
+        params: {} },
+    ]},
+    { cat: "Pooling", items: [
+      { type: "MaxPool1D",  label: "MaxPool1D", icon: "P1", colorClass: "pool",
+        params: { pool_size: 2 } },
+      { type: "MaxPool2D",  label: "MaxPool2D", icon: "P2", colorClass: "pool",
+        params: { pool_size: 2 } },
+      { type: "MaxPool3D",  label: "MaxPool3D", icon: "P3", colorClass: "pool",
+        params: { pool_size: 2 } },
+      { type: "AvgPool1D",  label: "AvgPool1D", icon: "A1", colorClass: "pool",
+        params: { pool_size: 2 } },
+      { type: "AvgPool2D",  label: "AvgPool2D", icon: "A2", colorClass: "pool",
+        params: { pool_size: 2 } },
+      { type: "AvgPool3D",  label: "AvgPool3D", icon: "A3", colorClass: "pool",
+        params: { pool_size: 2 } },
+    ]},
+    { cat: "Shape", items: [
+      { type: "Flatten",    label: "Flatten", icon: "F", colorClass: "shape",
+        params: {} },
+      { type: "Reshape",    label: "Reshape", icon: "R", colorClass: "shape",
+        params: { shape: [1, -1] } },
+    ]},
+    { cat: "Recurrent", items: [
+      { type: "RNN",        label: "RNN", icon: "RN", colorClass: "rnn",
+        params: { units: 64, activation: "tanh", return_sequences: false } },
+      { type: "LSTM",       label: "LSTM", icon: "LS", colorClass: "rnn",
+        params: { units: 64, return_sequences: false } },
+      { type: "GRU",        label: "GRU", icon: "GR", colorClass: "rnn",
+        params: { units: 64, return_sequences: false } },
+    ]},
+    { cat: "Embedding & Attention", items: [
+      { type: "Embedding",  label: "Embedding", icon: "E", colorClass: "embed",
+        params: { input_dim: 1000, output_dim: 128 } },
+      { type: "Attention",  label: "Attention", icon: "A", colorClass: "attn",
+        params: { heads: 8, dim: 128 } },
+    ]},
+  ];
+
+  const FLAT_LAYERS = [];
+  for (const cat of LAYERS) {
+    for (const l of cat.items) FLAT_LAYERS.push(l);
+  }
+
+  /* ── DOM refs ────────────────────────────────────── */
+  const canvasWrap  = document.getElementById("pg-canvas-wrap");
+  const nodesEl     = document.getElementById("pg-nodes");
+  const linesEl     = document.getElementById("pg-lines");
+  const inspectorEl = document.getElementById("pg-inspector");
+  const emptyEl     = document.getElementById("pg-empty");
+  const layerList   = document.getElementById("pg-layer-list");
+
+  /* ── Rendering helper ───────────────────────────── */
+  const hex8 = (hex, a) => {
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return `rgba(${r},${g},${b},${a})`;
+  };
+
+  const colorMap = {
+    dense: "#8b8cff", conv: "#6cd2ff", drop: "#ff7eb6", norm: "#b88dff",
+    pool: "#5dd39e", shape: "#ffb86b", rnn: "#ff6b8a", embed: "#88e1f2", attn: "#ffcb6b"
+  };
+
+  /* ── Build layer library sidebar ───────────────── */
+  function buildLayerList() {
+    layerList.innerHTML = "";
+    for (const cat of LAYERS) {
+      const label = el("div", { class: "pg-cat-label" }, cat.cat);
+      layerList.appendChild(label);
+      for (const item of cat.items) {
+        const li = el("div", {
+          class: "pg-layer-item",
+          draggable: "true",
+          "data-type": item.type,
+          "data-params": JSON.stringify(item.params),
+          "data-color": item.colorClass,
+        });
+        const ico = el("div", { class: `lico ${item.colorClass}` }, item.icon);
+        const name = document.createTextNode(item.label.replace(/\(.*\)/, "").trim());
+        li.appendChild(ico);
+        li.appendChild(name);
+        li.addEventListener("dragstart", onDragStart);
+        layerList.appendChild(li);
+      }
+    }
+  }
+
+  /* ── Drag from library to canvas ──────────────── */
+  let dragData = null;
+  function onDragStart(e) {
+    dragData = {
+      type: e.target.dataset.type,
+      params: JSON.parse(e.target.dataset.params || "{}"),
+      colorClass: e.target.dataset.color,
+    };
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setData("text/plain", dragData.type);
+  }
+
+  canvasWrap.addEventListener("dragover", function (e) { e.preventDefault(); canvasWrap.classList.add("drag-over"); });
+  canvasWrap.addEventListener("dragleave", function (e) { if (!canvasWrap.contains(e.relatedTarget)) canvasWrap.classList.remove("drag-over"); });
+  canvasWrap.addEventListener("drop", function (e) {
+    e.preventDefault();
+    canvasWrap.classList.remove("drag-over");
+    if (!dragData) return;
+    const rect = canvasWrap.getBoundingClientRect();
+    const x = e.clientX - rect.left - 70;
+    const y = e.clientY - rect.top - 20;
+    addNode(dragData, x, y);
+    dragData = null;
+  });
+
+  /* ── Node management ──────────────────────────── */
+  function addNode(data, x, y) {
+    const id = "node-" + (state.nextId++);
+    const node = {
+      id, type: data.type, params: { ...data.params },
+      x: Math.max(10, x), y: Math.max(10, y),
+      colorClass: data.colorClass,
+    };
+    state.nodes.push(node);
+    renderNode(node);
+    updateAll();
+    saveStateToGraph();
+  }
+
+  function renderNode(node) {
+    const nd = el("div", { class: "pg-node", id: node.id, style: `left:${node.x}px;top:${node.y}px;` });
+    nd.innerHTML = `<div class="nstrip ${node.colorClass}"></div>
+      <div class="nhead">${node.type}</div>
+      <div class="ninfo">${summarizeParams(node.params)}</div>
+      <div class="pg-port in" title="Input"></div>
+      <div class="pg-port out" title="Output"></div>`;
+
+    nd.addEventListener("click", function (e) { e.stopPropagation(); selectNode(node.id); });
+    nd.addEventListener("dblclick", function (e) { e.stopPropagation(); selectNode(node.id); focusFirstInput(); });
+    nd.addEventListener("mousedown", function (e) {
+      if (e.target.classList.contains("pg-port")) return;
+      e.stopPropagation(); startDragNode(node.id, e);
+    });
+
+    nodesEl.appendChild(nd);
+    node.el = nd;
+
+    if (node.id === state.selectedId) nd.classList.add("selected");
+  }
+
+  function summarizeParams(p) {
+    const parts = [];
+    if (p.neurons != null) parts.push(`${p.neurons} n`);
+    else if (p.units != null) parts.push(`${p.units} u`);
+    else if (p.filters != null) parts.push(`${p.filters} f`);
+    if (p.activation) parts.push(p.activation);
+    if (p.rate != null) parts.push(`d${p.rate}`);
+    if (p.kernel_size != null) parts.push(`k${p.kernel_size}`);
+    if (p.pool_size != null) parts.push(`p${p.pool_size}`);
+    if (p.heads != null) parts.push(`${p.heads}h`);
+    if (p.dim != null && !parts.length) parts.push(`${p.dim}d`);
+    return parts.join(" · ") || "—";
+  }
+
+  function selectNode(id) {
+    state.selectedId = id;
+    for (const n of state.nodes) {
+      n.el.classList.toggle("selected", n.id === id);
+    }
+    renderInspector();
+  }
+
+  function getSelectedNode() {
+    return state.nodes.find(n => n.id === state.selectedId) || null;
+  }
+
+  function deleteSelectedNode() {
+    const node = getSelectedNode();
+    if (!node) return;
+    state.nodes = state.nodes.filter(n => n.id !== node.id);
+    node.el.remove();
+    state.selectedId = null;
+    updateAll();
+    saveStateToGraph();
+  }
+
+  /* ── Node dragging on canvas ──────────────────── */
+  let dragTarget = null, dragOffX = 0, dragOffY = 0;
+
+  function startDragNode(id, ev) {
+    const node = state.nodes.find(n => n.id === id);
+    if (!node) return;
+    dragTarget = node;
+    dragOffX = ev.clientX - node.x;
+    dragOffY = ev.clientY - node.y;
+    selectNode(id);
+    document.addEventListener("mousemove", onNodeDrag);
+    document.addEventListener("mouseup", stopNodeDrag);
+  }
+
+  function onNodeDrag(ev) {
+    if (!dragTarget) return;
+    dragTarget.x = ev.clientX - dragOffX;
+    dragTarget.y = ev.clientY - dragOffY;
+    dragTarget.el.style.left = dragTarget.x + "px";
+    dragTarget.el.style.top = dragTarget.y + "px";
+    drawConnections();
+  }
+
+  function stopNodeDrag() {
+    dragTarget = null;
+    document.removeEventListener("mousemove", onNodeDrag);
+    document.removeEventListener("mouseup", stopNodeDrag);
+  }
+
+  canvasWrap.addEventListener("click", function () { state.selectedId = null; for (const n of state.nodes) n.el.classList.remove("selected"); renderInspector(); });
+
+  /* ── Connection lines ─────────────────────────── */
+  function drawConnections() {
+    const wrapRect = canvasWrap.getBoundingClientRect();
+    let svg = "";
+    for (let i = 1; i < state.nodes.length; i++) {
+      const a = state.nodes[i - 1];
+      const b = state.nodes[i];
+      const ax = a.x + a.el.offsetWidth / 2;
+      const ay = a.y + a.el.offsetHeight;
+      const bx = b.x + b.el.offsetWidth / 2;
+      const by = b.y;
+      const col = colorMap[a.colorClass] || "#8b8cff";
+      const mid = (ay + by) / 2;
+      svg += `<path d="M${ax},${ay} C${ax},${mid} ${bx},${mid} ${bx},${by}"
+        stroke="${hex8(col, 0.4)}" stroke-width="2" fill="none" stroke-dasharray="4 3"/>`;
+    }
+    linesEl.innerHTML = svg;
+    const sw = canvasWrap.scrollWidth, sh = canvasWrap.scrollHeight;
+    linesEl.style.width = sw + "px";
+    linesEl.style.height = sh + "px";
+    linesEl.style.top = "0px";
+    linesEl.style.left = "0px";
+  }
+
+  /* ── Inspector ────────────────────────────────── */
+  function renderInspector() {
+    const node = getSelectedNode();
+    if (!node) {
+      inspectorEl.innerHTML = '<div class="pg-right-empty">Select a layer to inspect its properties</div>';
+      return;
+    }
+
+    const def = FLAT_LAYERS.find(l => l.type === node.type) || FLAT_LAYERS[0];
+    let html = `<div class="pg-prop-group"><h4>Layer Info</h4>
+      <div class="pg-prop-row"><span class="pr-label">Type</span><span class="pr-value">${node.type}</span></div>
+      <div class="pg-prop-row"><span class="pr-label">ID</span><span class="pr-value">${node.id}</span></div>`;
+
+    if (state.built && node.shapeIn) {
+      html += `<div class="pg-prop-row"><span class="pr-label">Input Shape</span><span class="pr-value">${Array.isArray(node.shapeIn) ? node.shapeIn.join("×") : node.shapeIn}</span></div>`;
+    }
+    if (state.built && node.shapeOut) {
+      html += `<div class="pg-prop-row"><span class="pr-label">Output Shape</span><span class="pr-value">${Array.isArray(node.shapeOut) ? node.shapeOut.join("×") : node.shapeOut}</span></div>`;
+    }
+    html += `</div>`;
+
+    const keys = Object.keys(node.params);
+    if (keys.length > 0) {
+      html += `<div class="pg-prop-group"><h4>Parameters</h4>`;
+      for (const k of keys) {
+        const val = node.params[k];
+        const display = Array.isArray(val) ? JSON.stringify(val) : val;
+        if (k === "activation") {
+          html += `<div class="pg-prop-input"><label>${k}</label>
+            <select data-param="${k}" onchange="this.closest('#pg-inspector')._onParamChange('${k}', this.value)">
+              ${ACTIONS.map(a => `<option value="${a}" ${a===val?'selected':''}>${a}</option>`).join("")}
+            </select></div>`;
+        } else if (k === "return_sequences") {
+          html += `<div class="pg-prop-row"><span class="pr-label">${k}</span>
+            <label class="switch"><input type="checkbox" data-param="${k}" ${val?'checked':''} onchange="this.closest('#pg-inspector')._onParamChange('${k}', this.checked)">
+            <span class="slider"></span></label></div>`;
+        } else {
+          html += `<div class="pg-prop-input"><label>${k}</label>
+            <input type="text" data-param="${k}" value="${display}" onchange="this.closest('#pg-inspector')._onParamChange('${k}', this.value)"></div>`;
+        }
+      }
+      html += `</div>`;
+    }
+
+    if (state.built && node.weights) {
+      html += `<div class="pg-prop-group"><h4>Weights</h4>
+        <div class="pg-prop-row"><span class="pr-label">Mean</span><span class="pr-value">${node.weights.mean.toFixed(4)}</span></div>
+        <div class="pg-prop-row"><span class="pr-label">Std</span><span class="pr-value">${node.weights.std.toFixed(4)}</span></div>
+        <div class="pg-prop-row"><span class="pr-label">Min</span><span class="pr-value">${node.weights.min.toFixed(4)}</span></div>
+        <div class="pg-prop-row"><span class="pr-label">Max</span><span class="pr-value">${node.weights.max.toFixed(4)}</span></div>
+        <div class="pg-mini-vis" id="pg-whist">${renderWeightHistogram(node.weights.hist)}</div></div>`;
+    }
+
+    if (state.built && node.activationData) {
+      html += `<div class="pg-prop-group"><h4>Activation Heatmap</h4>
+        <div class="pg-mini-vis" id="pg-aheat">${renderActivationHeatmap(node.activationData)}</div></div>`;
+    }
+
+    html += `<div class="pg-w-delete"><button class="btn danger sm block" id="pg-btn-delete">${I.trash({size:14})} Delete Layer</button></div>`;
+
+    inspectorEl.innerHTML = html;
+    inspectorEl._onParamChange = function (key, value) {
+      const n = getSelectedNode();
+      if (!n) return;
+      const num = Number(value);
+      if (key === "return_sequences") n.params[key] = value;
+      else if (key === "activation") n.params[key] = value;
+      else if (key === "rate") n.params[key] = Math.max(0, Math.min(1, num));
+      else if (!isNaN(num)) n.params[key] = num;
+      else {
+        try { n.params[key] = JSON.parse(value); } catch (_) { n.params[key] = value; }
+      }
+      refreshNodeLabels();
+      saveStateToGraph();
+    };
+
+    const delBtn = document.getElementById("pg-btn-delete");
+    if (delBtn) delBtn.addEventListener("click", deleteSelectedNode);
+  }
+
+  function refreshNodeLabels() {
+    for (const n of state.nodes) {
+      const infoEl = n.el.querySelector(".ninfo");
+      if (infoEl) infoEl.textContent = summarizeParams(n.params);
+    }
+  }
+
+  function renderWeightHistogram(hist) {
+    if (!hist || !hist.length) return "<svg></svg>";
+    const w = 280, h = 64, pad = 4;
+    const max = Math.max(1, ...hist);
+    const barW = (w - pad * 2) / hist.length;
+    let rects = "";
+    for (let i = 0; i < hist.length; i++) {
+      const bh = Math.max(1, (hist[i] / max) * (h - pad * 2));
+      rects += `<rect x="${pad + i * barW}" y="${h - pad - bh}" width="${Math.max(1, barW - 1)}" height="${bh}" fill="${hex8(colorMap.dense || '#8b8cff', 0.7)}" rx="1"/>`;
+    }
+    return `<svg viewBox="0 0 ${w} ${h}">${rects}</svg>`;
+  }
+
+  function renderActivationHeatmap(data) {
+    if (!data || !data.length) return "<svg></svg>";
+    const w = 280, h = 64;
+    const cols = data.length;
+    const cellW = Math.max(2, w / cols);
+    let rects = "";
+    for (let i = 0; i < cols; i++) {
+      const v = Math.max(0, Math.min(1, (data[i] + 1) / 2));
+      const r = Math.round(139 * v + 22 * (1-v));
+      const g = Math.round(140 * v + 26 * (1-v));
+      const b = Math.round(255 * v + 40 * (1-v));
+      rects += `<rect x="${i * cellW}" y="0" width="${Math.max(1, cellW - 0.5)}" height="${h}" fill="rgb(${r},${g},${b})" rx="1"/>`;
+    }
+    return `<svg viewBox="0 0 ${w} ${h}">${rects}</svg>`;
+  }
+
+  function focusFirstInput() {
+    const inp = inspectorEl.querySelector("input, select");
+    if (inp) inp.focus();
+  }
+
+  /* ── Update all UI ────────────────────────────── */
+  function updateAll() {
+    const count = state.nodes.length;
+    document.getElementById("pg-stat-layers").textContent = count;
+    emptyEl.style.display = count === 0 ? "" : "none";
+    drawConnections();
+    updateParamCount();
+    renderInspector();
+  }
+
+  function updateParamCount() {
+    if (state.built && state.totalParams > 0) {
+      document.getElementById("pg-stat-params").textContent = state.totalParams.toLocaleString();
+    } else {
+      document.getElementById("pg-stat-params").textContent = "—";
+    }
+  }
+
+  function setStatus(status) {
+    const dot = document.getElementById("pg-status-dot");
+    const txt = document.getElementById("pg-stat-status");
+    dot.className = "status-dot " + status;
+    txt.textContent = status;
+    document.getElementById("pg-stat-loss").style.display = (status === "training" && state.lossHistory.length > 0) ? "" : "none";
+    document.getElementById("pg-stat-acc").style.display = "none";
+  }
+
+  /* ── Loss chart ───────────────────────────────── */
+  function updateLossChart() {
+    const wrap = document.getElementById("pg-loss-chart-wrap");
+    if (state.lossHistory.length === 0) { wrap.innerHTML = ""; return; }
+    const w = 200, h = 32, pad = { t: 4, r: 4, b: 4, l: 4 };
+    const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
+    const vals = state.lossHistory.slice(-100);
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const range = max - min || 1;
+    let pts = "";
+    for (let i = 0; i < vals.length; i++) {
+      const px = pad.l + (i / (vals.length - 1 || 1)) * pw;
+      const py = pad.t + ph - ((vals[i] - min) / range) * ph;
+      pts += `${px},${py} `;
+    }
+    wrap.innerHTML = `<svg viewBox="0 0 ${w} ${h}"><polyline points="${pts.trim()}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  }
+
+  /* ── API: Build network ───────────────────────── */
+  async function buildNetwork() {
+    if (state.nodes.length === 0) { toast("Add at least one layer first", "warn"); return; }
+    const layers = state.nodes.map(n => ({ type: n.type, params: n.params }));
+    try {
+      const result = await window.API.buildNetwork({ layers });
+      state.built = true;
+      state.totalParams = result.total_params || 0;
+      updateAll();
+      setStatus("built");
+      toast("Network built successfully");
+      refreshSnapshot();
+    } catch (err) {
+      toast(err.message || "Build failed", "err");
+    }
+  }
+
+  /* ── API: Train step ──────────────────────────── */
+  async function trainStep() {
+    if (!state.built) { toast("Build the network first", "warn"); return; }
+    const steps = parseInt(document.getElementById("pg-train-steps").value) || 1;
+    state.training = true;
+    setStatus("training");
+    try {
+      const result = await window.API.trainStep(steps);
+      state.training = false;
+      if (result.loss != null) {
+        state.lossHistory.push(result.loss);
+        document.getElementById("pg-stat-loss").style.display = "";
+        document.getElementById("pg-stat-loss-val").textContent = result.loss.toFixed(4);
+        updateLossChart();
+      }
+      if (result.accuracy != null) {
+        document.getElementById("pg-stat-acc").style.display = "";
+        document.getElementById("pg-stat-acc-val").textContent = (result.accuracy * 100).toFixed(1) + "%";
+      }
+      setStatus("built");
+      refreshSnapshot();
+    } catch (err) {
+      state.training = false;
+      setStatus("built");
+      toast(err.message || "Training step failed", "err");
+    }
+  }
+
+  /* ── API: Refresh snapshot (activations + weights) */
+  async function refreshSnapshot() {
+    if (!state.built) return;
+    try {
+      const snap = await window.API.getSnapshot();
+      if (!snap.built) return;
+      if (snap.layer_data) {
+        for (let i = 0; i < Math.min(snap.layer_data.length, state.nodes.length); i++) {
+          const sn = snap.layer_data[i];
+          state.nodes[i].shapeIn = sn.shape_in;
+          state.nodes[i].shapeOut = sn.shape_out;
+          if (sn.weights) {
+            state.nodes[i].weights = sn.weights;
+          }
+          if (sn.activation) {
+            const acts = sn.activation;
+            if (Array.isArray(acts) && acts.length > 0) {
+              state.nodes[i].activationData = Array.isArray(acts[0]) ? acts[0] : acts;
+            }
+          }
+        }
+      }
+      if (snap.total_params != null) state.totalParams = snap.total_params;
+      updateAll();
+    } catch (_) { /* snapshot is non-critical */ }
+  }
+
+  /* ── API: Reset ────────────────────────────────── */
+  async function resetWeights() {
+    try {
+      await window.API.resetWeights();
+      state.lossHistory = [];
+      updateLossChart();
+      document.getElementById("pg-stat-loss").style.display = "none";
+      document.getElementById("pg-stat-acc").style.display = "none";
+      refreshSnapshot();
+      toast("Weights reset");
+    } catch (err) {
+      toast(err.message || "Reset failed", "err");
+    }
+  }
+
+  /* ── API: Import / Export ──────────────────────── */
+  function getModelGraph() {
+    return {
+      layers: state.nodes.map(n => ({ type: n.type, params: n.params })),
+      positions: state.nodes.map(n => ({ id: n.id, x: n.x, y: n.y })),
+    };
+  }
+
+  async function importModel() {
+    const input = document.createElement("textarea");
+    input.style.cssText = "width:100%;height:200px;background:var(--bg-2);border:1px solid var(--line-2);border-radius:var(--r-sm);color:var(--fg-0);font-family:var(--font-mono);font-size:var(--t-12);padding:10px;";
+    input.placeholder = "Paste JSON model graph here...";
+
+    const { close } = window.NN.modal("Import Model",
+      `<p style="margin:0 0 12px;color:var(--fg-2);">Paste a JSON model graph. Expected format: {"layers":[...], "positions":[...]}</p>`,
+      `<button class="btn sm" data-close-import>Cancel</button>
+       <button class="btn primary sm" id="pg-import-confirm">Import</button>`
+    );
+
+    const modalBody = document.querySelector(".modal-body");
+    modalBody.appendChild(input);
+
+    document.querySelector("[data-close-import]").addEventListener("click", close);
+    document.getElementById("pg-import-confirm").addEventListener("click", async function () {
+      try {
+        const json = JSON.parse(input.value);
+        const data = json.layers ? json : { layers: json.layers || json, positions: json.positions || [] };
+        await window.API.importModel(data);
+        const result = await window.API.getSnapshot();
+        loadGraphFromSnapshot(result, data.positions || []);
+        close();
+        toast("Model imported");
+      } catch (err) {
+        toast("Invalid JSON: " + err.message, "err");
+      }
+    });
+  }
+
+  function loadGraphFromSnapshot(snap, positions) {
+    nodesEl.innerHTML = "";
+    state.nodes = [];
+    state.selectedId = null;
+    state.nextId = 1;
+    state.lossHistory = [];
+    state.built = snap && snap.built;
+
+    if (!snap || !snap.layer_data) return updateAll();
+
+    for (let i = 0; i < snap.layer_data.length; i++) {
+      const ld = snap.layer_data[i];
+      const pos = positions[i] || {};
+      const colorClass = guessColorClass(ld.type);
+      const node = {
+        id: "node-" + (state.nextId++),
+        type: ld.type || "Dense",
+        params: ld.params || {},
+        x: pos.x || (60 + i * 180),
+        y: pos.y || 80,
+        colorClass,
+        shapeIn: ld.shape_in,
+        shapeOut: ld.shape_out,
+        weights: ld.weights || null,
+        activationData: ld.activation || null,
+      };
+      state.nodes.push(node);
+      renderNode(node);
+    }
+    state.totalParams = snap.total_params || 0;
+    updateAll();
+    if (snap.loss_history) {
+      state.lossHistory = snap.loss_history;
+      updateLossChart();
+    }
+  }
+
+  function guessColorClass(type) {
+    if (/Conv/.test(type)) return "conv";
+    if (/Dropout/.test(type)) return "drop";
+    if (/Norm/.test(type)) return "norm";
+    if (/Pool/.test(type)) return "pool";
+    if (/Flatten|Reshape/.test(type)) return "shape";
+    if (/RNN|LSTM|GRU/.test(type)) return "rnn";
+    if (/Embedding/.test(type)) return "embed";
+    if (/Attention/.test(type)) return "attn";
+    return "dense";
+  }
+
+  async function exportModel() {
+    try {
+      const result = await window.API.exportModel();
+      const payload = JSON.stringify(result, null, 2);
+      const blob = new Blob([payload], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "nnstudio-model.json"; a.click();
+      URL.revokeObjectURL(url);
+      toast("Model exported");
+    } catch (err) {
+      if (err.message.includes("404") || err.message.includes("built")) {
+        const graph = getModelGraph();
+        const payload = JSON.stringify(graph, null, 2);
+        const blob = new Blob([payload], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = "nnstudio-model.json"; a.click();
+        URL.revokeObjectURL(url);
+        toast("Model graph exported (build first for full export)");
+      } else {
+        toast(err.message || "Export failed", "err");
+      }
+    }
+  }
+
+  /* ── Save to project ──────────────────────────── */
+  async function saveToProject() {
+    if (!state.projectId) { toast("No project loaded. Use ?project=ID", "warn"); return; }
+    try {
+      const graph = getModelGraph();
+      await window.NN.fetchJSON(`/api/projects/${state.projectId}`, {
+        method: "PATCH",
+        body: { model_graph: graph },
+      });
+      toast("Saved to project");
+    } catch (err) {
+      toast(err.message || "Save failed", "err");
+    }
+  }
+
+  function saveStateToGraph() {
+    if (!state.projectId) return;
+    const graph = getModelGraph();
+    window.NN.fetchJSON(`/api/projects/${state.projectId}`, {
+      method: "PATCH",
+      body: { model_graph: graph },
+    }).catch(() => {});
+  }
+
+  /* ── Load project from query param ────────────── */
+  async function loadProject() {
+    const params = new URLSearchParams(window.location.search);
+    const pid = params.get("project");
+    if (!pid) return;
+    try {
+      const data = await window.NN.fetchJSON(`/api/projects/${pid}`);
+      const proj = data.project;
+      if (proj && proj.model_graph) {
+        state.projectId = pid;
+        const graph = proj.model_graph;
+        if (graph.layers && graph.layers.length > 0) {
+          nodesEl.innerHTML = "";
+          state.nodes = [];
+          state.nextId = 1;
+          for (let i = 0; i < graph.layers.length; i++) {
+            const l = graph.layers[i];
+            const pos = (graph.positions && graph.positions[i]) || {};
+            const colorClass = guessColorClass(l.type);
+            const node = {
+              id: "node-" + (state.nextId++),
+              type: l.type,
+              params: l.params || {},
+              x: pos.x || (60 + i * 180),
+              y: pos.y || 80,
+              colorClass,
+            };
+            state.nodes.push(node);
+            renderNode(node);
+          }
+          updateAll();
+          setStatus("loaded");
+          try { await refreshSnapshot(); } catch (_) { setStatus("loaded"); }
+        }
+      }
+    } catch (err) {
+      toast("Failed to load project: " + err.message, "err");
+    }
+  }
+
+  /* ── Button wiring ────────────────────────────── */
+  document.getElementById("pg-btn-build").addEventListener("click", buildNetwork);
+  document.getElementById("pg-btn-train").addEventListener("click", trainStep);
+  document.getElementById("pg-btn-reset").addEventListener("click", resetWeights);
+  document.getElementById("pg-btn-import").addEventListener("click", importModel);
+  document.getElementById("pg-btn-export").addEventListener("click", exportModel);
+  document.getElementById("pg-btn-save").addEventListener("click", saveToProject);
+
+  /* ── Keyboard shortcuts ───────────────────────── */
+  document.addEventListener("keydown", function (e) {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
+    if (e.key === "Delete" || e.key === "Backspace") { deleteSelectedNode(); }
+    if ((e.ctrlKey || e.metaKey) && e.key === "b") { e.preventDefault(); buildNetwork(); }
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); trainStep(); }
+  });
+
+  /* ── Canvas resize handling ───────────────────── */
+  new ResizeObserver(() => drawConnections()).observe(canvasWrap);
+  window.addEventListener("resize", drawConnections);
+
+  /* ── Init ─────────────────────────────────────── */
+  buildLayerList();
+  renderInspector();
+  setStatus("idle");
+  loadProject();
+})();
+</script>
 {% endblock %}
