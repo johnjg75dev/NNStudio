@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Neural Trainer</string>
+    
+    <!-- Training Controls -->
+    <string name="train">Train</string>
+    <string name="pause">Pause</string>
+    <string name="reset">Reset</string>
+    <string name="rebuild">Rebuild</string>
+    
+    <!-- Network Configuration -->
+    <string name="hidden_layers">Hidden Layers</string>
+    <string name="neurons_per_layer">Neurons/Layer</string>
+    <string name="activation">Activation</string>
+    <string name="optimizer">Optimizer</string>
+    <string name="learning_rate">Learning Rate</string>
+    <string name="loss_function">Loss Function</string>
+    <string name="dropout">Dropout</string>
+    <string name="weight_decay">Weight Decay</string>
+    
+    <!-- Training Tasks -->
+    <string name="task_xor">XOR Gate</string>
+    <string name="task_and">AND Gate</string>
+    <string name="task_or">OR Gate</string>
+    <string name="task_xnor">XNOR Gate</string>
+    <string name="task_seg7">7-Segment Display</string>
+    <string name="task_parity">4-bit Parity</string>
+    <string name="task_sine">Sine Approximation</string>
+    <string name="task_adder">Half Adder</string>
+    <string name="task_circle">Circle Boundary</string>
+    <string name="task_spiral">Spiral Classes</string>
+    <string name="task_autoencoder">Autoencoder</string>
+    
+    <!-- Architecture Types -->
+    <string name="arch_mlp">Multi-Layer Perceptron</string>
+    <string name="arch_cnn">Convolutional Neural Network</string>
+    <string name="arch_rnn">Recurrent Neural Network</string>
+    <string name="arch_transformer">Transformer</string>
+    <string name="arch_vae">Variational Autoencoder</string>
+    <string name="arch_gan">Generative Adversarial Network</string>
+    
+    <!-- UI Labels -->
+    <string name="epoch">Epoch</string>
+    <string name="loss">Loss</string>
+    <string name="accuracy">Accuracy</string>
+    <string name="parameters">Parameters</string>
+    <string name="network_graph">Network Graph</string>
+    <string name="loss_chart">Loss Chart</string>
+    <string name="test_inputs">Test Inputs</string>
+    <string name="predictions">Predictions</string>
+    
+    <!-- Messages -->
+    <string name="training_started">Training started</string>
+    <string name="training_paused">Training paused</string>
+    <string name="network_built">Network built successfully</string>
+    <string name="network_reset">Network weights reset</string>
+    <string name="export_success">Model exported</string>
+    <string name="import_success">Model imported</string>
+    <string name="error_build">Error building network</string>
+    
+</resources>
