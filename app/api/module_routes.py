@@ -22,14 +22,20 @@ def all_modules():
         from ..models import Preset, ArchitectureDefinition, LayerDefinition, CustomTrainingFunction
         from ..modules.functions.custom_function_wrapper import DynamicCustomFunction
 
+        # Per-user rows override the built-ins — but only when the user actually
+        # has them, so an account created outside the signup flow (CLI, tests,
+        # migrations) still sees the shipped catalogue.
         user_presets = Preset.query.filter_by(user_id=current_user.id).all()
-        all_data["presets"] = [p.to_dict() for p in user_presets]
-        
+        if user_presets:
+            all_data["presets"] = [p.to_dict() for p in user_presets]
+
         user_archs = ArchitectureDefinition.query.filter_by(user_id=current_user.id).all()
-        all_data["architectures"] = [a.to_dict() for a in user_archs]
-        
+        if user_archs:
+            all_data["architectures"] = [a.to_dict() for a in user_archs]
+
         user_layers = LayerDefinition.query.filter_by(user_id=current_user.id).all()
-        all_data["layers"] = [l.to_dict() for l in user_layers]
+        if user_layers:
+            all_data["layers"] = [l.to_dict() for l in user_layers]
 
         # Add custom functions to "functions" category
         user_funcs = CustomTrainingFunction.query.filter_by(user_id=current_user.id, is_valid=True).all()

@@ -1,9 +1,16 @@
-# ⬡ Neural Network Trainer
+# ⬡ NNStudio
+
+**Neural Network Trainer & Visualiser**
 
 A fully object-oriented, modular Flask web application for training, visualising,
 and exploring neural networks in the browser.  No PyTorch, no TensorFlow — the
 entire training engine is written from scratch in pure NumPy so every line of
 backpropagation is readable and hackable.
+
+The front-end is a **React 18 single-page app** (Vite + React Router) served by
+Flask from `frontend/dist`.  Six routes — Studio, Datasets, Playground, Models,
+Functions and Learn — share one live training session, so a network trained on
+one page can be probed, saved or exported from any other.
 
 ---
 
@@ -48,142 +55,245 @@ backpropagation is readable and hackable.
 - **Weight decay** — L2 regularisation (decoupled in AdamW)
 - **He initialisation** — correct scaling for deep networks
 
-### Training Tasks (11 built-in)
-- Logic gates: XOR, AND, OR, XNOR
-- 7-Segment Display (4-bit → 7 outputs)
-- 4-bit Parity, Half Adder
-- Sine Approximation (regression)
-- Circle Boundary, Spiral Classes (geometric classification)
+### Training Tasks (18 built-in, plus your own)
+- Logic & arithmetic — XOR, AND, OR, XNOR, Half Adder, 4-bit Parity,
+  7-Segment Display
+- Regression & geometry — Sine Approximation, Circle Boundary, Spiral Classes
+- Images (8×8, 4×4) — Edge Detection, MNIST-like Digits, Pattern Classification
+- Sequences & text — Next Word Prediction, Sentiment Analysis, Sequence
+  Prediction, Time Series Classification
 - Autoencoder (8→3→8 identity compression)
+- Anything you write on the **Functions** page — Python or JavaScript, tested in
+  a bench before you train on it
 
 ### Architecture Zoo (9 diagrams)
 Interactive educational diagrams for: MLP, CNN, Autoencoder, Transformer,
 Vision Transformer (ViT), VAE, Diffusion / Stable Diffusion, GAN, RNN/LSTM
 
+### Pages
+- **Studio (`/train`)** — setup, editable layer stack, live network graph, loss curve,
+  weight-matrix heatmaps, node inspector, sample table, sweep and latent probes
+- **Playground (`/playground`)** — drive the network by hand: per-input sliders, a
+  pixel drawing pad for image tasks, partial forward passes
+  (`start_layer` → `end_layer`), node overrides, and a grid sweep that plots the
+  response surface
+- **Datasets (`/datasets`)** — browse the built-in library or create your own;
+  edit samples in a table, a pixel editor with histogram (image datasets), a
+  class-coloured scatter plot (2-input datasets) or raw JSON, then send the
+  dataset straight to the studio
+- **Models (`/models`)** — save the live session to a library, reload it, and
+  export to JSON, SafeTensors, GGUF, ONNX or ZIP
+- **Functions (`/functions`)** — write a custom training task, test it against a
+  bench, preview the generated dataset, then train on it
+- **Learn (`/learn`)** — in-app reference: the training loop, all nine
+  architecture blueprints, activation curves, optimizer and loss trade-offs,
+  layer types, glossary
+
 ### Other
-- **Test Inputs tab** — enter any input vector and run a live forward pass
-- **Sweep** — evaluate every training sample at once, see per-sample error
-- **Save / Load** — export the full model (weights + config) as JSON, re-import
-  to resume training
-- **10 one-click presets** — from "Tiny XOR" to "Regularised Deep"
+- **35 one-click presets** — architecture + layer stack + hyperparameters, plus
+  your own saved setups
 - **Tooltip system** — every hyperparameter control has a `?` icon explaining
   pros, cons, and typical ranges
-- **Keyboard shortcuts** — `Space` train/pause, `R` reset weights, `B` rebuild
+- **Keyboard shortcuts** — `Space` train/pause, `B` rebuild, `R` reset weights,
+  `1`–`6` jump between pages, `T` theme, `?` the shortcut list, `Esc` close
+- **Accounts** — sign-up seeds your presets, architectures, layer definitions and
+  the MNIST dataset; training sessions are per-user
+- **Light & dark themes** — CSS custom properties, persisted in `localStorage`,
+  toggled with `T`
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Clone / unzip the project
-cd nn_trainer
+# 1. Clone the project
+cd NNStudio
 
-# 2. Install dependencies (Flask + NumPy only)
+# 2. Back-end dependencies (Flask + NumPy)
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-# 3. Run
-python run.py
+# 3. Build the front-end once
+cd frontend && npm install && npm run build && cd ..
+
+# 4. Run
+python run.py server            # or: python run.py test all
 ```
 
-Open **http://localhost:5000** in your browser.
+Open **http://localhost:5000**, create an account, pick a task in the **Setup**
+column and press **Train** — or hit `Space`.
 
-The app starts with the "Tiny XOR" preset already loaded.
-Press **▶ Train** or hit **Space** to begin.
+**Hot-reload development:** run `python run.py server` in one terminal and
+`cd frontend && npm run dev` in another.  Vite serves on `:5173` and proxies
+`/api`, `/login`, `/signup`, `/logout`, `/check-username` and `/admin` to Flask
+(`FLASK_ORIGIN` overrides the target), so session cookies keep working.
+
+If `frontend/dist` is missing, Flask renders a short "front-end not built" page
+with the exact commands instead of a 404.
 
 ---
 
 ## Project Structure
 
 ```
-nn_trainer/
+NNStudio/
 ├── run.py                              # Entry point
 ├── requirements.txt
 ├── README.md
-└── app/
-    ├── __init__.py                     # Flask app factory (create_app)
-    │
-    ├── core/                           # Pure-Python ML engine — no Flask here
-    │   ├── activations.py              # Activation dataclass + ACTIVATIONS dict
-    │   ├── losses.py                   # LossFunction dataclass + LOSSES dict
-    │   ├── optimizers.py               # BaseOptimizer hierarchy + OptimizerFactory
-    │   ├── network.py                  # Layer → DenseLayer → NeuralNetwork + NetworkBuilder
-    │   └── session_manager.py          # TrainingSession + SessionManager (TTL store)
-    │
-    ├── modules/                        # Auto-discovered plugin system
-    │   ├── base.py                     # BaseModule ABC
-    │   ├── registry.py                 # ModuleRegistry — scans folders, no manual lists
-    │   │
-    │   ├── functions/                  # ← drop a new .py here to add a training task
-    │   │   ├── base_function.py        # TrainingFunction ABC
-    │   │   ├── xor.py                  # XOR gate
-    │   │   ├── logic_gates.py          # AND, OR, XNOR
-    │   │   ├── seven_segment.py        # 7-segment display
-    │   │   ├── math_functions.py       # Parity, Sine, Half Adder
-    │   │   └── geometric.py            # Circle, Spiral, Autoencoder
-    │   │
-    │   ├── architectures/              # ← drop a new .py here to add an arch diagram
-    │   │   ├── base_architecture.py    # ArchitectureModule ABC
-    │   │   └── all_architectures.py    # MLP, CNN, AE, Transformer, ViT, VAE, Diffusion, GAN, RNN
-    │   │
-    │   ├── presets/                    # ← drop a new .py here to add a preset
-    │   │   ├── base_preset.py          # PresetModule ABC
-    │   │   └── builtin_presets.py      # 10 built-in presets
-    │   │
-    │   └── optimizers/                 # UI descriptor metadata for each optimizer
-    │       └── optimizer_descriptors.py
-    │
-    ├── api/                            # Flask blueprints
-    │   ├── helpers.py                  # ok()/err(), @api_route, session helpers
-    │   ├── session_routes.py           # /api/session/* — build/reset/predict/export/import
-    │   ├── train_routes.py             # /api/train/step, /api/train/evaluate
-    │   ├── module_routes.py            # /api/modules/* — registry queries
-    │   └── page_routes.py             # GET / → renders index.html
-    │
-    ├── static/
-    │   ├── css/main.css
-    │   └── js/
-    │       ├── api.js                  # All fetch() calls — single source of truth
-    │       ├── renderer.js             # NetworkRenderer, ArchDiagramRenderer, LossChartRenderer
-    │       ├── trainer.js              # TrainingController (rAF loop, EventTarget)
-    │       ├── ui.js                   # UIController — all DOM, zero API calls
-    │       └── app.js                  # App — top-level orchestrator, wires everything
-    │
-    └── templates/
-        └── pages/index.html            # Jinja2 SPA shell (injects registry as window.REGISTRY)
+├── instance/nnstudio.db                # SQLite (created on first run)
+├── tests/                              # 371 pytest cases
+│
+├── app/                                # ─── BACK-END ────────────────────────
+│   ├── __init__.py                     # create_app + db + login_manager + registry
+│   │
+│   ├── models/                         # SQLAlchemy models (one file per table)
+│   │   ├── user.py  preset.py  dataset.py  saved_model.py
+│   │   ├── architecture.py  architecture_definition.py
+│   │   └── layer_definition.py  custom_function.py
+│   │
+│   ├── core/                           # Pure-Python ML engine — no Flask here
+│   │   ├── activations.py              # Activation dataclass + ACTIVATIONS dict
+│   │   ├── losses.py                   # LossFunction dataclass + LOSSES dict
+│   │   ├── optimizers.py               # BaseOptimizer hierarchy + OptimizerFactory
+│   │   ├── layers/                     # base, dense, conv, batch_norm, dropout,
+│   │   │                               # rnn, transformer layer implementations
+│   │   ├── network.py                  # NeuralNetwork + NetworkBuilder
+│   │   ├── session_manager.py          # TrainingSession + SessionManager (TTL store)
+│   │   ├── function_executor.py        # sandboxed exec of user Python/JS tasks
+│   │   └── exporters.py                # JSON, SafeTensors, GGUF, ONNX, ZIP
+│   │
+│   ├── modules/                        # Auto-discovered plugin system
+│   │   ├── base.py                     # BaseModule ABC
+│   │   ├── registry.py                 # ModuleRegistry — scans folders, no manual lists
+│   │   ├── functions/                  # ← drop a .py here to add a training task
+│   │   │   ├── base_function.py        # TrainingFunction ABC
+│   │   │   ├── xor.py  logic_gates.py  seven_segment.py  math_functions.py
+│   │   │   ├── geometric.py  image_functions.py  sequence_functions.py
+│   │   │   └── custom_function_wrapper.py  # bridges DB functions into the registry
+│   │   ├── architectures/              # ← drop a .py here to add an arch diagram
+│   │   │   ├── base_architecture.py    # ArchitectureModule ABC
+│   │   │   ├── mlp.py  cnn.py  autoencoder.py  transformer.py  vit.py
+│   │   │   ├── vae.py  diffusion.py  gan.py  rnn.py
+│   │   │   └── database_architecture.py
+│   │   ├── presets/                    # ← drop a .py here to add a preset (35 total)
+│   │   │   ├── base_preset.py          # PresetModule ABC
+│   │   │   └── builtin_presets.py  cnn_presets.py  rnn_presets.py
+│   │   │       transformer_presets.py  generative_presets.py
+│   │   └── optimizers/                 # UI descriptor metadata for each optimizer
+│   │
+│   └── api/                            # Flask blueprints
+│       ├── helpers.py                  # ok()/err(), @api_route, session helpers
+│       ├── session_routes.py           # /api/session/* — build/reset/predict/export/import
+│       ├── train_routes.py             # /api/train/step, evaluate, latent-sweep
+│       ├── module_routes.py            # /api/modules/* — registry queries
+│       ├── auth_routes.py              # signup/login/logout (JSON, no redirects)
+│       ├── preset_routes.py            # saved setups (CRUD)
+│       ├── dataset_routes.py           # dataset library (CRUD)
+│       ├── model_routes.py             # model library (CRUD + 5 export formats)
+│       ├── custom_function_routes.py   # user-written tasks + bench + preview
+│       ├── admin_routes.py             # telemetry + logs (admin only)
+│       └── page_routes.py              # serves frontend/dist; SPA catch-all route
+│
+└── frontend/                           # ─── FRONT-END (React 18 + Vite) ─────
+    ├── index.html                      # SPA shell
+    ├── vite.config.js                  # base '/', build → dist, dev proxy → :5000
+    ├── package.json
+    ├── .gitignore                      # re-includes index.html + src/lib (the root
+    │                                   # .gitignore blanket-ignores *.html and lib/)
+    └── src/
+        ├── main.jsx                    # providers → router → App
+        ├── App.jsx                     # route table
+        ├── api/client.js               # every fetch() call — single source of truth
+        │
+        ├── state/
+        │   ├── sessionStore.js         # live-model state machine (framework-free)
+        │   ├── SessionContext.jsx      # provider + useSession(selector)
+        │   ├── CatalogContext.jsx      # registry, datasets, presets, models, functions
+        │   ├── ToastContext.jsx        # toasts + promise-based useConfirm()
+        │   └── ThemeContext.jsx        # light/dark theme, persisted
+        │
+        ├── lib/                        # pure maths + canvas painters (no React)
+        │   ├── activations.js          # ACTIVATION_INFO, evaluate, derivative, curve painter
+        │   ├── archDiagrams.js         # one painter per diagram_type
+        │   ├── networkGraph.js         # MLP graph layout + painter
+        │   ├── lossChart.js  plot2d.js  influence.js  samples.js  grid.js
+        │   ├── colors.js               # palettes, weight/activation/heat colour ramps
+        │   ├── layers.js               # ACTIVATIONS, OPTIMIZERS, LOSSES, LAYER_CATALOG
+        │   ├── ioShape.js              # dataset → [w,h,c] / flat input shape
+        │   ├── format.js               # number/date formatting, download, file read
+        │   └── hooks.js                # useCanvas, useHotkeys, useElementSize,
+        │                               # useLocalStorage, useDebounced, useInterval …
+        │
+        ├── components/
+        │   ├── ui.jsx                  # 25 primitives: Button, Card, Field, Select,
+        │   │                           # Slider, Switch, Segmented, Tabs, Badge,
+        │   │                           # Metric, Tooltip, Modal, Popover, Accordion …
+        │   ├── Icon.jsx                # inline SVG icon set
+        │   ├── layout/                 # AppShell (top bar + side nav), AuthLayout,
+        │   │                           # ShortcutsDialog, PageFallback
+        │   ├── canvas/                 # NetworkCanvas, ArchDiagramCanvas, LossChartCanvas,
+        │   │                           # ActivationChart, PixelCanvas, Plot2DCanvas, SweepChart
+        │   ├── train/                  # SetupPanel, TaskPicker, LayerStack, AddLayerDialog,
+        │   │                           # PresetGallery, InspectorPanel, NodePanel, WeightsPanel,
+        │   │                           # WeightHeatmap, StagePanel, IOPanel, LatentPanel,
+        │   │                           # HistoryPanel, SavePresetDialog
+        │   ├── playground/             # InputControls, OutputDisplay, SweepPanel
+        │   ├── datasets/               # SampleEditor, ScatterPlot, DatasetDialog
+        │   ├── models/                 # ModelCard
+        │   ├── functions/              # FunctionEditor
+        │   └── shared/                 # PixelPreview, SevenSegment
+        │
+        ├── pages/                      # TrainPage, DatasetsPage, PlaygroundPage,
+        │                               # ModelsPage, FunctionsPage, LearnPage,
+        │                               # LoginPage, SignupPage
+        └── styles/                     # tokens.css, global.css,
+                                        # components.css, pages.css
 ```
 
-**Total: ~4,440 lines across 39 source files.**
+**Back-end:** ~8,700 lines of Python across 73 files, plus ~4,400 lines of
+tests.  **Front-end:** ~12,400 lines of JS/JSX across 66 files, plus ~4,300 lines
+of CSS.
+
+`frontend/dist` is a build artefact and is git-ignored (as is `node_modules`), so
+run `npm install && npm run build` once after cloning.  Until it exists Flask
+serves a short page with those exact commands instead of a 404.
 
 ---
 
 ## Architecture Overview
 
 ```
-Browser                          Flask Server
-───────                          ────────────
-App (orchestrator)
- ├── UIController          ←──── Jinja2 renders index.html
- │    └── emits events           with window.REGISTRY injected
- ├── TrainingController
- │    └── rAF loop ──POST /api/train/step──────► train_routes.py
- ├── NetworkRenderer                                    │
- │    └── draws <canvas>   ◄── JSON snapshot ───────────┘
- ├── ArchDiagramRenderer                         session_routes.py
- └── LossChartRenderer          ◄── /api/session/snapshot
-                                          │
-                           SessionManager (in-memory, TTL)
-                                          │
-                                   TrainingSession
-                                          │
-                                   NeuralNetwork
-                                    ├── [DenseLayer, ...]
-                                    ├── BaseOptimizer
-                                    └── LossFunction
+Browser (React SPA)                            Flask Server
+───────────────────                            ────────────
+main.jsx → Theme/Toast/Catalog/Session providers → router
+ │
+ ├── CatalogContext ──GET /api/modules/all───────────► module_routes.py
+ │                    GET /api/datasets|presets|             │
+ │                        models|functions             ModuleRegistry (scan)
+ │                                                            │
+ ├── sessionStore  (the live-model state machine)        models.py → SQLite
+ │    │                                                   (per-user libraries)
+ │    ├─POST /api/session/build ─────────────────────► session_routes.py
+ │    ├─POST /api/train/step ────────────────────────► train_routes.py
+ │    ├─POST /api/train/evaluate ────────────────────►       │
+ │    └─GET  /api/session/snapshot ──────────────────► SessionManager (in-memory)
+ │                                                             │
+ ├── components subscribe to slices                     TrainingSession
+ │    NetworkCanvas · LayerStack · LossChart                   │
+ │    SampleTable · PixelPad · PlaygroundGrid           NeuralNetwork
+ │                                                      ├─ [DenseLayer, …]
+ └── AppShell: status pill, theme, account             ├─ BaseOptimizer
+                                                       └─ LossFunction
 ```
 
 The server is **stateless per request** — all model state lives in
-`SessionManager`, keyed by a browser `session_id` cookie.  Multiple browser
-tabs each get their own independent training session.
+`SessionManager`, keyed by the signed-in user (and a `session_id` cookie for
+guests).  Multiple browser tabs each get their own independent training session.
+
+Flask serves `frontend/dist/index.html` for `/` and for every non-`/api` path
+(catch-all), so deep links like `/datasets` survive a refresh.  In development,
+`npm run dev` proxies the API back to Flask so hot reload and session cookies
+both work.
 
 ---
 
@@ -205,9 +315,12 @@ architecture.  On startup (`registry.discover()`), it:
 No registration list, no `__init__.py` imports, no decorators needed.
 **Dropping a file into the right folder is the entire registration process.**
 
-The full registry is serialised and injected into the HTML page as
-`window.REGISTRY` by Jinja2, so the JavaScript frontend has immediate access
-to all module metadata without a separate API call on boot.
+The React app fetches the whole registry once with a single
+`GET /api/modules/all` (wrapped by `CatalogContext`) and indexes it into maps —
+`functionByKey`, `architectureByKey`, `datasetById` — so components never
+re-fetch.  User-created rows (datasets, presets, architectures, layer
+definitions, custom functions) are merged into the same categories and, unlike
+the built-ins, are editable and deletable in the UI.
 
 ---
 
@@ -231,13 +344,15 @@ class MyTaskFunction(TrainingFunction):
     output_labels = ["result"]
     is_classification = True
     recommended   = {
-        "hidden_layers": 2,
-        "neurons":       8,
-        "activation":    "relu",
-        "optimizer":     "adam",
-        "loss":          "bce",
-        "dropout":       0.0,
-        "lr":            0.01,
+        "layers": [
+            {"type": "dense", "neurons": 8, "activation": "relu"},
+            {"type": "dense", "neurons": 8, "activation": "relu"},
+        ],
+        "activation": "relu",
+        "optimizer":  "adam",
+        "loss":       "bce",
+        "dropout":    0.0,
+        "lr":         0.01,
     }
 
     def generate_dataset(self):
@@ -249,7 +364,8 @@ class MyTaskFunction(TrainingFunction):
         ]
 ```
 
-Restart the server — your task appears in the Training Task dropdown immediately.
+Restart the server — the task appears in the **Setup → Task** picker and in the
+Datasets page immediately (the registry is re-scanned on boot).
 
 ---
 
@@ -260,22 +376,25 @@ Restart the server — your task appears in the Training Task dropdown immediate
 from .base_preset import PresetModule
 
 class MyPreset(PresetModule):
-    key           = "preset_my_task"
-    label         = "My Task Preset"
-    description   = "Optimal settings for my custom task."
-    arch_key      = "mlp"
-    func_key      = "my_task"
-    hidden_layers = 2
-    neurons       = 8
-    activation    = "relu"
-    optimizer     = "adam"
-    loss          = "bce"
-    lr            = 0.01
-    dropout       = 0.0
-    weight_decay  = 0.0
+    key          = "preset_my_task"
+    label        = "My Task Preset"
+    description  = "Optimal settings for my custom task."
+    arch_key     = "mlp"
+    func_key     = "my_task"
+    layers       = [
+        {"type": "dense", "neurons": 8, "activation": "relu"},
+        {"type": "dense", "neurons": 8, "activation": "relu"},
+    ]
+    activation   = "relu"
+    optimizer    = "adam"
+    loss         = "bce"
+    lr           = 0.01
+    dropout      = 0.0
+    weight_decay = 0.0
 ```
 
-Restart — the preset button appears in the grid automatically.
+Restart — the preset card appears in the gallery automatically.  Presets saved
+from the UI land in the same gallery as editable, deletable database rows.
 
 ---
 
@@ -294,9 +413,16 @@ class MyArchitecture(ArchitectureModule):
     description  = "<h3>My Architecture</h3>Description here."
 ```
 
-To add the canvas diagram, add a `_drawMyArch(W, H, cx, cy)` method to
-`ArchDiagramRenderer` in `app/static/js/renderer.js` and register it in the
-`drawFn` dispatch map inside `ArchDiagramRenderer.draw()`.
+To add the canvas diagram, register a painter in
+`frontend/src/lib/archDiagrams.js`:
+
+```js
+PAINTERS.my_arch = (ctx, W, H, theme) => { /* draw */ }
+```
+
+`ArchDiagramCanvas` dispatches on `diagram_type` and falls back to the generic
+MLP painter for unknown keys, so a new architecture renders sensibly before you
+write a bespoke diagram.
 
 ---
 
@@ -332,10 +458,10 @@ class MyOptimizerDescriptor(OptimizerDescriptor):
     cons        = "..."
 ```
 
-**Step 3** — add the `<option>` to `app/templates/pages/index.html`:
-```html
-<option value="myopt">My Optimizer</option>
-```
+**Step 3** — nothing.  The optimizer `<select>` is rendered straight from
+`GET /api/modules/optimizers`; `_REGISTRY` in `app/core/optimizers.py` is the
+only place the key has to exist.  The descriptor's `pros` / `cons` / `lr_range`
+also feed the Learn page and the `?` tooltips automatically.
 
 ---
 
@@ -357,53 +483,91 @@ or `{ "ok": false, "error": "message" }` on failure.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/session/build` | Build a new network (see body below) |
+| `POST` | `/api/session/build` | Build a network from an explicit layer stack (see body) |
 | `POST` | `/api/session/reset` | Re-initialise weights, keep topology |
-| `POST` | `/api/session/predict` | Forward pass: `{ "x": [float, ...] }` |
-| `GET`  | `/api/session/snapshot` | Full visual state (topology, weights, activations) |
+| `POST` | `/api/session/predict` | Forward pass: `{ x, start_layer?, end_layer?, node_overrides? }` |
+| `GET`  | `/api/session/snapshot` | Full visual state (topology, weights, activations, metrics) |
 | `POST` | `/api/session/export` | Serialise current model to JSON |
 | `POST` | `/api/session/import` | Load a previously exported model |
 
-**Build body:**
+**Build body** — the legacy `{ hidden_layers, neurons, activation }` shorthand is
+still accepted, but the UI sends an explicit stack:
+
 ```json
 {
-  "func_key":      "xor",
-  "arch_key":      "mlp",
-  "hidden_layers": 1,
-  "neurons":       4,
-  "activation":    "tanh",
-  "optimizer":     "adam",
-  "lr":            0.01,
-  "loss":          "bce",
-  "dropout":       0.0,
-  "weight_decay":  0.0
+  "func_key":  "xor",
+  "arch_key":  "mlp",
+  "optimizer": "adam",
+  "lr":        0.05,
+  "loss":      "bce",
+  "layers": [
+    { "type": "dense", "units": 4, "activation": "relu" },
+    { "type": "dropout", "rate": 0.1 },
+    { "type": "dense", "units": 1, "activation": "sigmoid", "is_output": true }
+  ]
 }
 ```
+
+Layer types (`NetworkBuilder` + `frontend/src/lib/layers.js::LAYER_CATALOG`):
+
+| Group | Types |
+|-------|-------|
+| Core | `dense`, `dropout`, `batchnorm`, `layernorm` |
+| Vision | `conv2d`, `maxpool2d`, `flatten` |
+| Sequence | `embedding`, `simple_rnn`, `lstm`, `multihead_attention`, `positional_encoding` |
+
+Input and output widths are derived from the dataset and the layer stack, never
+passed by the client; unknown types fall back to `dense`.
 
 ### Training Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/train/step` | Run N steps: `{ "steps": 10, "lr": 0.01 }` |
-| `POST` | `/api/train/evaluate` | Evaluate all samples, return per-sample predictions |
+| `POST` | `/api/train/step` | Run N steps; optional per-call `lr`, `dropout`, `weight_decay`, `optimizer` |
+| `POST` | `/api/train/evaluate` | Accuracy, loss and per-sample predictions; optional `node_overrides` and `input_ranges` for a grid sweep |
+| `POST` | `/api/train/latent-sweep` | Sample latent points and decode them (autoencoders / VAEs) |
+
+### Library & Account Endpoints
+
+| Group | Paths |
+|-------|-------|
+| Auth | `POST /api/auth/signup` · `POST /api/auth/login` · `POST /api/auth/logout` · `GET /api/auth/check-username` |
+| Presets | `GET/POST /api/presets` · `GET/PUT/DELETE /api/presets/<id>` |
+| Datasets | `GET/POST /api/datasets` · `GET/PUT/DELETE /api/datasets/<id>` |
+| Models | `GET/POST /api/models` · `GET/DELETE /api/models/<id>` · `POST /api/models/<id>/export` · `POST /api/models/<id>/load-session` |
+| Functions | `GET/POST /api/functions` · `GET/PUT/DELETE /api/functions/<id>` · `POST /api/functions/test` · `POST /api/functions/preview` · `GET /api/functions/templates` |
+| Admin | `POST /api/admin/telemetry` · `GET /api/admin/logs` (admin only) |
+
+Every mutating endpoint is user-scoped; built-in rows are readable by everyone
+but writable only by an admin.
 
 ---
 
 ## Training Tasks
 
-| Key | Name | Inputs | Outputs | Type | Challenge |
-|-----|------|--------|---------|------|-----------|
-| `xor` | XOR Gate | 2 | 1 | Classification | Non-linearly separable — needs hidden layer |
-| `and` | AND Gate | 2 | 1 | Classification | Linearly separable |
-| `or` | OR Gate | 2 | 1 | Classification | Linearly separable |
-| `xnor` | XNOR Gate | 2 | 1 | Classification | Non-linearly separable |
-| `seg7` | 7-Segment Display | 4 | 7 | Classification | Multi-output, 10 patterns |
-| `parity` | 4-bit Parity | 4 | 1 | Classification | Complex XOR-like, needs depth |
-| `sine` | Sine Approximation | 1 | 1 | Regression | Smooth function fitting |
-| `adder` | Half Adder | 2 | 2 | Classification | Dual-output (Sum + Carry) |
-| `circle` | Circle Boundary | 2 | 1 | Classification | Non-linear decision boundary |
-| `spiral` | Spiral Classes | 2 | 1 | Classification | Hard — interleaved spirals |
-| `autoenc` | Autoencoder | 8 | 8 | Regression | Bottleneck compression (8→3→8) |
+| Key | Name | In | Out | Samples | Type | Challenge |
+|-----|------|----|-----|---------|------|-----------|
+| `xor` | XOR Gate | 2 | 1 | 4 | Classification | Non-linearly separable — needs a hidden layer |
+| `and` | AND Gate | 2 | 1 | 4 | Classification | Linearly separable |
+| `or` | OR Gate | 2 | 1 | 4 | Classification | Linearly separable |
+| `xnor` | XNOR Gate | 2 | 1 | 4 | Classification | Non-linearly separable |
+| `seg7` | 7-Segment Display | 4 | 7 | 16 | Classification | Multi-output, all 16 hex digits |
+| `parity` | 4-bit Parity | 4 | 1 | 16 | Classification | XOR-like, needs depth |
+| `adder` | Half Adder | 2 | 2 | 4 | Classification | Dual output (Sum + Carry) |
+| `sine` | Sine Approximation | 1 | 1 | 20 | Regression | Smooth function fitting |
+| `circle` | Circle Boundary | 2 | 1 | 20 | Classification | Non-linear decision boundary |
+| `spiral` | Spiral Classes | 2 | 1 | 40 | Classification | Hard — interleaved spirals |
+| `autoenc` | Autoencoder | 8 | 8 | 8 | Regression | Bottleneck compression (8→3→8) |
+| `edge_detect` | Edge Detection | 64 | 64 | 50 | Image → image | Learns a convolution-like operator |
+| `mnist_like` | MNIST-like Digits | 64 | 10 | 200 | Image classification | 8×8 grayscale, 10 classes |
+| `pattern_cls` | Pattern Classification | 16 | 4 | 60 | Classification | 4×4 grid → 4 pattern classes |
+| `next_word` | Next Word Prediction | 4 | 8 | 66 | Sequence | Token vectors → next-token logits |
+| `sentiment` | Sentiment Analysis | 8 | 1 | 100 | Sequence | Bag of features → polarity |
+| `seq_predict` | Sequence Prediction | 5 | 1 | 600 | Regression | Next value from a 5-step window |
+| `ts_classify` | Time Series Classification | 10 | 4 | 100 | Sequence | 10-step window → 4 classes |
+
+Custom tasks created on the **Functions** page show up in the same picker with
+`func_key = custom_<id>`.
 
 ---
 
@@ -450,26 +614,62 @@ Controls the tradeoff between training speed and visualisation smoothness.
 
 ## Frontend Architecture
 
-The JavaScript follows a strict separation of concerns with no framework:
+React 18 + Vite, no UI kit — all 25 primitives are hand-rolled in
+`components/ui.jsx` and styled by a small design-token system.
 
 ```
-App (app.js)                    ← orchestrator; owns nothing visual
- ├── UIController (ui.js)       ← all DOM reads/writes; zero API calls
- ├── TrainingController (trainer.js)  ← rAF loop; fires EventTarget events
- ├── NetworkRenderer (renderer.js)    ← draws MLP on <canvas>
- ├── ArchDiagramRenderer (renderer.js)← draws arch diagrams on <canvas>
- └── LossChartRenderer (renderer.js)  ← draws loss curve strip
-
-API (api.js)                    ← all fetch() calls; no DOM or canvas
+main.jsx
+ ├── ThemeProvider      ← light/dark via CSS custom properties, persisted
+ ├── ToastProvider      ← toast queue + promise-based useConfirm()
+ ├── CatalogProvider    ← registry, datasets, presets, models, functions
+ └── SessionProvider    ← one live training session shared by every route
+      └── App (react-router, every page React.lazy + Suspense)
+           ├── /train       TrainPage      Studio: setup, stack, canvas, inspector
+           ├── /datasets    DatasetsPage   library + 4 sample editors
+           ├── /playground  PlaygroundPage manual inputs, partial forward passes
+           ├── /models      ModelsPage     save / load / export
+           ├── /functions   FunctionsPage  custom tasks + bench
+           ├── /learn       LearnPage      in-app reference
+           ├── /login · /signup            AuthLayout, no catalog/session providers
+           └── / and *      → redirect to /train
 ```
+
+**`state/sessionStore.js` is the heart of it** — a framework-free store class (no
+Redux, no Zustand) owning the whole live-model lifecycle: config and layer stack,
+build/reset, the training loop, snapshots, evaluation, sweeps, latent probes,
+export/import and undo history.  `SessionContext` exposes it through a
+`useSyncExternalStore` selector hook, so a component re-renders only when the
+slice it asked for actually changes:
+
+```jsx
+const running = useSession((s) => s.running)          // re-renders on change only
+const layers  = useSession((s) => s.snapshot?.layers, shallowEqual)
+useSessionFrames((state) => paint(state.frame))       // canvas: no React re-render
+```
+
+**Training loop:** `start()` kicks a `requestAnimationFrame` chain; each frame
+issues `POST /api/train/step` with `config.steps` (steps per frame, default 10) and
+the current learning rate, then folds the returned weights, activations and loss
+history into `frame`.  An in-flight guard means a slow frame never stacks
+requests, `stop()` keeps the trained model, and `reset()` re-initialises the
+weights.  Changing the task or the stack marks the config dirty, and the next
+`start()` rebuilds transparently first.
 
 **Data flow:**
-1. User interacts with DOM → `UIController` emits named event
-2. `App` handles event → calls `API.*` or `TrainingController.*`
-3. `TrainingController` fires `"step"` event after each server response
-4. `App` receives event → updates `UIController` stats + calls `Renderer.draw()`
-5. Renderers are pure functions of their input data — no internal state beyond
-   the last drawn snapshot
+1. User interacts → component calls a store method (`build`, `setConfig`, …)
+2. The store calls `api/client.js` — the only file in the app with `fetch()`
+3. The response folds into store state → subscribed components re-render
+4. Canvas painters (`lib/networkGraph.js`, `archDiagrams.js`, `lossChart.js`,
+   `plot2d.js`) are pure functions of `(ctx, data, opts)` — no React state
+5. `lib/hooks.js` supplies the shared plumbing: `useCanvas` (DPR-aware canvas
+   with a repaint callback), `useHotkeys`, `useElementSize`, `useLocalStorage`,
+   `useDebounced`, `useInterval`, `useClickOutside`
+
+**Styling:** `styles/tokens.css` defines the design tokens (`--bg`, `--panel`,
+`--line`, `--text`, `--muted`, `--accent`, radii, shadows, spacing scales) with a
+`[data-theme='light']` override block — a theme swap is one attribute on
+`<html>`.  `global.css` holds the base layout and scrollbars, `components.css` the
+shared primitives, `pages.css` the page-level layouts.
 
 ---
 
@@ -479,10 +679,12 @@ API (api.js)                    ← all fetch() calls; no DOM or canvas
 filesystem scan.  No decorator, no `__all__`, no import needed in `__init__.py`.
 
 **2. Strict layer separation**
-- `core/` has zero Flask imports
-- `api/` has zero NumPy/ML code
-- `static/js/ui.js` has zero `fetch()` calls
-- `static/js/api.js` has zero DOM calls
+- `app/core/` has zero Flask imports
+- `app/api/` holds no ML maths — it validates, calls `app/core/`, and shapes JSON
+- `frontend/src/api/client.js` is the only file with `fetch()` — no DOM, no React
+- `frontend/src/state/sessionStore.js` holds all model state — components never
+  keep a private copy
+- `frontend/src/lib/*` painters and maths helpers are pure — no React, no store
 
 **3. Every public class has a single responsibility**
 - `DenseLayer` — one layer's maths
@@ -504,10 +706,27 @@ automatically.
 
 ## Requirements
 
+**Run the app** (back-end + the committed pre-built front-end):
 ```
-flask>=3.0
-numpy>=1.26
 python>=3.10
+flask>=3.0
+flask-sqlalchemy>=3.1
+flask-login>=0.6
+numpy>=1.26
+safetensors>=0.4
+onnx>=1.14                # optional — ONNX export
+pytest>=7.4               # optional — test suite
 ```
 
-No GPU, no CUDA, no heavy ML framework.  Runs on any machine that can run Python.
+**Rebuild the front-end:**
+```
+node>=18
+react 18 · react-dom 18 · react-router-dom 6
+vite 5 · @vitejs/plugin-react
+```
+
+**Tests:** `python -m pytest tests -q` → 371 passing.
+
+No GPU, no CUDA, no heavy ML framework.  Node is needed once to build the
+front-end (`frontend/dist` is git-ignored); after that
+`pip install -r requirements.txt && python run.py server` runs the whole app.

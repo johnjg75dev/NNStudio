@@ -226,7 +226,12 @@ def update_dataset(ds_id):
             return jsonify({"ok": False, "error": "Cannot modify predefined datasets."}), 403
               
         data = request.get_json()
-        for field in ['name', 'description', 'data', 'is_input_only', 'num_inputs', 'num_outputs', 'width', 'height']:
+        editable = [
+            'name', 'description', 'data', 'is_input_only', 'num_inputs',
+            'num_outputs', 'width', 'height', 'channels', 'ds_type',
+            'input_labels', 'output_labels',
+        ]
+        for field in editable:
             if field in data:
                 setattr(ds, field, data[field])
               

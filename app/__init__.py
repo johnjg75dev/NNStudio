@@ -19,7 +19,9 @@ def create_app(config: dict | None = None) -> Flask:
     
     # Database Configuration
     basedir = os.path.abspath(os.path.dirname(__file__))
-    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir, "..", "instance", "nnstudio.db")
+    instance_dir = os.path.join(basedir, "..", "instance")
+    os.makedirs(instance_dir, exist_ok=True)   # a fresh clone has no instance/ folder
+    app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(instance_dir, "nnstudio.db")
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     # ── custom config overrides (e.g. from tests) ──

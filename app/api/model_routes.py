@@ -17,7 +17,7 @@ import os
 from .. import db
 from ..models import SavedModel
 from ..core.exporters import ModelExporter
-from .helpers import get_session_manager
+from .helpers import get_session_manager, get_training_session
 
 model_bp = Blueprint('models', __name__)
 
@@ -53,14 +53,13 @@ def save_model():
         if not data or 'name' not in data:
             return jsonify({"success": False, "error": "Missing 'name' field"}), 400
         
-        # Get session
+        # Resolve the caller's training session (the Flask session cookie owns
+        # the id — an explicit override is still honoured for API clients).
         session_manager = get_session_manager()
-        session_id = data.get('session_id', request.cookies.get('session_id'))
-        
-        if not session_id:
-            return jsonify({"success": False, "error": "No active session"}), 400
-        
-        training_session = session_manager.get(session_id)
+        session_id = data.get('session_id')
+        training_session = (
+            session_manager.get(session_id) if session_id else get_training_session()
+        )
         if not training_session or training_session.network is None:
             return jsonify({"success": False, "error": "No trained network in session"}), 400
         
@@ -408,17 +407,12 @@ def load_model_session(model_id):
         if not model:
             return jsonify({"success": False, "error": "Model not found"}), 404
         
-        # Get or create session
+        # Get or create the caller's session (same one the UI trains in).
         session_manager = get_session_manager()
-        session_id = request.get_json().get('session_id') if request.is_json else None
-        
-        if not session_id:
-            session_id = request.cookies.get('session_id')
-        
-        if not session_id:
-            return jsonify({"success": False, "error": "No session ID"}), 400
-        
-        training_session = session_manager.get_or_create(session_id)
+        session_id = request.get_json(silent=True).get('session_id') if request.is_json else None
+        training_session = (
+            session_manager.get_or_create(session_id) if session_id else get_training_session()
+        )
         
         # Reconstruct network
         from ..core.network import NeuralNetwork
