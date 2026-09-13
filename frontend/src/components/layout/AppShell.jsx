@@ -8,6 +8,7 @@ import { useSession, useSessionActions, useSessionStore } from '../../state/Sess
 import { useTheme } from '../../state/ThemeContext';
 import { useHotkeys } from '../../lib/hooks';
 import { fmtCompact, fmtLoss, fmtPct } from '../../lib/format';
+import { currentAuth } from '../../api/client';
 
 export const NAV_ITEMS = [
   { to: '/train', label: 'Studio', icon: 'network', hint: 'Build and train a network' },
@@ -50,7 +51,7 @@ export default function AppShell() {
     let cancelled = false;
     (async () => {
       try {
-        const data = await fetchMe();
+        const data = await currentAuth();
         if (cancelled) return;
         if (!data?.authenticated) {
           navigate(`/login?next=${encodeURIComponent(location.pathname)}`, { replace: true });
@@ -224,8 +225,3 @@ function LiveMetrics({ metrics, running }) {
   );
 }
 
-async function fetchMe() {
-  const res = await fetch('/api/me', { credentials: 'same-origin' });
-  const json = await res.json();
-  return json?.data ?? null;
-}

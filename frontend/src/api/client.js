@@ -70,6 +70,7 @@ export const api = {
   // ── registry / modules ─────────────────────────────────────────────
   modules: () => get('/api/modules/all'),
   module: (key) => get(`/api/modules/${key}`),
+  moduleCategory: (category) => get(`/api/modules/category/${category}`),
   functionDataset: (key) => get(`/api/modules/functions/${key}/dataset`),
 
   // ── training session ───────────────────────────────────────────────
@@ -130,6 +131,7 @@ export const api = {
   downloadDataset: (id) => post(`/api/datasets/${id}/download`),
 
   // ── auth ───────────────────────────────────────────────────────────
+  me: () => get('/api/me'),
   checkUsername: (username) =>
     get(`/check-username?username=${encodeURIComponent(username)}`),
 
@@ -148,5 +150,21 @@ export const api = {
     return json || { ok: true };
   },
 };
+
+/**
+ * Who is signed in, resolved once per page load.
+ *
+ * Login, signup and logout all end in a full page navigation, so the answer
+ * cannot go stale while the SPA is alive — and sharing one promise keeps the
+ * app shell and the catalogue from firing duplicate /api/me calls.
+ */
+let mePromise = null;
+
+export function currentAuth() {
+  if (!mePromise) {
+    mePromise = api.me().catch(() => ({ authenticated: false }));
+  }
+  return mePromise;
+}
 
 export default api;

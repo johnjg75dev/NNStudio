@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import api from '../api/client';
+import api, { currentAuth } from '../api/client';
 
 /**
  * CatalogContext — everything the UI needs that comes from the module registry
@@ -76,11 +76,28 @@ export function CatalogProvider({ children }) {
     }
   }, []);
 
+  /**
+   * The registry is public, but datasets, functions and models are per-user and
+   * sit behind @login_required. Asking for them while signed out would only
+   * produce 401s (and a redirect race with the app shell), so the anonymous
+   * catalogue is just the registry.
+   */
+  const loadUserLibraries = useCallback(async () => {
+    const auth = await currentAuth();
+    if (!auth?.authenticated) {
+      setDatasets([]);
+      setCustomFunctions([]);
+      setModels([]);
+      return;
+    }
+    await Promise.all([loadDatasets(), loadCustomFunctions(), loadModels()]);
+  }, [loadDatasets, loadCustomFunctions, loadModels]);
+
   const refreshAll = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadRegistry(), loadDatasets(), loadCustomFunctions(), loadModels()]);
+    await Promise.all([loadRegistry(), loadUserLibraries()]);
     setLoading(false);
-  }, [loadRegistry, loadDatasets, loadCustomFunctions, loadModels]);
+  }, [loadRegistry, loadUserLibraries]);
 
   useEffect(() => {
     refreshAll();
@@ -109,6 +126,7 @@ export function CatalogProvider({ children }) {
       loading,
       error,
       refreshRegistry: loadRegistry,
+      refreshUserLibraries: loadUserLibraries,
       refreshDatasets: loadDatasets,
       refreshCustomFunctions: loadCustomFunctions,
       refreshModels: loadModels,
@@ -122,6 +140,7 @@ export function CatalogProvider({ children }) {
     loading,
     error,
     loadRegistry,
+    loadUserLibraries,
     loadDatasets,
     loadCustomFunctions,
     loadModels,
@@ -134,9 +153,8 @@ export function CatalogProvider({ children }) {
 /** Built-in registry category, used when a user has no DB rows seeded yet. */
 async function safeCategory(category) {
   try {
-    const res = await fetch(`/api/modules/category/${category}`, { credentials: 'same-origin' });
-    const json = await res.json();
-    return json?.ok ? json.data || [] : [];
+    const data = await api.moduleCategory(category);
+    return Array.isArray(data) ? data : data?.[category] || [];
   } catch {
     return [];
   }
