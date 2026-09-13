@@ -6,6 +6,7 @@ import { SevenSegment, SevenSegmentGrid, fourBitToHex } from '../shared/SevenSeg
 import { PixelPreview } from '../shared/PixelPreview';
 import { useSession, useSessionActions, useSessionStore } from '../../state/SessionContext';
 import { fmtNum, fmtPct, truncateArray } from '../../lib/format';
+import { useIoShape } from '../../lib/ioShape';
 import { matchesTarget, summarise } from '../../lib/samples';
 
 const PAGE = 12;

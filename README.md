@@ -199,7 +199,10 @@ NNStudio/
 └── frontend/                           # ─── FRONT-END (React 18 + Vite) ─────
     ├── index.html                      # SPA shell
     ├── vite.config.js                  # base '/', build → dist, dev proxy → :5000
-    ├── package.json
+    ├── package.json                    # dev · build · check · smoke · verify
+    ├── scripts/
+    │   ├── check-undefined.mjs         # fails on used-but-never-imported names
+    │   └── smoke-render.mjs            # SSR-renders all 8 pages, fails on a throw
     ├── .gitignore                      # re-includes index.html + src/lib (the root
     │                                   # .gitignore blanket-ignores *.html and lib/)
     └── src/
@@ -708,6 +711,15 @@ weights.  Changing the task or the stack marks the config dirty, and the next
 5. `lib/hooks.js` supplies the shared plumbing: `useCanvas` (DPR-aware canvas
    with a repaint callback), `useHotkeys`, `useElementSize`, `useLocalStorage`,
    `useDebounced`, `useInterval`, `useClickOutside`
+
+**Guards:** `npm run check` walks every source file with Babel's scope analysis
+and fails on identifiers that are used but never imported — Rollup happily
+bundles those as globals, so a missing import otherwise surfaces as a runtime
+`ReferenceError` in the browser (it runs automatically as a `prebuild` hook).
+`npm run smoke` server-renders all eight pages inside the real provider stack and
+fails if any of them throws, which catches broken destructuring and components
+that assume the catalogue has already arrived. `npm run verify` runs both plus the
+build.
 
 **Styling:** `styles/tokens.css` defines the design tokens (`--bg`, `--panel`,
 `--line`, `--text`, `--muted`, `--accent`, radii, shadows, spacing scales) with a
