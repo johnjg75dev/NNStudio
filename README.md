@@ -183,15 +183,16 @@ NNStudio/
 │   │
 │   └── api/                            # Flask blueprints
 │       ├── helpers.py                  # ok()/err(), @api_route, session helpers
-│       ├── session_routes.py           # /api/session/* — build/reset/predict/export/import
-│       ├── train_routes.py             # /api/train/step, evaluate, latent-sweep
+│       ├── session_routes.py           # /api/session/* — build, reset, predict,
+│       │                               # snapshot, export, import, latent-sweep
+│       ├── train_routes.py             # /api/train/step, /api/train/evaluate
 │       ├── module_routes.py            # /api/modules/* — registry queries
 │       ├── auth_routes.py              # signup/login/logout (JSON, no redirects)
 │       ├── preset_routes.py            # saved setups (CRUD)
 │       ├── dataset_routes.py           # dataset library (CRUD)
 │       ├── model_routes.py             # model library (CRUD + 5 export formats)
 │       ├── custom_function_routes.py   # user-written tasks + bench + preview
-│       ├── admin_routes.py             # telemetry + logs (admin only)
+│       ├── admin_routes.py             # built-in architecture CRUD (admin only)
 │       └── page_routes.py              # serves frontend/dist; SPA catch-all route
 │
 └── frontend/                           # ─── FRONT-END (React 18 + Vite) ─────
@@ -483,63 +484,86 @@ or `{ "ok": false, "error": "message" }` on failure.
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/session/build` | Build a network from an explicit layer stack (see body) |
+| `POST` | `/api/session/build` | Build a network from an explicit layer stack (see body); returns `topology`, `param_count`, `epoch`, `func` |
 | `POST` | `/api/session/reset` | Re-initialise weights, keep topology |
 | `POST` | `/api/session/predict` | Forward pass: `{ x, start_layer?, end_layer?, node_overrides? }` |
 | `GET`  | `/api/session/snapshot` | Full visual state (topology, weights, activations, metrics) |
 | `POST` | `/api/session/export` | Serialise current model to JSON |
 | `POST` | `/api/session/import` | Load a previously exported model |
 
-**Build body** — the legacy `{ hidden_layers, neurons, activation }` shorthand is
-still accepted, but the UI sends an explicit stack:
+**Build body:**
 
 ```json
 {
   "func_key":  "xor",
+  "ds_id":     null,
   "arch_key":  "mlp",
   "optimizer": "adam",
   "lr":        0.05,
   "loss":      "bce",
+  "weight_decay": 0.0,
+  "activation": "tanh",
   "layers": [
-    { "type": "dense", "units": 4, "activation": "relu" },
-    { "type": "dropout", "rate": 0.1 },
-    { "type": "dense", "units": 1, "activation": "sigmoid", "is_output": true }
+    { "type": "dense", "neurons": 4, "activation": "relu" },
+    { "type": "dropout", "rate": 0.1 }
   ]
 }
 ```
 
-Layer types (`NetworkBuilder` + `frontend/src/lib/layers.js::LAYER_CATALOG`):
+- **Data source** — `ds_id` (a row from the dataset library) wins; otherwise
+  `func_key` picks a registry task (`custom_<id>` for user-written ones).
+  `inputs` / `outputs` can override the task's own dimensions.
+- **`layers`** is the hidden stack only — `NetworkBuilder` always appends a
+  `DenseLayer` sized to the task's outputs with a sigmoid activation and
+  `is_output=True`.  An empty `layers` list therefore builds a single-layer
+  logistic model.
+- **`arch_key`** selects the diagram and metadata shown in the UI; it does not
+  constrain the stack.  **`activation`** is only the default offered when you add
+  a layer in the editor.
 
-| Group | Types |
-|-------|-------|
-| Core | `dense`, `dropout`, `batchnorm`, `layernorm` |
-| Vision | `conv2d`, `maxpool2d`, `flatten` |
-| Sequence | `embedding`, `simple_rnn`, `lstm`, `multihead_attention`, `positional_encoding` |
+Layer types (`LAYER_TYPES` in `app/core/layers/__init__.py`, mirrored by
+`LAYER_CATALOG` in `frontend/src/lib/layers.js`):
+
+| Group | Type | Per-layer keys |
+|-------|------|----------------|
+| Core | `dense` | `neurons`, `activation` |
+| Core | `dropout` | `rate` |
+| Core | `batchnorm` · `layernorm` | — (`layernorm` takes `eps`) |
+| Vision | `conv2d` | `out_channels`, `kernel_size`, `stride`, `padding`, `activation` |
+| Vision | `maxpool2d` | `pool_size`, `stride` |
+| Vision | `flatten` | — |
+| Sequence | `simple_rnn` · `lstm` | `hidden_size`, `activation`, `return_sequences` |
+| Sequence | `embedding` | `vocab_size`, `embed_dim` |
+| Sequence | `multihead_attention` | `embed_dim`, `num_heads` |
+| Sequence | `positional_encoding` | `max_seq_len`, `embed_dim` |
 
 Input and output widths are derived from the dataset and the layer stack, never
-passed by the client; unknown types fall back to `dense`.
+passed by the client; an unknown `type` falls back to `dense`.
 
 ### Training Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/train/step` | Run N steps; optional per-call `lr`, `dropout`, `weight_decay`, `optimizer` |
-| `POST` | `/api/train/evaluate` | Accuracy, loss and per-sample predictions; optional `node_overrides` and `input_ranges` for a grid sweep |
-| `POST` | `/api/train/latent-sweep` | Sample latent points and decode them (autoencoders / VAEs) |
+| `POST` | `/api/train/step` | Run N steps: `{ steps, lr }` |
+| `POST` | `/api/train/evaluate` | Accuracy, loss and per-sample predictions. `{}` evaluates the session dataset; `{ ranges: [{min,max,step}], start_layer?, end_layer? }` evaluates the cartesian product of the ranges as a grid sweep |
+| `POST` | `/api/session/latent-sweep` | Sample latent points and decode them (autoencoders / VAEs) |
 
 ### Library & Account Endpoints
 
 | Group | Paths |
 |-------|-------|
-| Auth | `POST /api/auth/signup` · `POST /api/auth/login` · `POST /api/auth/logout` · `GET /api/auth/check-username` |
-| Presets | `GET/POST /api/presets` · `GET/PUT/DELETE /api/presets/<id>` |
-| Datasets | `GET/POST /api/datasets` · `GET/PUT/DELETE /api/datasets/<id>` |
-| Models | `GET/POST /api/models` · `GET/DELETE /api/models/<id>` · `POST /api/models/<id>/export` · `POST /api/models/<id>/load-session` |
-| Functions | `GET/POST /api/functions` · `GET/PUT/DELETE /api/functions/<id>` · `POST /api/functions/test` · `POST /api/functions/preview` · `GET /api/functions/templates` |
-| Admin | `POST /api/admin/telemetry` · `GET /api/admin/logs` (admin only) |
+| Auth | `POST /signup` · `POST /login` · `GET /logout` · `GET /check-username` · `GET /api/me` |
+| Presets | `POST /api/presets/save` · `DELETE /api/presets/<id>` (the list comes from `/api/modules/all`) |
+| Datasets | `GET/POST /api/datasets` · `GET/PUT/DELETE /api/datasets/<id>` · `POST /api/datasets/<id>/download` |
+| Models | `GET /api/models` · `POST /api/models/save` · `GET/DELETE /api/models/<id>` · `POST /api/models/<id>/export` · `GET /api/models/<id>/download/<format>` · `POST /api/models/<id>/load-session` · `GET /api/models/formats` |
+| Custom functions | `GET/POST /api/functions/custom` · `GET/PUT/DELETE /api/functions/custom/<id>` · `POST /api/functions/custom/<id>/test` · `POST /api/functions/custom/<id>/preview` · `GET /api/functions/custom/templates` |
+| Admin | `GET/POST /api/admin/architectures` · `PUT /api/admin/architectures/<key>` (admin only) |
 
-Every mutating endpoint is user-scoped; built-in rows are readable by everyone
-but writable only by an admin.
+The auth routes accept form-encoded bodies and answer with JSON when the request
+sends `Accept: application/json` (which the SPA always does), so the same routes
+also work for a classic browser form post.  Every library endpoint is user-scoped;
+built-in rows are readable by everyone but writable only by an admin.  Unauthenticated
+API calls get a `401` and the SPA redirects to `/login?next=<path>`.
 
 ---
 
