@@ -141,10 +141,11 @@ NNStudio/
 ├── requirements.txt
 ├── README.md
 ├── instance/nnstudio.db                # SQLite (created on first run)
-├── tests/                              # 371 pytest cases
+├── tests/                              # 386 pytest cases
 │
 ├── app/                                # ─── BACK-END ────────────────────────
 │   ├── __init__.py                     # create_app + db + login_manager + registry
+│   ├── auth_tokens.py                  # signed X-Session-Token (cookie-free login)
 │   │
 │   ├── models/                         # SQLAlchemy models (one file per table)
 │   │   ├── user.py  preset.py  dataset.py  saved_model.py
@@ -562,8 +563,27 @@ passed by the client; an unknown `type` falls back to `dense`.
 The auth routes accept form-encoded bodies and answer with JSON when the request
 sends `Accept: application/json` (which the SPA always does), so the same routes
 also work for a classic browser form post.  Every library endpoint is user-scoped;
-built-in rows are readable by everyone but writable only by an admin.  Unauthenticated
-API calls get a `401` and the SPA redirects to `/login?next=<path>`.
+built-in rows are readable by everyone but writable only by an admin.
+Unauthenticated API calls get a `401` (never a `302` to HTML, which `fetch()`
+would silently follow) and the SPA redirects to `/login?next=<path>`.
+
+**Two ways to be signed in.** A successful `/login` or `/signup` returns
+`{ ok, id, username, is_admin, token }`.  The `token` is the user id signed with
+`SECRET_KEY` (`app/auth_tokens.py`, 30-day expiry, no server-side state):
+
+| Path | How it works |
+|------|--------------|
+| Cookie | `login_user()` writes the Flask session; `user_loader` reads it. Cookies now get `SameSite=None; Secure` when the request arrives over HTTPS. |
+| Token | The SPA stores `token` in `localStorage` and sends `X-Session-Token` (or `?session_token=`) on every call; `login_manager.request_loader` resolves it. The cookie wins when both are present. |
+
+The token path exists because browsers increasingly refuse to *store* a
+third-party cookie when the app is embedded in an iframe on another origin — a
+live preview, say.  Without it, `POST /login` succeeds and the very next request
+is anonymous again, trapping the SPA in a redirect loop.
+
+The in-memory training session is keyed `user:<id>` for a signed-in visitor (and
+by a random id in the session cookie for an anonymous one), so a network survives
+refreshes, extra tabs, and browsers that dropped the cookie.
 
 ---
 
@@ -749,7 +769,7 @@ react 18 · react-dom 18 · react-router-dom 6
 vite 5 · @vitejs/plugin-react
 ```
 
-**Tests:** `python -m pytest tests -q` → 371 passing.
+**Tests:** `python -m pytest tests -q` → 386 passing.
 
 No GPU, no CUDA, no heavy ML framework.  Node is needed once to build the
 front-end (`frontend/dist` is git-ignored); after that

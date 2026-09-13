@@ -14,12 +14,41 @@ export class ApiError extends Error {
   }
 }
 
+// ── auth token ────────────────────────────────────────────────────────
+// Browsers may refuse to store the session cookie when the studio is embedded
+// in an iframe on another origin (the live preview does exactly that), which
+// silently logs you out on the next request. So login also returns a signed
+// token; we keep it in localStorage — which still works inside those iframes —
+// and replay it as X-Session-Token. When the cookie does work, Flask prefers it.
+const TOKEN_KEY = 'nnstudio.token';
+
+export function readAuthToken() {
+  try {
+    return window.localStorage.getItem(TOKEN_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+
+export function setAuthToken(token) {
+  try {
+    if (token) window.localStorage.setItem(TOKEN_KEY, token);
+    else window.localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* private mode / blocked storage — the cookie path still works there */
+  }
+}
+
+export const clearAuthToken = () => setAuthToken('');
+
 async function request(method, path, body, { raw = false } = {}) {
   const opts = {
     method,
-    headers: {},
+    headers: { Accept: 'application/json' },
     credentials: 'same-origin',
   };
+  const token = readAuthToken();
+  if (token) opts.headers['X-Session-Token'] = token;
   if (body !== undefined && body !== null) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
@@ -33,7 +62,9 @@ async function request(method, path, body, { raw = false } = {}) {
   }
 
   if (res.status === 401) {
-    // Session expired — bounce to the login page instead of failing silently.
+    // Session expired — drop the stale token, then bounce to the login page
+    // instead of failing silently.
+    clearAuthToken();
     const here = window.location.pathname;
     if (!here.startsWith('/login') && !here.startsWith('/signup')) {
       window.location.assign('/login?next=' + encodeURIComponent(here));
@@ -132,6 +163,7 @@ export const api = {
 
   // ── auth ───────────────────────────────────────────────────────────
   me: () => get('/api/me'),
+  logout: () => get('/logout'),
   checkUsername: (username) =>
     get(`/check-username?username=${encodeURIComponent(username)}`),
 
@@ -147,6 +179,10 @@ export const api = {
     if (!res.ok || (json && json.ok === false)) {
       throw new ApiError(json?.error || 'Authentication failed.', res.status);
     }
+    // Keep the cookie-free credential so the next page load is still signed in,
+    // even in a browser that threw the session cookie away.
+    const token = json?.token ?? json?.data?.token;
+    if (token) setAuthToken(token);
     return json || { ok: true };
   },
 };

@@ -9,7 +9,18 @@ from flask import session, current_app, jsonify, request
 
 
 def get_session_id() -> str:
-    """Return (and persist) a stable session ID for this browser session."""
+    """Return a stable key for this visitor's in-memory training session.
+
+    A signed-in user is keyed by their account, so the same network is still
+    there after a refresh, in a second tab, or in a browser that refuses to
+    store our session cookie (cross-site iframe previews) — the token auth path
+    has no cookie to hang a random id on.  Anonymous visitors fall back to a
+    random id kept in the session cookie.
+    """
+    from flask_login import current_user
+
+    if current_user.is_authenticated:
+        return f"user:{current_user.id}"
     if "sid" not in session:
         session["sid"] = uuid.uuid4().hex
     return session["sid"]

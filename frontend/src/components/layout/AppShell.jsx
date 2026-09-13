@@ -8,7 +8,7 @@ import { useSession, useSessionActions, useSessionStore } from '../../state/Sess
 import { useTheme } from '../../state/ThemeContext';
 import { useHotkeys } from '../../lib/hooks';
 import { fmtCompact, fmtLoss, fmtPct } from '../../lib/format';
-import { currentAuth } from '../../api/client';
+import api, { clearAuthToken, currentAuth } from '../../api/client';
 
 export const NAV_ITEMS = [
   { to: '/train', label: 'Studio', icon: 'network', hint: 'Build and train a network' },
@@ -68,6 +68,22 @@ export default function AppShell() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /**
+   * Sign out everywhere: the localStorage token first (a plain <a href="/logout">
+   * would leave it behind and the next page load would sign straight back in),
+   * then the server-side cookie session, then a full navigation so every
+   * provider re-mounts in the signed-out state.
+   */
+  async function signOut() {
+    clearAuthToken();
+    try {
+      await api.logout();
+    } catch {
+      /* the cookie may already be gone — the token is what matters */
+    }
+    window.location.assign('/login');
+  }
 
   // ── boot the training session once the catalogue has arrived ──
   useEffect(() => {
@@ -154,9 +170,15 @@ export default function AppShell() {
         >
           <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={19} />
         </button>
-        <a className="rail__item" href="/logout" data-label="Sign out" title={`Sign out (${user?.username})`}>
+        <button
+          type="button"
+          className="rail__item"
+          data-label="Sign out"
+          onClick={signOut}
+          title={`Sign out (${user?.username})`}
+        >
           <Icon name="logout" size={19} />
-        </a>
+        </button>
       </nav>
 
       <div className="shell__main">

@@ -4,7 +4,15 @@ Flask application factory.  Registers all blueprints and wires the
 module-registry so every folder-based module is discovered automatically.
 """
 import os
-from flask import Flask, has_request_context, jsonify, redirect, request, url_for
+from flask import (
+    Flask,
+    has_request_context,
+    jsonify,
+    redirect,
+    request,
+    session,
+    url_for,
+)
 from flask.sessions import SecureCookieSessionInterface
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
@@ -130,6 +138,23 @@ def create_app(config: dict | None = None) -> Flask:
     @login_manager.user_loader
     def load_user(user_id):
         return User.query.get(int(user_id))
+
+    # ── cookie-free login ──
+    # Browsers may refuse to store our session cookie when the app runs inside a
+    # third-party iframe (live previews), which would trap the SPA in a login
+    # loop.  The login response therefore also carries a signed token that the
+    # front-end keeps in localStorage and replays as X-Session-Token.  The cookie
+    # still takes priority whenever it does arrive.
+    from .auth_tokens import read_token, token_from_request
+
+    @login_manager.request_loader
+    def load_user_from_token(req):
+        if "_user_id" in session:      # a working cookie already identifies them
+            return None
+        user_id = read_token(token_from_request(req), app)
+        if user_id is None:
+            return None
+        return User.query.get(user_id)
 
     # Create database tables
     with app.app_context():

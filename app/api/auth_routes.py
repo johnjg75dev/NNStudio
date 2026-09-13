@@ -12,6 +12,7 @@ from flask import Blueprint, jsonify, redirect, request, url_for
 from flask_login import current_user, login_user, logout_user
 
 from .. import db
+from ..auth_tokens import make_token
 from ..models import (
     ArchitectureDefinition,
     Dataset,
@@ -22,6 +23,22 @@ from ..models import (
 from .helpers import api_route, get_registry, ok
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def _auth_payload(user: User) -> dict:
+    """What the SPA gets back after a successful sign-in.
+
+    `token` is the cookie-free credential: browsers that refuse to store a
+    third-party session cookie (embedded previews) keep this in localStorage and
+    replay it as `X-Session-Token` instead.  Cookie-based browsers ignore it.
+    """
+    return {
+        "ok": True,
+        "id": user.id,
+        "username": user.username,
+        "is_admin": bool(getattr(user, "is_admin", False)),
+        "token": make_token(user.id),
+    }
 
 
 def _wants_json() -> bool:
@@ -46,14 +63,7 @@ def me():
     """Current user, or `authenticated: false` so the SPA can route to /login."""
     if not current_user.is_authenticated:
         return ok({"authenticated": False})
-    return ok(
-        {
-            "authenticated": True,
-            "id": current_user.id,
-            "username": current_user.username,
-            "is_admin": bool(getattr(current_user, "is_admin", False)),
-        }
-    )
+    return ok({"authenticated": True, **_auth_payload(current_user)})
 
 
 @auth_bp.route("/check-username")
@@ -82,7 +92,7 @@ def login():
         return spa_index()
 
     if current_user.is_authenticated:
-        return _redirect_or_json("/", {"ok": True, "username": current_user.username})
+        return _redirect_or_json("/", _auth_payload(current_user))
 
     username = (request.form.get("username") or "").strip()
     password = request.form.get("password") or ""
@@ -93,7 +103,7 @@ def login():
 
     login_user(user)
     next_url = request.args.get("next") or request.form.get("next") or "/"
-    return _redirect_or_json(next_url, {"ok": True, "username": user.username})
+    return _redirect_or_json(next_url, _auth_payload(user))
 
 
 @auth_bp.route("/signup", methods=["GET", "POST"])
@@ -104,7 +114,7 @@ def signup():
         return spa_index()
 
     if current_user.is_authenticated:
-        return _redirect_or_json("/", {"ok": True, "username": current_user.username})
+        return _redirect_or_json("/", _auth_payload(current_user))
 
     username = (request.form.get("username") or "").strip()
     password = request.form.get("password") or ""
@@ -123,11 +133,16 @@ def signup():
 
     _seed_account(new_user)
     login_user(new_user)
-    return _redirect_or_json("/", {"ok": True, "username": new_user.username})
+    return _redirect_or_json("/", _auth_payload(new_user))
 
 
 @auth_bp.route("/logout")
 def logout():
+    """End the cookie session.
+
+    A token held in localStorage cannot be revoked from here (it is stateless),
+    so the SPA drops it itself before calling this — see `signOut` in AppShell.
+    """
     if current_user.is_authenticated:
         logout_user()
     if _wants_json():
