@@ -7,10 +7,14 @@ import sys
 from app import create_app
 
 
-def run_server():
-    """Run the Flask development server."""
+def run_server(host="0.0.0.0", port=5000, debug=True):
+    """Run the Flask development server.
+
+    ``debug`` enables the Werkzeug reloader and interactive debugger.  Turn it
+    off (``--no-debug``) whenever the port is reachable from outside the machine.
+    """
     app = create_app()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host=host, port=port, debug=debug)
 
 
 def list_tests():
@@ -98,11 +102,30 @@ def main():
         dest="html_report",
         help="Generate HTML test report. Provide filename (e.g., 'report.html') or directory (e.g., 'reports/').",
     )
+    parser.add_argument(
+        "--host",
+        default=os.environ.get("HOST", "0.0.0.0"),
+        help="Interface the server binds to (default: 0.0.0.0, or $HOST).",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("PORT", "5000")),
+        help="Port to listen on (default: 5000, or $PORT).",
+    )
+    parser.add_argument(
+        "--no-debug",
+        dest="debug",
+        action="store_false",
+        help="Disable the Werkzeug reloader and debugger. Use this when the "
+        "server is exposed beyond localhost.",
+    )
+    parser.set_defaults(debug=True)
 
     args = parser.parse_args()
 
     if args.command == "server":
-        run_server()
+        run_server(host=args.host, port=args.port, debug=args.debug)
     elif args.command == "test":
         if not args.tests:
             list_tests()

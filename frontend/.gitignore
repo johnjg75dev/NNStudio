@@ -1,0 +1,22 @@
+# ── build output & dependencies ───────────────────────────────────────
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+npm-debug.log*
+yarn-error.log*
+
+# ── editor noise ──────────────────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# The repository-root .gitignore is Python-flavoured and blanket-ignores
+# `*.html` and any `lib/` directory. Both are real sources for the React
+# front-end, so they are re-included here (the directory has to be
+# un-ignored before its contents can be).
+!index.html
+!src/lib/
+!src/lib/**

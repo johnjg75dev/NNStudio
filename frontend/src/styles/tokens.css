@@ -1,0 +1,162 @@
+/* ════════════════════════════════════════════════════════════════════
+   NNStudio design tokens
+   Single source of truth for colour, type, space, radius, elevation.
+   Themes are switched by [data-theme] on <html>.
+   ════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── spacing ── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+
+  /* ── radius ── */
+  --r-xs: 4px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+
+  /* ── type ── */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --fs-2xs: 10px;
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-base: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 20px;
+  --fs-2xl: 26px;
+  --fs-3xl: 34px;
+
+  --lh-tight: 1.2;
+  --lh-snug: 1.4;
+  --lh-normal: 1.6;
+
+  /* ── motion ── */
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-1: 90ms;
+  --dur-2: 160ms;
+  --dur-3: 260ms;
+
+  /* ── layout ── */
+  --rail-w: 68px;
+  --panel-w: 336px;
+  --inspector-w: 320px;
+  --header-h: 58px;
+
+  /* ── brand ── */
+  --brand-500: #4f8cff;
+  --brand-400: #6ea0ff;
+  --brand-600: #3571e8;
+  --violet-500: #a97bff;
+  --teal-500: #2dd4bf;
+
+  --pos: #34d17b;
+  --neg: #ff5f56;
+  --warn: #f2b03d;
+  --info: #58a6ff;
+}
+
+/* ═══════════════════════════ DARK (default) ═══════════════════════ */
+:root,
+[data-theme='dark'] {
+  --bg-0: #07090f;
+  --bg-1: #0b0e16;
+  --bg-2: #10141f;
+  --bg-3: #161b29;
+  --bg-4: #1d2333;
+
+  --surface: rgba(255, 255, 255, 0.028);
+  --surface-strong: rgba(255, 255, 255, 0.055);
+  --surface-inset: rgba(0, 0, 0, 0.32);
+
+  --border: rgba(255, 255, 255, 0.085);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-subtle: rgba(255, 255, 255, 0.045);
+
+  --text-1: #eef2fb;
+  --text-2: #a3adc4;
+  --text-3: #6d7791;
+  --text-4: #4d5568;
+
+  --accent: #6ea0ff;
+  --accent-soft: rgba(110, 160, 255, 0.14);
+  --accent-line: rgba(110, 160, 255, 0.38);
+
+  --glow: 0 0 0 1px rgba(110, 160, 255, 0.25), 0 10px 34px -12px rgba(79, 140, 255, 0.5);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 6px 20px -8px rgba(0, 0, 0, 0.7);
+  --shadow-3: 0 24px 60px -20px rgba(0, 0, 0, 0.85);
+
+  --canvas-bg: #070a11;
+  --grid-line: rgba(255, 255, 255, 0.045);
+
+  --pos: #3ddc84;
+  --pos-soft: rgba(61, 220, 132, 0.14);
+  --neg: #ff6b6b;
+  --neg-soft: rgba(255, 107, 107, 0.14);
+  --warn: #ffc861;
+  --warn-soft: rgba(255, 200, 97, 0.14);
+
+  --scroll-thumb: rgba(255, 255, 255, 0.13);
+  --scroll-thumb-hover: rgba(255, 255, 255, 0.22);
+  --selection: rgba(110, 160, 255, 0.28);
+
+  color-scheme: dark;
+}
+
+/* ═══════════════════════════ LIGHT ═══════════════════════════════ */
+[data-theme='light'] {
+  --bg-0: #f4f6fb;
+  --bg-1: #fbfcfe;
+  --bg-2: #ffffff;
+  --bg-3: #f1f4fa;
+  --bg-4: #e6ebf4;
+
+  --surface: rgba(15, 23, 42, 0.028);
+  --surface-strong: rgba(15, 23, 42, 0.05);
+  --surface-inset: rgba(15, 23, 42, 0.04);
+
+  --border: rgba(15, 23, 42, 0.1);
+  --border-strong: rgba(15, 23, 42, 0.2);
+  --border-subtle: rgba(15, 23, 42, 0.06);
+
+  --text-1: #101728;
+  --text-2: #4c5a75;
+  --text-3: #7b88a3;
+  --text-4: #9aa5bc;
+
+  --accent: #2f6fe4;
+  --accent-soft: rgba(47, 111, 228, 0.1);
+  --accent-line: rgba(47, 111, 228, 0.3);
+
+  --glow: 0 0 0 1px rgba(47, 111, 228, 0.18), 0 10px 30px -14px rgba(47, 111, 228, 0.45);
+  --shadow-1: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-2: 0 8px 24px -12px rgba(16, 24, 40, 0.25);
+  --shadow-3: 0 28px 60px -24px rgba(16, 24, 40, 0.35);
+
+  --canvas-bg: #ffffff;
+  --grid-line: rgba(15, 23, 42, 0.06);
+
+  --pos: #12995c;
+  --pos-soft: rgba(18, 153, 92, 0.12);
+  --neg: #d92d20;
+  --neg-soft: rgba(217, 45, 32, 0.1);
+  --warn: #b26a00;
+  --warn-soft: rgba(178, 106, 0, 0.12);
+
+  --scroll-thumb: rgba(15, 23, 42, 0.18);
+  --scroll-thumb-hover: rgba(15, 23, 42, 0.3);
+  --selection: rgba(47, 111, 228, 0.2);
+
+  color-scheme: light;
+}
