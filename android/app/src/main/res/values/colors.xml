@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary colors - Deep Purple -->
+    <color name="primary">#7C4DFF</color>
+    <color name="primary_dark">#651FFF</color>
+    <color name="primary_light">#B388FF</color>
+    
+    <!-- Accent colors - Amber -->
+    <color name="accent">#FFC107</color>
+    <color name="accent_dark">#FFA000</color>
+    
+    <!-- Background colors -->
+    <color name="background">#121212</color>
+    <color name="surface">#1E1E1E</color>
+    <color name="surface_light">#2D2D2D</color>
+    
+    <!-- Text colors -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B0B0B0</color>
+    <color name="text_hint">#606060</color>
+    
+    <!-- Network visualization colors -->
+    <color name="node_input">#4CAF50</color>
+    <color name="node_hidden">#2196F3</color>
+    <color name="node_output">#FF5722</color>
+    <color name="weight_positive">#4CAF50</color>
+    <color name="weight_negative">#F44336</color>
+    
+    <!-- Chart colors -->
+    <color name="loss_line">#FF5722</color>
+    <color name="accuracy_line">#4CAF50</color>
+    <color name="grid_color">#404040</color>
+    
+    <!-- Status colors -->
+    <color name="success">#4CAF50</color>
+    <color name="error">#F44336</color>
+    <color name="warning">#FFC107</color>
+</resources>
