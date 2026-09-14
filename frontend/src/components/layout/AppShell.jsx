@@ -45,6 +45,9 @@ export default function AppShell() {
   const metrics = useSession((s) => s.metrics);
   const running = useSession((s) => s.running);
   const dirty = useSession((s) => s.configDirty);
+  const snapshot = useSession((s) => s.snapshot);
+  const config = useSession((s) => s.config);
+  const busy = useSession((s) => s.busy);
 
   // ── auth gate ──
   useEffect(() => {
@@ -126,6 +129,15 @@ export default function AppShell() {
   const meta = PAGE_META[location.pathname] || { title: 'NNStudio', subtitle: '' };
   const statusTone = running ? 'active' : status === 'error' ? 'error' : status === 'paused' ? 'warn' : '';
 
+  const activeTaskName =
+    snapshot?.func?.label ||
+    (config?.dsId
+      ? catalog.datasets?.find((d) => String(d.id) === String(config.dsId))?.name
+      : catalog.functionByKey?.[config?.funcKey]?.label) ||
+    config?.funcKey ||
+    'Network';
+  const archName = catalog.architectureByKey?.[config?.archKey]?.label || config?.archKey || 'MLP';
+
   return (
     <div className="shell">
       <nav className="rail" aria-label="Primary">
@@ -184,7 +196,24 @@ export default function AppShell() {
       <div className="shell__main">
         <header className="topbar">
           <div className="topbar__title">
-            <h1>{meta.title}</h1>
+            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <h1>{meta.title}</h1>
+              {location.pathname !== '/train' && (
+                <button
+                  type="button"
+                  className="topbar__taskpill"
+                  title="Active network in session — click to open in Studio"
+                  onClick={() => navigate('/train')}
+                >
+                  <Icon name="network" size={12} />
+                  <span>{activeTaskName}</span>
+                  <span className="topbar__taskarch">({archName})</span>
+                  {snapshot?.topology && (
+                    <span className="mono xs muted">[{snapshot.topology.join('→')}]</span>
+                  )}
+                </button>
+              )}
+            </div>
             <span>{meta.subtitle}</span>
           </div>
 
@@ -192,9 +221,16 @@ export default function AppShell() {
 
           <div className="topbar__group">
             {dirty && (
-              <Badge tone="warn" title="Your configuration changed since the last build">
-                rebuild pending
-              </Badge>
+              <Button
+                variant="warn"
+                size="xs"
+                icon="build"
+                loading={busy}
+                onClick={() => actions.build()}
+                title="Configuration modified — click to rebuild and apply"
+              >
+                Rebuild
+              </Button>
             )}
             <LiveMetrics metrics={metrics} running={running} />
             <StatusPill tone={statusTone}>{statusMessage || status}</StatusPill>

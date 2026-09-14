@@ -167,7 +167,7 @@ export default function FunctionEditor({ func, templates, onSaved, onDeleted, on
     }
   }
 
-  function trainOn() {
+  async function trainOn() {
     if (!func?.id) return;
     store.setConfig(
       {
@@ -181,7 +181,12 @@ export default function FunctionEditor({ func, templates, onSaved, onDeleted, on
     store.syncIoDims({ inputs: func.num_inputs, outputs: func.num_outputs });
     store.pushHistory(`Switched to custom function “${func.name}”`);
     navigate('/train');
-    toast.info('Studio is pointed at your function — press Build.');
+    const built = await store.build({ silent: true });
+    if (built) {
+      toast.success(`Loaded function “${func.name}” and network rebuilt.`);
+    } else {
+      toast.info(`Studio pointed at “${func.name}” — check architecture and press Rebuild.`);
+    }
   }
 
   return (

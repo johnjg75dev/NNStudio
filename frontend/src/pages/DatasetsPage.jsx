@@ -133,7 +133,7 @@ export default function DatasetsPage() {
     }
   }
 
-  function trainOn() {
+  async function trainOn() {
     if (!selected) return;
     if (!selected.downloaded || !(detail?.data?.length)) {
       toast.warn('Download this dataset before training on it.');
@@ -151,7 +151,12 @@ export default function DatasetsPage() {
     store.syncIoDims({ inputs: selected.num_inputs, outputs: selected.num_outputs || 1 });
     store.pushHistory(`Switched to dataset “${selected.name}”`);
     navigate('/train');
-    toast.info(`Studio is now pointed at “${selected.name}” — press Build.`);
+    const built = await store.build({ silent: true });
+    if (built) {
+      toast.success(`Loaded “${selected.name}” and network rebuilt.`);
+    } else {
+      toast.info(`Studio pointed at “${selected.name}” — check architecture and press Rebuild.`);
+    }
   }
 
   function exportJson() {

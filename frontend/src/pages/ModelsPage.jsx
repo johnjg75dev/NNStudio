@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import Icon from '../components/Icon';
 import ModelCard from '../components/models/ModelCard';
@@ -21,6 +21,7 @@ const SORTS = [
  * into the studio, and export in interchange formats.
  */
 export default function ModelsPage() {
+  const navigate = useNavigate();
   const store = useSessionStore();
   const catalog = useCatalog();
   const toast = useToast();
@@ -109,6 +110,7 @@ export default function ModelsPage() {
     setBusy(true);
     try {
       await store.loadLibraryModel(model.id);
+      navigate('/train');
       toast.success(`“${model.name}” is live in the studio`);
     } finally {
       setBusy(false);

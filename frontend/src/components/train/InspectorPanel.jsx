@@ -5,7 +5,7 @@ import LatentPanel from './LatentPanel';
 import WeightsPanel from './WeightsPanel';
 import HistoryPanel from './HistoryPanel';
 import Plot2DCanvas from '../canvas/Plot2DCanvas';
-import { Tabs } from '../ui';
+import { EmptyState, Tabs } from '../ui';
 import { useSession } from '../../state/SessionContext';
 
 const TABS = [
@@ -60,14 +60,11 @@ export default function InspectorPanel() {
               </p>
             </div>
           ) : (
-            <div className="empty">
-              <div className="empty__icon">chart</div>
-              <h3>Needs a 1- or 2-input task</h3>
-              <p className="tiny muted">
-                This plot draws the network's response across its input space, which only works with one
-                or two inputs. Your current task has {inputs}.
-              </p>
-            </div>
+            <EmptyState
+              icon="chart"
+              title="Needs a 1- or 2-input task"
+              message={`This plot draws the network's response across its input space, which only works with one or two inputs. Your current task has ${inputs}.`}
+            />
           ))}
         {tab === 'history' && <HistoryPanel />}
       </div>

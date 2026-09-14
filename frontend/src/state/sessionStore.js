@@ -202,7 +202,7 @@ export class SessionStore {
     const inputs = meta.inputs ?? meta.num_inputs ?? config.inputs;
     const outputs = meta.outputs ?? meta.num_outputs ?? config.outputs;
     if (inputs !== config.inputs || outputs !== config.outputs) {
-      this.set({ config: { ...config, inputs, outputs } });
+      this.setConfig({ inputs, outputs }, { markDirty: true });
     }
   }
 
@@ -612,6 +612,7 @@ export class SessionStore {
         builtConfig: null,
       });
       this.pushHistory(`Imported model (${(result.topology || []).join('→')})`);
+      this.setTaskMeta(snapshot?.func);
       await this.refreshSamples({ silent: true });
       this.notifyFrame();
       this.notify('Model imported into the session', 'pos');
@@ -652,6 +653,7 @@ export class SessionStore {
         },
       });
       this.pushHistory('Loaded a model from your library');
+      this.setTaskMeta(snapshot?.func);
       await this.refreshSamples({ silent: true });
       this.notifyFrame();
       this.notify('Model loaded into the session', 'pos');

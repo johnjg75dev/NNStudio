@@ -61,7 +61,7 @@ export default function LoginPage() {
         </div>
       )}
 
-      <Button type="submit" variant="primary" size="lg" block loading={busy} icon="logout">
+      <Button type="submit" variant="primary" size="lg" block loading={busy} icon="login">
         Sign in
       </Button>
 

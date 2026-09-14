@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Icon from '../Icon';
 import PixelCanvas from '../canvas/PixelCanvas';
 import { Badge, Button, Field, NumberInput, Segmented, Select, Slider } from '../ui';
@@ -16,11 +16,30 @@ export default function InputControls({ mode, onModeChange }) {
   const test = useSession((s) => s.test);
   const samples = useSession((s) => s.samples);
   const sweep = useSession((s) => s.sweep);
+  const busy = useSession((s) => s.busy);
   const io = useIoShape();
+
+  const [autoRun, setAutoRun] = useState(true);
 
   const func = snapshot?.func || null;
   const labels = func?.input_labels || test.values.map((_, i) => `x${i}`);
   const values = test.values || [];
+
+  // Auto-fallback if 'draw' mode was active but current task is not an image
+  useEffect(() => {
+    if (mode === 'draw' && !io.input) {
+      onModeChange?.('numbers');
+    }
+  }, [mode, io.input, onModeChange]);
+
+  // Debounced live prediction on input change
+  useEffect(() => {
+    if (!autoRun || !snapshot?.built || !values.length) return;
+    const timer = setTimeout(() => {
+      actions.predict({ x: values, source: 'playground' });
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [values, autoRun, snapshot?.built]);
 
   const bounds = useMemo(
     () =>
@@ -54,8 +73,27 @@ export default function InputControls({ mode, onModeChange }) {
 
   return (
     <div className="inputs">
-      <div className="row" style={{ gap: 8, marginBottom: 12 }}>
+      <div className="row wrap" style={{ gap: 8, marginBottom: 12, alignItems: 'center' }}>
         <Segmented value={mode} onChange={onModeChange} options={modes} />
+        <Button
+          size="sm"
+          variant="primary"
+          icon="bolt"
+          loading={busy}
+          onClick={() => actions.predict({ x: values, source: 'playground' })}
+          title="Run forward pass through the network"
+        >
+          Predict
+        </Button>
+        <button
+          type="button"
+          className={`chip-toggle ${autoRun ? 'chip-toggle--active' : ''}`}
+          onClick={() => setAutoRun(!autoRun)}
+          title="Toggle live prediction as you move sliders or draw"
+        >
+          <Icon name={autoRun ? 'check' : 'close'} size={11} />
+          <span>Live pass</span>
+        </button>
         <Badge mono style={{ marginLeft: 'auto' }}>
           {values.length} inputs
         </Badge>

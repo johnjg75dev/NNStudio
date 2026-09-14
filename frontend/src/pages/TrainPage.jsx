@@ -29,49 +29,92 @@ export default function TrainPage() {
   }, [focus]);
 
   return (
-    <div className="train-page" data-focus={focus || 'all'}>
-      <aside className="train-page__col train-page__col--setup" data-col="setup">
-        <ColumnHead
-          title="Setup"
-          hint="Task, layers, hyperparameters"
-          active={focus === 'setup'}
-          onFocus={() => setFocus('setup')}
-        />
-        <SetupPanel />
-      </aside>
-
-      <section className="train-page__col train-page__col--stage" data-col="stage">
-        <ColumnHead
-          title="Network"
-          hint={dirty ? 'Setup changed — rebuild to apply' : statusMessage || 'Live'}
-          tone={dirty ? 'warn' : undefined}
-          active={focus === 'stage'}
-          onFocus={() => setFocus('stage')}
-        />
-        {error && (
-          <div className="banner banner--neg">
-            <Icon name="alert" size={14} />
-            <span>{error}</span>
-          </div>
+    <div className="train-page-wrapper">
+      <div className="train-page__switcher" data-has-focus={focus ? 'true' : 'false'}>
+        <div className="train-page__tabs">
+          <button
+            type="button"
+            className={`train-page__tab ${focus === 'setup' ? 'train-page__tab--active' : ''}`}
+            onClick={() => setFocus(focus === 'setup' ? null : 'setup')}
+          >
+            <Icon name="sliders" size={13} />
+            <span>Setup</span>
+          </button>
+          <button
+            type="button"
+            className={`train-page__tab ${focus === 'stage' ? 'train-page__tab--active' : ''}`}
+            onClick={() => setFocus(focus === 'stage' ? null : 'stage')}
+          >
+            <Icon name="network" size={13} />
+            <span>Network</span>
+          </button>
+          <button
+            type="button"
+            className={`train-page__tab ${focus === 'inspector' ? 'train-page__tab--active' : ''}`}
+            onClick={() => setFocus(focus === 'inspector' ? null : 'inspector')}
+          >
+            <Icon name="eye" size={13} />
+            <span>Inspect</span>
+          </button>
+        </div>
+        {focus && (
+          <button
+            type="button"
+            className="train-page__show-all"
+            onClick={() => setFocus(null)}
+            title="Show all three panels side-by-side"
+          >
+            <Icon name="maximize" size={12} />
+            <span>Show all</span>
+            <kbd>Esc</kbd>
+          </button>
         )}
-        <StagePanel />
-      </section>
+      </div>
 
-      <aside className="train-page__col train-page__col--inspector" data-col="inspector">
-        <ColumnHead
-          title="Inspect"
-          hint={built ? 'Samples, neurons, weights' : 'Waiting for a build'}
-          active={focus === 'inspector'}
-          onFocus={() => setFocus('inspector')}
-        />
-        <InspectorPanel />
-      </aside>
+      <div className="train-page" data-focus={focus || 'all'}>
+        <aside className="train-page__col train-page__col--setup" data-col="setup">
+          <ColumnHead
+            title="Setup"
+            hint="Task, layers, hyperparameters"
+            active={focus === 'setup'}
+            onFocus={() => setFocus(focus === 'setup' ? null : 'setup')}
+          />
+          <SetupPanel />
+        </aside>
 
-      {focus && (
-        <button type="button" className="focus-exit" onClick={() => setFocus(null)}>
-          <Icon name="maximize" size={13} /> Show all panels <kbd>Esc</kbd>
-        </button>
-      )}
+        <section className="train-page__col train-page__col--stage" data-col="stage">
+          <ColumnHead
+            title="Network"
+            hint={dirty ? 'Setup changed — rebuild to apply' : statusMessage || 'Live'}
+            tone={dirty ? 'warn' : undefined}
+            active={focus === 'stage'}
+            onFocus={() => setFocus(focus === 'stage' ? null : 'stage')}
+          />
+          {error && (
+            <div className="banner banner--neg">
+              <Icon name="alert" size={14} />
+              <span>{error}</span>
+            </div>
+          )}
+          <StagePanel />
+        </section>
+
+        <aside className="train-page__col train-page__col--inspector" data-col="inspector">
+          <ColumnHead
+            title="Inspect"
+            hint={built ? 'Samples, neurons, weights' : 'Waiting for a build'}
+            active={focus === 'inspector'}
+            onFocus={() => setFocus(focus === 'inspector' ? null : 'inspector')}
+          />
+          <InspectorPanel />
+        </aside>
+
+        {focus && (
+          <button type="button" className="focus-exit" onClick={() => setFocus(null)}>
+            <Icon name="maximize" size={13} /> Show all panels <kbd>Esc</kbd>
+          </button>
+        )}
+      </div>
     </div>
   );
 }

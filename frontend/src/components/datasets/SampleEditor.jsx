@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Icon from '../Icon';
 import PixelCanvas from '../canvas/PixelCanvas';
 import ScatterPlot from './ScatterPlot';
@@ -25,6 +25,12 @@ export default function SampleEditor({ dataset, readOnly = false, data, onChange
   const [brush, setBrush] = useState(1);
   const [json, setJson] = useState('');
   const [jsonError, setJsonError] = useState(null);
+
+  // Auto-switch tab if switching between image and tabular datasets
+  useEffect(() => {
+    if (tab === 'image' && !isImage) setTab('table');
+    else if (tab === 'scatter' && numInputs !== 2) setTab('table');
+  }, [dataset?.id, isImage, numInputs, tab]);
 
   const idx = Math.min(cursor, Math.max(0, samples.length - 1));
   const sample = samples[idx] || null;

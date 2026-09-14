@@ -16,6 +16,7 @@ import AddLayerDialog from './AddLayerDialog';
 import TaskPicker from './TaskPicker';
 import PresetGallery from './PresetGallery';
 import SavePresetDialog from './SavePresetDialog';
+import SaveModelDialog from './SaveModelDialog';
 import { useCatalog } from '../../state/CatalogContext';
 import { useSession, useSessionActions } from '../../state/SessionContext';
 import { useConfirm, useToast } from '../../state/ToastContext';
@@ -69,6 +70,7 @@ export default function SetupPanel() {
   const [taskOpen, setTaskOpen] = useState(false);
   const [presetOpen, setPresetOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [saveModelOpen, setSaveModelOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [sections, setSections] = useState({ task: true, layers: true, training: false, display: false });
 
@@ -177,12 +179,22 @@ export default function SetupPanel() {
             </Info>
           )}
 
-          <div className="btn-group btn-group--fill">
+          <div className="btn-group btn-group--fill wrap" style={{ gap: 6 }}>
             <Button size="sm" icon="sparkles" onClick={() => setPresetOpen(true)}>
               Presets
             </Button>
-            <Button size="sm" variant="ghost" icon="save" onClick={() => setSaveOpen(true)}>
-              Save setup
+            <Button size="sm" variant="ghost" icon="save" onClick={() => setSaveOpen(true)} title="Save setup as a preset">
+              Preset
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              icon="save"
+              onClick={() => setSaveModelOpen(true)}
+              disabled={!snapshot?.built}
+              title="Save trained weights to model library"
+            >
+              Save model
             </Button>
           </div>
         </Accordion>
@@ -360,6 +372,11 @@ export default function SetupPanel() {
         onClose={() => setSaveOpen(false)}
         config={config}
         taskLabel={taskMeta?.label}
+      />
+
+      <SaveModelDialog
+        open={saveModelOpen}
+        onClose={() => setSaveModelOpen(false)}
       />
 
       <AddLayerDialog
